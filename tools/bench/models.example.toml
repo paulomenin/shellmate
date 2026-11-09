@@ -1,0 +1,27 @@
+# Models for evals.py. Copy to models.toml and edit. Secrets are references, never values.
+#
+# name      label in the report (also the cassette file name)
+# model     the model id the server expects
+# preset    ollama | lmstudio | openai | openrouter      (or give `endpoint = "http://host/v1"`)
+# trust     local (default) or remote. Remote models are capped at context level 1 by shellmate itself.
+# level     context level to test with (default 1)
+# api_key   env:NAME or file:/path, for hosted endpoints
+# settings  extra provider settings: timeout_secs, reasoning_effort
+
+[[model]]
+name = "qwen2.5-coder-1.5b"
+model = "qwen2.5-coder:1.5b"
+preset = "ollama"
+
+[[model]]
+name = "gemma4-e4b"
+model = "gemma4:e4b"
+preset = "ollama"
+settings = { reasoning_effort = "none", timeout_secs = 120 }
+
+# [[model]]
+# name = "gpt-5-mini"
+# model = "gpt-5-mini"
+# preset = "openai"
+# trust = "remote"
+# api_key = "env:OPENAI_API_KEY"

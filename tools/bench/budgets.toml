@@ -1,0 +1,15 @@
+# Hard limits for `perf.py`, in milliseconds (median wall time of a whole process, on the machine that runs it).
+# They are deliberately loose; the baseline comparison (`--baseline`) is what catches smaller regressions.
+[p50_ms]
+version = 20
+config-check = 25
+dry-run = 30
+context = 40
+check = 40
+capture = 25
+invoke-ask = 120
+invoke-generate = 120
+invoke-stream = 150
+
+[rss_mib]
+invoke-ask = 40
