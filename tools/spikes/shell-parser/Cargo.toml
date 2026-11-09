@@ -1,0 +1,11 @@
+[package]
+name = "shell-parser-spike"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+shlex = "1"
+serde_json = "1"
+
+[profile.release]
+opt-level = 3

@@ -1,0 +1,19 @@
+[package]
+name = "startup-spike"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+serde_json = "1"
+ureq = { version = "2", default-features = false, features = ["tls", "json"] }
+tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "macros"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "abort"

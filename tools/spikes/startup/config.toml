@@ -1,0 +1,174 @@
+version = 1
+[runtime]
+mode = "oneshot"
+
+[providers.p0]
+plugin = "builtin:openai-compatible"
+trust = "remote"
+max_context_level = 1
+[providers.p0.settings]
+model = "x"
+api_key = "env:KEY"
+
+[providers.p1]
+plugin = "builtin:openai-compatible"
+trust = "remote"
+max_context_level = 1
+[providers.p1.settings]
+model = "x"
+api_key = "env:KEY"
+
+[providers.p2]
+plugin = "builtin:openai-compatible"
+trust = "remote"
+max_context_level = 1
+[providers.p2.settings]
+model = "x"
+api_key = "env:KEY"
+
+[providers.p3]
+plugin = "builtin:openai-compatible"
+trust = "remote"
+max_context_level = 1
+[providers.p3.settings]
+model = "x"
+api_key = "env:KEY"
+
+[providers.p4]
+plugin = "builtin:openai-compatible"
+trust = "remote"
+max_context_level = 1
+[providers.p4.settings]
+model = "x"
+api_key = "env:KEY"
+
+[providers.p5]
+plugin = "builtin:openai-compatible"
+trust = "remote"
+max_context_level = 1
+[providers.p5.settings]
+model = "x"
+api_key = "env:KEY"
+
+[plugins."builtin:p0"]
+enabled = true
+[plugins."builtin:p0".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p1"]
+enabled = true
+[plugins."builtin:p1".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p2"]
+enabled = true
+[plugins."builtin:p2".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p3"]
+enabled = true
+[plugins."builtin:p3".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p4"]
+enabled = true
+[plugins."builtin:p4".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p5"]
+enabled = true
+[plugins."builtin:p5".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p6"]
+enabled = true
+[plugins."builtin:p6".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p7"]
+enabled = true
+[plugins."builtin:p7".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p8"]
+enabled = true
+[plugins."builtin:p8".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p9"]
+enabled = true
+[plugins."builtin:p9".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p10"]
+enabled = true
+[plugins."builtin:p10".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p11"]
+enabled = true
+[plugins."builtin:p11".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p12"]
+enabled = true
+[plugins."builtin:p12".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p13"]
+enabled = true
+[plugins."builtin:p13".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p14"]
+enabled = true
+[plugins."builtin:p14".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p15"]
+enabled = true
+[plugins."builtin:p15".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p16"]
+enabled = true
+[plugins."builtin:p16".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p17"]
+enabled = true
+[plugins."builtin:p17".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p18"]
+enabled = true
+[plugins."builtin:p18".settings]
+a = 1
+b = ["x","y","z"]
+
+[plugins."builtin:p19"]
+enabled = true
+[plugins."builtin:p19".settings]
+a = 1
+b = ["x","y","z"]
+
+[tools.exec]
+preapproved = ["cmd0 *", "cmd1 *", "cmd2 *", "cmd3 *", "cmd4 *", "cmd5 *", "cmd6 *", "cmd7 *", "cmd8 *", "cmd9 *", "cmd10 *", "cmd11 *", "cmd12 *", "cmd13 *", "cmd14 *", "cmd15 *", "cmd16 *", "cmd17 *", "cmd18 *", "cmd19 *", "cmd20 *", "cmd21 *", "cmd22 *", "cmd23 *", "cmd24 *", "cmd25 *", "cmd26 *", "cmd27 *", "cmd28 *", "cmd29 *"]
