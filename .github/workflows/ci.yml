@@ -1,0 +1,99 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # tests that need git or a shell fail, not skip, when it is missing
+      - run: sudo apt-get update && sudo apt-get install -y git fish zsh
+      - run: cargo test --workspace --locked
+        env:
+          REQUIRE_TOOLS: 1
+
+  msrv:
+    # the oldest Rust that can build shellmate: `rust-version` in Cargo.toml. Build only: running the tests
+    # needs the newer toolchain in mise.toml because of dev-only dependencies (proptest).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: toolchain below matches rust-version
+        run: |
+          want=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)
+          have=$(sed -n 's/.*dtolnay\/rust-toolchain@\([0-9][0-9.]*\).*/\1/p' .github/workflows/ci.yml | head -1)
+          echo "rust-version=$want, msrv job toolchain=$have"
+          [ "$have" = "$want.0" ] || [ "$have" = "$want" ] || { echo "update the msrv job to Rust $want"; exit 1; }
+      - uses: dtolnay/rust-toolchain@1.86.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --workspace --locked
+
+  shells:
+    # the real fish, zsh and bash in tmux, with and without starship, against a mock provider
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y fish zsh tmux python3 curl
+      - run: curl -sS https://starship.rs/install.sh | sh -s -- --yes
+      - run: tools/e2e/run-all.sh
+
+  perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -q -p shellmate
+      # the benchmark tooling's own tests, and the answer-scoring pipeline replayed with no model
+      - run: python3 -I -m unittest discover -s tools/bench
+      # fails over a budget in tools/bench/budgets.toml
+      - run: python3 tools/bench/perf.py --no-build --runs 50 --markdown perf.md
+      - run: cat perf.md >> "$GITHUB_STEP_SUMMARY"
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf
+          path: tools/bench/results/
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - run: sudo apt-get update && sudo apt-get install -y git fish zsh
+      # instrumented binaries are slow, so the helper-program time limits are stretched
+      - run: cargo llvm-cov --workspace --locked --ignore-filename-regex 'tools/shellmate-testing|/tests/' --lcov --output-path lcov.info
+        env:
+          SHELLMATE_TIME_SCALE: 5
+          REQUIRE_TOOLS: 1
+      - run: |
+          { echo '### Coverage'; echo '```'; cargo llvm-cov report --ignore-filename-regex 'tools/shellmate-testing|/tests/' --summary-only | awk 'NR==1 || /TOTAL/ {print $1, $4, $10}' ; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: lcov.info
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
