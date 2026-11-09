@@ -1,0 +1,67 @@
+---
+title: Shell integration
+description: How the fish, zsh and bash glue works, what it adds to your shell, and what is tested.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+The shell part of shellmate is a small generated script. It binds your keys, remembers the last few commands, and for each key press hands the binary a description of your prompt. All logic is in the Rust binary.
+
+## What the glue does
+
+- Binds the shortcuts from `[input.shortcuts]`. It never overrides an existing binding.
+- Exports `SHELLMATE_SESSION`, a fresh random id per interactive shell, used for [conversations](../conversations/).
+- Records the last exit status, duration and up to 10 recent commands (used at context level 2).
+- On a key press, writes a request to a private file, runs `shellmate invoke`, and puts the result into your input line.
+
+`shellmate init <shell>` prints the script. It embeds the **absolute path** of the binary, so a different `shellmate` earlier in `PATH` cannot take its place.
+
+## Install it
+
+The easiest way is `shellmate install-shell`, or `shellmate setup`, which maintains a marked block in your rc file (see [Install](../../start/install/)). To do it by hand:
+
+<Tabs>
+	<TabItem label="fish">
+		```fish
+		/path/to/shellmate init fish | source
+		```
+	</TabItem>
+	<TabItem label="zsh">
+		```zsh
+		source <(/path/to/shellmate init zsh)
+		```
+	</TabItem>
+	<TabItem label="bash">
+		```bash
+		eval "$(/path/to/shellmate init bash)"
+		```
+		Put this at the **end** of `~/.bashrc`, after prompt tools such as starship, so that it sees the exit status first.
+	</TabItem>
+</Tabs>
+
+An optional alias is easy to add yourself: `alias sm=shellmate`.
+
+## The glue protocol
+
+The binary and the glue talk over a small versioned protocol: a NUL-separated list of `key=value` fields on standard input (`action`, `shell`, `cwd`, `cursor`, `status`, `session`, `hist`, and `buffer` last), and an exit code on the way back.
+
+| Exit code | Meaning |
+|---|---|
+| 0 | Replace the input line with what is printed on standard output. |
+| 10 | Leave the input line as it is (explain, errors you should read, cancel). |
+| other | An error. The input line is left alone. |
+
+Messages for you go to the terminal device directly (`/dev/tty`), falling back to standard error, so the replacement text on standard output stays clean.
+
+## What is tested
+
+A conformance suite runs the real shells in a private tmux server against the real binary and a mock provider: 16 checks per shell, with and without starship, for fish, zsh and bash. The checks cover replacing the buffer, explain leaving it alone, tricky quoting and Unicode surviving the round trip, cancellation with typeahead kept, streaming while generating, secrets replaced by placeholders, and the glue never printing errors of its own.
+
+```sh
+tools/e2e/run-all.sh          # all shells, plain and starship
+tools/e2e/conformance.sh zsh  # one shell
+```
+
+<Aside type="caution">
+	Not yet tested: powerlevel10k, older shell versions, macOS and musl builds. The bash integration needs bash 4.4 or newer; macOS system bash 3.2 is not supported.
+</Aside>

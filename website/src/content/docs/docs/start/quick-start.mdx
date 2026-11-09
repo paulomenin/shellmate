@@ -1,0 +1,71 @@
+---
+title: Quick start
+description: A minimal configuration and your first questions.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+If you ran `shellmate setup` you already have a config. This page shows the smallest one that works, so you can see what each part does.
+
+## A minimal config
+
+```toml title="~/.config/shellmate/config.toml"
+version = 1
+
+[providers.local]
+plugin = "builtin:openai-compatible"
+trust = "local"
+[providers.local.settings]
+preset = "ollama"             # or: endpoint = "https://..." and api_key = "env:MY_API_KEY"
+model = "qwen2.5-coder:7b"
+# reasoning_effort = "none"   # much faster with reasoning models such as gemma4
+
+[llm]
+chain = ["local"]
+
+[input.shortcuts]
+"alt+m" = "ask"
+"alt+i" = "generate"
+"alt+j" = "explain"
+```
+
+Validate it without any network access:
+
+```sh
+shellmate config check
+```
+
+## Your first questions
+
+| You type | You press | What happens |
+|---|---|---|
+| `how do I find the biggest files here` | `alt+m` | The answer streams below the prompt. A suggested command is placed in your input line. |
+| `list files modified today, newest first` | `alt+i` | The model is asked for a single command, which is placed in your input line, with at most a one-sentence note. |
+| `tar -xzvf backup.tgz -C /tmp` | `alt+j` | An explanation streams below; your line is left as it is. |
+
+<Aside type="tip">
+	Press `Ctrl-C` to cancel while an answer is streaming. The request stops, `[cancelled]` is shown and anything you typed meanwhile is kept.
+</Aside>
+
+## See what would be sent
+
+Before trusting a provider, look at exactly what leaves your machine, after redaction:
+
+```sh
+printf 'v=1\0action=ask\0shell=zsh\0cwd=%s\0buffer=%s\0' "$PWD" 'why did my build fail?' \
+  | shellmate invoke --dry-run
+```
+
+The shell glue builds this request for you in normal use. For a quick look at the configuration that is in effect, use:
+
+```sh
+shellmate config show
+```
+
+It prints the provider chain, context level, the pipeline, the shortcuts and the tool and audit settings. Secrets appear only as the references you wrote (`env:NAME`), never as values.
+
+## Next
+
+- [Using shellmate](../../guides/using-shellmate/): the three actions in detail.
+- [Providers](../../guides/providers/): remote providers, fallbacks, API keys.
+- [Privacy and redaction](../../guides/privacy/): what is sent, and when.

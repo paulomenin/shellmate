@@ -1,0 +1,118 @@
+---
+title: Install
+description: Build shellmate, run guided setup, and check that everything works.
+---
+
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+<Aside type="caution">
+	There are no published releases yet. For now you build from source. The repository already contains a release workflow that produces static Linux tarballs (x86_64 and aarch64) with checksums once a `v*` tag is pushed.
+</Aside>
+
+## Requirements
+
+- A recent stable Rust toolchain.
+- One of: fish, zsh, or bash 4.4 or newer. (macOS ships bash 3.2, which is not supported.)
+- An LLM endpoint that speaks the OpenAI chat API. A local [Ollama](https://ollama.com) works out of the box.
+
+## Build and set up
+
+<Steps>
+
+1. Build the binary.
+
+   ```sh
+   git clone https://github.com/paulomenin/shellmate
+   cd shellmate
+   cargo build --release
+   ```
+
+2. Run guided setup.
+
+   ```sh
+   target/release/shellmate setup
+   ```
+
+   Setup detects your shell and a running Ollama, asks for a provider and model, writes `~/.config/shellmate/config.toml`, adds one block to your shell's rc file and finishes with `shellmate doctor`. It never overwrites an existing config.
+
+3. Open a new shell (or reload your rc file) and try it.
+
+   Type `how do I find the biggest files here` and press `alt+m`.
+
+</Steps>
+
+### Non-interactive setup
+
+```sh
+shellmate setup --yes --provider ollama --model qwen2.5-coder:7b --shell fish
+```
+
+Providers known to `setup` and `config init`: `ollama`, `lmstudio`, `localai`, `openai`, `openrouter`, and `custom`. With `custom`, setup asks for the base URL of any OpenAI-compatible server (and the name of the environment variable that holds its key, if it needs one). A URL on this machine is treated as local, any other as remote. For a remote provider, setup shows what will be sent and keeps the API key as an `env:` reference. It never writes a key into the file.
+
+## What setup changes
+
+Setup writes two things, and only these two:
+
+1. `~/.config/shellmate/config.toml`, a commented starter config.
+2. A marked block in your shell's rc file, appended at the end:
+
+   ```sh
+   # >>> shellmate >>>
+   ...one line that loads the integration, with the absolute path of the binary...
+   # <<< shellmate <<<
+   ```
+
+The rc file is `~/.config/fish/config.fish`, `${ZDOTDIR:-~}/.zshrc` or `~/.bashrc`. A backup is made once as `<rc file>.shellmate-backup`. Re-running is idempotent: the block is updated in place, for example when the binary path changes.
+
+<Tabs>
+	<TabItem label="Preview">
+		```sh
+		shellmate install-shell --dry-run
+		```
+	</TabItem>
+	<TabItem label="Apply">
+		```sh
+		shellmate install-shell --yes
+		```
+	</TabItem>
+	<TabItem label="Remove">
+		```sh
+		shellmate install-shell --remove
+		```
+	</TabItem>
+</Tabs>
+
+Without a terminal, `install-shell` refuses to change anything unless you pass `--yes`.
+
+## Check the installation
+
+```sh
+shellmate doctor
+```
+
+Each check prints `OK`, `WARN` or `FAIL`, and every non-OK line says how to fix it. `doctor` exits with status 1 only when something FAILs. `--json` gives machine-readable output. See [Troubleshooting](../../guides/troubleshooting/).
+
+## Manual installation
+
+If you prefer to edit your rc file yourself, add one line with the absolute path of the binary:
+
+<Tabs>
+	<TabItem label="fish">
+		```fish
+		# ~/.config/fish/config.fish
+		/path/to/shellmate init fish | source
+		```
+	</TabItem>
+	<TabItem label="zsh">
+		```zsh
+		# ~/.zshrc
+		source <(/path/to/shellmate init zsh)
+		```
+	</TabItem>
+	<TabItem label="bash">
+		```bash
+		# ~/.bashrc, at the END (after prompt tools such as starship)
+		eval "$(/path/to/shellmate init bash)"
+		```
+	</TabItem>
+</Tabs>

@@ -1,0 +1,39 @@
+---
+title: Documentation
+description: Guides and reference for shellmate, a companion for your shell that answers, generates and explains commands from your prompt.
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+export const docs = (path) => `${import.meta.env.BASE_URL.replace(/\/$/, '')}/docs/${path}`;
+
+shellmate lets you type a question or a request in your shell prompt, press a shortcut, and get an answer or a command **in your prompt**. A suggested command is placed in your input line and is never run for you. It works in fish, zsh and bash.
+
+:::note
+shellmate is in early development. See <a href={docs('concepts/roadmap/')}>Status and roadmap</a> for what works today and what does not exist yet.
+:::
+
+## Start here
+
+<CardGrid>
+	<LinkCard title="Install" description="Build it, run guided setup, check with doctor." href={docs("start/install/")} />
+	<LinkCard title="Quick start" description="A minimal config and your first questions." href={docs("start/quick-start/")} />
+</CardGrid>
+
+## Guides
+
+<CardGrid>
+	<LinkCard title="Using shellmate" description="ask, generate and explain, and your shortcuts." href={docs("guides/using-shellmate/")} />
+	<LinkCard title="Providers" description="Ollama, LM Studio, OpenRouter, OpenAI, and fallbacks." href={docs("guides/providers/")} />
+	<LinkCard title="Choosing a local model" description="Small models that are fast on your own machine." href={docs("guides/local-models/")} />
+	<LinkCard title="Privacy and redaction" description="What is sent, and how secrets are replaced." href={docs("guides/privacy/")} />
+</CardGrid>
+
+## Reference and concepts
+
+<CardGrid>
+	<LinkCard title="Configuration" description="Every section and key of config.toml." href={docs("reference/configuration/")} />
+	<LinkCard title="Command line" description="Every command and option." href={docs("reference/cli/")} />
+	<LinkCard title="Security model" description="What is protected, and the rules the code enforces." href={docs("concepts/security-model/")} />
+	<LinkCard title="Architecture" description="How a key press becomes an answer." href={docs("concepts/architecture/")} />
+</CardGrid>
