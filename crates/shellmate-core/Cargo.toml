@@ -1,0 +1,22 @@
+[package]
+name = "shellmate-core"
+description = "shellmate core: config, pipeline, actions"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anstyle.workspace = true
+async-trait.workspace = true
+libc.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+shellmate-api.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+shellmate-testing.workspace = true
