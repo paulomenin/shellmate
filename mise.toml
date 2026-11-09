@@ -1,0 +1,23 @@
+# Development tool versions, pinned (run `mise install`). mise.lock records the exact versions and checksums.
+[settings]
+lockfile = true
+
+[tools]
+node = "26.13.0"    # website (Astro 7 needs Node >= 22.23.4); keep in step with website/.nvmrc
+pnpm = "12.17.0"    # keep in step with "packageManager" in website/package.json
+rust = { version = "1.99.1", components = "rustfmt,clippy,llvm-tools-preview" }   # the toolchain the workspace is tested with (the minimum to build shellmate is 1.86, see rust-version in Cargo.toml)
+
+# Coverage needs `cargo install --locked cargo-llvm-cov --version 0.9.1`.
+# Instrumented binaries are slow, so SHELLMATE_TIME_SCALE stretches the limits on git, the syntax check and man.
+[tasks.coverage]
+description = "Test coverage: summary in the terminal, HTML report in target/llvm-cov/html"
+env = { SHELLMATE_TIME_SCALE = "5" }
+run = [
+  "cargo llvm-cov --workspace --locked --ignore-filename-regex 'tools/shellmate-testing|/tests/' --html",
+  "cargo llvm-cov report --ignore-filename-regex 'tools/shellmate-testing|/tests/' --summary-only",
+]
+
+# Mutation testing of the security modules (about 30 minutes). Needs cargo-mutants, see tools/README.md.
+[tasks.mutants]
+description = "Change the security code on purpose and list the changes no test notices"
+run = "tools/mutants.sh"

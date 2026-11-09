@@ -1,0 +1,50 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/shellmate",
+    "crates/shellmate-api",
+    "crates/shellmate-core",
+    "crates/shellmate-builtin",
+    "tools/shellmate-testing",
+    "crates/plugins/decider-systemone",
+    "crates/plugins/middleware-redact",
+    "crates/plugins/provider-openai-compatible",
+    "crates/plugins/store-tmpfs",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/paulomenin/shellmate"
+rust-version = "1.86"
+
+[workspace.dependencies]
+anstyle = "1"
+async-trait = "0.1"
+clap = { version = "4", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "env"] }
+libc = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+tokio = { version = "1", default-features = false, features = ["rt", "macros", "time", "sync", "net", "io-util", "signal", "process"] }
+toml = "0.8"
+
+shellmate-api = { path = "crates/shellmate-api" }
+shellmate-core = { path = "crates/shellmate-core" }
+shellmate-builtin = { path = "crates/shellmate-builtin" }
+shellmate-testing = { path = "tools/shellmate-testing" }
+# dev only: running the tests needs the toolchain in mise.toml, building shellmate needs only rust-version
+proptest = { version = "1.12", default-features = false, features = ["std"] }
+shellmate-middleware-redact = { path = "crates/plugins/middleware-redact" }
+shellmate-decider-systemone = { path = "crates/plugins/decider-systemone" }
+shellmate-provider-openai-compatible = { path = "crates/plugins/provider-openai-compatible" }
+shellmate-store-tmpfs = { path = "crates/plugins/store-tmpfs" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "abort"

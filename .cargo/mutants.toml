@@ -1,0 +1,41 @@
+# cargo-mutants configuration (`mise run mutants`, see tools/README.md)
+
+# Mutants that change nothing observable, so no test can catch them. Everything else that survives is a
+# gap in the tests: add a test, then re-run.
+exclude_re = [
+    # glob_match is covered by a property test against the textbook definition; index-arithmetic mutants
+    # there loop forever (reported as timeouts), which is as good as caught
+    "in glob_match",
+    # fast paths: returning early or not gives the same text
+    "Mapping::restore",
+    # the second time the same value is seen it is already in the forward map, so the reverse lookup never
+    # finds the same value under a candidate
+    "replace match guard existing == value with false",
+    # `tokens.len() > 1` after the program has already been required to be a non-wildcard
+    "replace > with >= in rule_matches",
+    # `Wrap::text` splits a word into one piece per style, and `put` joins neighbouring pieces of the same
+    # style again, so not joining them in the word gives the same bytes
+    "replace match guard \\*r == role with false in Wrap::text",
+    # the same for the text of an open span: whether a piece is added to the last one or starts a new one,
+    # the text comes out the same
+    "delete match arm Some\\(Node::Text\\(t\\)\\) in Inline::text",
+    # a space is pending only after a word, so only when the column is past 0: the checks of the column in
+    # the old wrapper repeat that
+    "replace > with >= in Wrapper::push",
+    "replace && with \\|\\| in Wrapper::flush_word",
+    "replace > with >= in Wrapper::flush_word",
+    # `secret_cmd::run` polls a channel and a clock. These change only how long the loop waits, never what it
+    # returns, and a test would have to assert on wall-clock time (not allowed here):
+    # - the cap on kept stderr (`<` or `<=`: a byte more or less of a message that is cut to 200 anyway)
+    # - `done += 1` (without it the loop leaves after the 300 ms grace instead of when both pipes close)
+    # - `Instant::now() > g` and `> deadline` against `>=` (two instants are never equal)
+    # - `done == 2` (the mutant leaves before the readers finish, which depends on a race with them)
+    "replace < with <= in run$",
+    "replace \\+= with -= in run$",
+    "replace \\+= with \\*= in run$",
+    "replace == with != in run$",
+    "replace > with >= in run$",
+]
+
+# a mutant that hangs counts as caught after this many seconds
+minimum_test_timeout = 60

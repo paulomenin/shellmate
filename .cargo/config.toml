@@ -1,0 +1,11 @@
+[alias]
+# Coverage (needs cargo-llvm-cov, see tools/README.md): HTML report in target/llvm-cov/html.
+# For the terminal summary afterwards: cargo llvm-cov report --ignore-filename-regex 'tools/shellmate-testing|/tests/' --summary-only
+cov = "llvm-cov --workspace --locked --ignore-filename-regex 'tools/shellmate-testing|/tests/' --html"
+# Mutation testing (needs cargo-mutants). Pass -p/-f to choose what to change; `mise run mutants` runs the default set.
+mut = "mutants -j 4 --timeout 120"
+
+# Instrumented and mutated builds are slow, so stretch the helper-program limits (git, syntax check, man).
+# It never shortens a limit, so plain `cargo test` is unaffected; an explicit value in your shell wins.
+[env]
+SHELLMATE_TIME_SCALE = { value = "5", force = false }
