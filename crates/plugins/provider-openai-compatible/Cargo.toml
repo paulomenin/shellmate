@@ -1,0 +1,18 @@
+[package]
+name = "shellmate-provider-openai-compatible"
+description = "Provider plugin for OpenAI-compatible chat APIs (OpenAI, OpenRouter, Ollama, LM Studio, vLLM, ...)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+shellmate-api.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+shellmate-testing.workspace = true

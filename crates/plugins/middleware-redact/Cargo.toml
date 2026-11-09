@@ -1,0 +1,20 @@
+[package]
+name = "shellmate-middleware-redact"
+description = "Reversible secret redaction for the llm stage"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+regex = "1"
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+shellmate-api.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+shellmate-testing.workspace = true
+tokio.workspace = true

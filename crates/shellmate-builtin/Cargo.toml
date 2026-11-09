@@ -1,0 +1,21 @@
+[package]
+name = "shellmate-builtin"
+description = "Registers the first-party plugins"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["provider-openai-compatible", "decider-systemone", "middleware-redact", "store-tmpfs"]
+provider-openai-compatible = ["dep:shellmate-provider-openai-compatible"]
+decider-systemone = ["dep:shellmate-decider-systemone"]
+middleware-redact = ["dep:shellmate-middleware-redact"]
+store-tmpfs = ["dep:shellmate-store-tmpfs"]
+
+[dependencies]
+shellmate-api.workspace = true
+shellmate-decider-systemone = { workspace = true, optional = true }
+shellmate-middleware-redact = { workspace = true, optional = true }
+shellmate-provider-openai-compatible = { workspace = true, optional = true }
+shellmate-store-tmpfs = { workspace = true, optional = true }
