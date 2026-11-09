@@ -1,0 +1,752 @@
+//! `doctor`: checks of the config, the providers, the shell integration and the environment.
+//!
+//! Each check is a small function from the loaded config and the environment to a list of results, and
+//! [`CHECKS`] says in which order they run. A check looks at the world through [`Host`], so a test gives
+//! it a `MapEnv` and a `MemFs` instead of the machine. Only the network probe (`reachable`) and the path
+//! of this executable are real.
+
+use super::config_path;
+use super::install_shell::{rc_path, BEGIN};
+use serde_json::{json, Value};
+use shellmate_api::Registry;
+use shellmate_core::config::{builtin_id, parse_duration};
+use shellmate_core::ports::{Env, Host};
+use shellmate_core::present::{Presenter, Tone};
+use shellmate_core::{audit, conversation, Config, Engine};
+use std::path::Path;
+use std::time::Duration;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Status {
+    Ok,
+    Warn,
+    Fail,
+}
+
+#[derive(Debug)]
+pub struct Check {
+    pub name: &'static str,
+    pub status: Status,
+    pub detail: String,
+    pub remedy: Option<String>,
+}
+
+fn check(
+    name: &'static str,
+    status: Status,
+    detail: impl Into<String>,
+    remedy: Option<&str>,
+) -> Check {
+    Check {
+        name,
+        status,
+        detail: detail.into(),
+        remedy: remedy.map(str::to_string),
+    }
+}
+
+/// What a check may look at.
+struct Ctx<'a> {
+    cfg: &'a Config,
+    registry: &'a Registry,
+    host: &'a Host,
+    /// Where the config file is (or would be).
+    path: &'a Path,
+}
+
+type CheckFn = fn(&Ctx<'_>) -> Vec<Check>;
+
+/// The checks that need a loaded config, in the order they are reported. Reading the config itself
+/// comes first and stops everything else when it fails (see `doctor_checks_in`).
+const CHECKS: &[CheckFn] = &[
+    config_is_valid,
+    providers,
+    secrets,
+    deciders,
+    shell_and_integration,
+    shortcuts,
+    storage,
+    terminal,
+    man_tool,
+];
+
+/// `host:port` of an http(s) URL, without credentials.
+fn host_port(url: &str) -> Option<String> {
+    let (scheme, rest) = url.split_once("://")?;
+    let authority = rest.split('/').next()?;
+    let authority = authority.rsplit('@').next()?;
+    Some(if authority.contains(':') {
+        authority.to_string()
+    } else {
+        format!("{authority}:{}", if scheme == "https" { 443 } else { 80 })
+    })
+}
+
+pub(super) fn reachable(hp: &str) -> bool {
+    use std::net::ToSocketAddrs;
+    // try every resolved address: `localhost` is often ::1 first while the server listens on IPv4 only
+    hp.to_socket_addrs().is_ok_and(|mut addrs| {
+        addrs.any(|a| std::net::TcpStream::connect_timeout(&a, Duration::from_millis(1500)).is_ok())
+    })
+}
+
+pub(super) fn shell_name(env: &dyn Env) -> Option<String> {
+    env.var("SHELL")
+        .and_then(|s| s.rsplit('/').next().map(str::to_string))
+}
+
+/// Every check, for the real machine.
+pub fn doctor_checks(explicit: Option<&Path>) -> Vec<Check> {
+    doctor_checks_in(explicit, &Host::system(), &shellmate_builtin::registry())
+}
+
+fn doctor_checks_in(explicit: Option<&Path>, host: &Host, registry: &Registry) -> Vec<Check> {
+    let mut v = vec![check(
+        "version",
+        Status::Ok,
+        format!("shellmate {}", env!("CARGO_PKG_VERSION")),
+        None,
+    )];
+    let cfg = match Config::load_from(explicit, host) {
+        Ok(c) => c,
+        Err(e) => {
+            v.push(check(
+                "config",
+                Status::Fail,
+                format!("{}: {}", e.code, e.message),
+                e.hint.as_deref(),
+            ));
+            return v;
+        }
+    };
+    let path = config_path(explicit, host.env.as_ref());
+    let ctx = Ctx {
+        cfg: &cfg,
+        registry,
+        host,
+        path: &path,
+    };
+    for run in CHECKS {
+        v.extend(run(&ctx));
+    }
+    v
+}
+
+fn config_is_valid(ctx: &Ctx<'_>) -> Vec<Check> {
+    let path = ctx.path;
+    if ctx.host.fs.metadata(path).is_err() {
+        return vec![check(
+            "config",
+            Status::Fail,
+            format!("{} does not exist", path.display()),
+            Some("run `shellmate setup`"),
+        )];
+    }
+    let built = ctx
+        .cfg
+        .validate_with(ctx.registry, ctx.host)
+        .and_then(|_| Engine::from_config_in(ctx.cfg, ctx.registry, ctx.host.clone()).map(|_| ()));
+    vec![match built {
+        Ok(()) => check(
+            "config",
+            Status::Ok,
+            format!("{} is valid", path.display()),
+            None,
+        ),
+        Err(e) => check(
+            "config",
+            Status::Fail,
+            format!("{}: {}", e.code, e.message),
+            e.hint.as_deref(),
+        ),
+    }]
+}
+
+/// Endpoint reachability (a TCP connect; nothing is sent).
+fn providers(ctx: &Ctx<'_>) -> Vec<Check> {
+    let mut v = Vec::new();
+    let Ok(chain) = ctx.cfg.provider_chain() else {
+        return v;
+    };
+    for name in chain {
+        let info = ctx.cfg.lazy_settings(name, ctx.host).ok().and_then(|s| {
+            let id = builtin_id(&ctx.cfg.providers[name].plugin).ok()?;
+            ctx.registry
+                .build_provider(id, s.probe())
+                .ok()
+                .map(|p| p.info())
+        });
+        let Some((model, endpoint)) = info.and_then(|i| i.endpoint.map(|e| (i.model, e))) else {
+            continue;
+        };
+        v.push(match host_port(&endpoint) {
+            Some(hp) if reachable(&hp) => check("provider", Status::Ok, format!("{name}: {model} at {hp} is reachable"), None),
+            Some(hp) => check("provider", Status::Warn, format!("{name}: cannot connect to {hp}"), Some("start the server (e.g. `ollama serve`) or check the endpoint; a fallback provider will be used if configured")),
+            None => check("provider", Status::Warn, format!("{name}: unrecognised endpoint"), None),
+        });
+    }
+    v
+}
+
+/// `cmd:` secrets of the providers in the chain: run each program once and say whether it worked. This is
+/// the one place besides a request that runs them. Nothing about the value is shown, not even its length.
+fn secrets(ctx: &Ctx<'_>) -> Vec<Check> {
+    let Ok(chain) = ctx.cfg.provider_chain() else {
+        return Vec::new();
+    };
+    let mut v = Vec::new();
+    for name in chain {
+        let Ok(lazy) = ctx.cfg.lazy_settings(name, ctx.host) else {
+            continue; // `config` already reported it
+        };
+        if !lazy.is_lazy() {
+            continue;
+        }
+        let started = std::time::Instant::now();
+        v.push(match lazy.complete(ctx.host) {
+            Ok(_) => check(
+                "secret",
+                Status::Ok,
+                format!(
+                    "{name}: the `cmd:` secret works ({} ms)",
+                    started.elapsed().as_millis()
+                ),
+                None,
+            ),
+            Err(e) => check(
+                "secret",
+                Status::Fail,
+                format!("{name}: {}: {}", e.code, e.message),
+                e.hint.as_deref(),
+            ),
+        });
+    }
+    v
+}
+
+/// Decision models for the semantic command check: the same reachability test, nothing is sent.
+fn deciders(ctx: &Ctx<'_>) -> Vec<Check> {
+    let cfg = ctx.cfg;
+    let mut v = Vec::new();
+    if !(cfg.validator.enabled && cfg.validator.semantic) {
+        return v;
+    }
+    if cfg.validator.deciders.is_empty() {
+        v.push(check(
+            "decider",
+            Status::Ok,
+            format!(
+                "no decision model configured; the {} answers the semantic check",
+                if cfg.validator.llm_fallback {
+                    "LLM"
+                } else {
+                    "nobody (llm_fallback = false)"
+                }
+            ),
+            None,
+        ));
+    }
+    for name in &cfg.validator.deciders {
+        let info = cfg
+            .lazy_decider_settings(name, ctx.host)
+            .ok()
+            .and_then(|s| {
+                let id = builtin_id(&cfg.deciders.get(name)?.plugin).ok()?;
+                ctx.registry
+                    .build_decider(id, s.probe())
+                    .ok()
+                    .map(|d| d.info())
+            });
+        v.push(match info.and_then(|i| i.endpoint.map(|e| (i.model, e))) {
+            Some((model, endpoint)) => match host_port(&endpoint) {
+                Some(hp) if reachable(&hp) => check(
+                    "decider",
+                    Status::Ok,
+                    format!("{name}: {model} at {hp} is reachable (the model itself is not loaded by this check)"),
+                    None,
+                ),
+                Some(hp) => check(
+                    "decider",
+                    Status::Warn,
+                    format!("{name}: cannot connect to {hp}"),
+                    Some("start the server or fix the endpoint; until then the LLM answers the semantic check (if llm_fallback is on)"),
+                ),
+                None => check("decider", Status::Warn, format!("{name}: unrecognised endpoint"), None),
+            },
+            None => check(
+                "decider",
+                Status::Warn,
+                format!("{name}: could not be built"),
+                Some("run `shellmate config check`"),
+            ),
+        });
+    }
+    // a decision model that is not kept in memory takes seconds to load: the first check would time out
+    if let Ok(t) = parse_duration(&cfg.validator.timeout) {
+        if t < Duration::from_secs(15) && !cfg.validator.deciders.is_empty() {
+            v.push(check(
+                "decider",
+                Status::Warn,
+                format!("validator timeout is {}; a decision model that has to be loaded first often needs longer", cfg.validator.timeout),
+                Some("set [validator] timeout = \"20s\", or keep the model loaded (Ollama: OLLAMA_KEEP_ALIVE=1h, OLLAMA_MAX_LOADED_MODELS=2)"),
+            ));
+        }
+    }
+    v
+}
+
+fn shell_and_integration(ctx: &Ctx<'_>) -> Vec<Check> {
+    let mut v = Vec::new();
+    match shell_name(ctx.host.env.as_ref()) {
+        Some(sh) if ["fish", "zsh", "bash"].contains(&sh.as_str()) => {
+            v.push(check(
+                "shell",
+                Status::Ok,
+                format!("login shell is {sh}"),
+                None,
+            ));
+            if let Ok(rc) = rc_path(&sh) {
+                let text = ctx.host.fs.read_to_string(&rc).unwrap_or_default();
+                let exe = std::env::current_exe()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                v.push(integration(&text, &exe, &rc));
+            }
+        }
+        Some(sh) => v.push(check(
+            "shell",
+            Status::Warn,
+            format!("login shell {sh} is not supported"),
+            Some("shellmate supports fish, zsh and bash"),
+        )),
+        None => v.push(check("shell", Status::Warn, "$SHELL is not set", None)),
+    }
+    if ctx.host.env.var("SHELLMATE_SESSION").is_some() {
+        v.push(check(
+            "session",
+            Status::Ok,
+            "this shell has the integration loaded",
+            None,
+        ));
+    }
+    v
+}
+
+/// Whether the rc file `text` loads this executable.
+fn integration(text: &str, exe: &str, rc: &Path) -> Check {
+    if text.contains(BEGIN) && text.contains(exe) {
+        check(
+            "integration",
+            Status::Ok,
+            format!("installed in {}", rc.display()),
+            None,
+        )
+    } else if text.contains(BEGIN) {
+        check(
+            "integration",
+            Status::Warn,
+            format!("{} points at another binary", rc.display()),
+            Some("run `shellmate install-shell` to update it"),
+        )
+    } else if text.contains("shellmate") {
+        check(
+            "integration",
+            Status::Ok,
+            format!(
+                "a shellmate line exists in {} (not managed by install-shell)",
+                rc.display()
+            ),
+            None,
+        )
+    } else {
+        check(
+            "integration",
+            Status::Warn,
+            format!("not found in {}", rc.display()),
+            Some("run `shellmate install-shell`"),
+        )
+    }
+}
+
+fn shortcuts(ctx: &Ctx<'_>) -> Vec<Check> {
+    ctx.cfg
+        .input
+        .shortcuts
+        .keys()
+        .filter_map(|key| {
+            crate::init::parse_key(key).err().map(|e| {
+                check(
+                    "shortcuts",
+                    Status::Fail,
+                    format!("{key}: {}", e.message),
+                    e.hint.as_deref(),
+                )
+            })
+        })
+        .collect()
+}
+
+/// The conversation store and the audit log.
+fn storage(ctx: &Ctx<'_>) -> Vec<Check> {
+    let conversations = match conversation::open_store(ctx.cfg, ctx.registry, ctx.host) {
+        Ok(Some(_)) => check("conversations", Status::Ok, "store is usable", None),
+        Ok(None) => check(
+            "conversations",
+            Status::Ok,
+            "turned off (store = \"none\")",
+            None,
+        ),
+        Err(e) => check(
+            "conversations",
+            Status::Warn,
+            e.message,
+            Some("follow-ups are off until this is fixed"),
+        ),
+    };
+    let audit_log = if ctx.cfg.audit.enabled {
+        let ap = audit::log_path(&ctx.cfg.audit, ctx.host.env.as_ref());
+        check(
+            "audit",
+            Status::Ok,
+            format!("log at {}", ap.display()),
+            None,
+        )
+    } else {
+        check("audit", Status::Ok, "turned off", None)
+    };
+    vec![conversations, audit_log]
+}
+
+fn terminal(ctx: &Ctx<'_>) -> Vec<Check> {
+    let utf8 = ["LC_ALL", "LC_CTYPE", "LANG"]
+        .iter()
+        .filter_map(|k| ctx.host.env.var(k))
+        .find(|v| !v.is_empty())
+        .is_some_and(|v| v.to_lowercase().contains("utf"));
+    vec![if utf8 {
+        check("terminal", Status::Ok, "UTF-8 locale", None)
+    } else {
+        check(
+            "terminal",
+            Status::Warn,
+            "locale is not UTF-8; output falls back to ASCII",
+            Some("set LANG to a UTF-8 locale"),
+        )
+    }]
+}
+
+fn man_tool(ctx: &Ctx<'_>) -> Vec<Check> {
+    if !ctx.cfg.tools.man.enabled {
+        return Vec::new();
+    }
+    let have = ctx.host.env.var("PATH").is_some_and(|p| {
+        p.split(':').any(|d| {
+            ctx.host
+                .fs
+                .metadata(&Path::new(d).join("man"))
+                .is_ok_and(|m| m.is_file)
+        })
+    });
+    vec![if have {
+        check("man tool", Status::Ok, "`man` found", None)
+    } else {
+        check(
+            "man tool",
+            Status::Warn,
+            "`man` is not installed; the model cannot read manual pages",
+            Some("install man-db/mandoc, or set [tools.man] enabled = false"),
+        )
+    }]
+}
+
+pub fn doctor(explicit: Option<&Path>, json: bool) -> (String, bool) {
+    // the report is read in a terminal, so it follows the user's `[ui]` settings
+    if let Ok(cfg) = Config::load(explicit) {
+        crate::commands::ui::use_config(&cfg);
+    }
+    let checks = doctor_checks(explicit);
+    render(&checks, json, &*crate::commands::ui::stdout())
+}
+
+fn render(checks: &[Check], json: bool, p: &dyn Presenter) -> (String, bool) {
+    let failed = checks.iter().any(|c| c.status == Status::Fail);
+    let label = |s: Status| match s {
+        Status::Ok => "ok",
+        Status::Warn => "warn",
+        Status::Fail => "fail",
+    };
+    if json {
+        let arr: Vec<Value> = checks
+            .iter()
+            .map(|c| json!({"name": c.name, "status": label(c.status), "detail": c.detail, "remedy": c.remedy}))
+            .collect();
+        return (
+            serde_json::to_string_pretty(&arr).unwrap_or_default() + "\n",
+            failed,
+        );
+    }
+    let tone = |s: Status| match s {
+        Status::Ok => Tone::Success,
+        Status::Warn => Tone::Warning,
+        Status::Fail => Tone::Error,
+    };
+    let mut o = String::new();
+    for c in checks {
+        o.push_str(&format!(
+            "{} {:<14} {}\n",
+            p.label(
+                tone(c.status),
+                &format!("{:<5}", label(c.status).to_uppercase())
+            ),
+            c.name,
+            c.detail
+        ));
+        if let (Some(r), true) = (&c.remedy, c.status != Status::Ok) {
+            o.push_str(&format!(
+                "      {}\n",
+                p.label(Tone::Muted, &format!("-> {r}"))
+            ));
+        }
+    }
+    (o, failed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shellmate_core::ports::{MapEnv, MemFs};
+
+    fn ctx_with<R>(toml: &str, env: MapEnv, fs: MemFs, f: impl FnOnce(&Ctx<'_>) -> R) -> R {
+        let cfg = Config::parse(toml).unwrap();
+        let registry = shellmate_builtin::registry();
+        let host = Host::system().with_env(env).with_fs(fs);
+        f(&Ctx {
+            cfg: &cfg,
+            registry: &registry,
+            host: &host,
+            path: Path::new("/cfg/shellmate/config.toml"),
+        })
+    }
+
+    fn plain() -> shellmate_core::present::PlainPresenter {
+        shellmate_core::present::PlainPresenter::new(shellmate_core::present::Caps::plain(80, true))
+    }
+
+    fn one(checks: Vec<Check>) -> Check {
+        assert_eq!(checks.len(), 1, "{checks:?}");
+        checks.into_iter().next().unwrap()
+    }
+
+    #[test]
+    fn host_and_port_are_extracted_without_credentials() {
+        assert_eq!(
+            host_port("http://localhost:11434/v1").as_deref(),
+            Some("localhost:11434")
+        );
+        assert_eq!(
+            host_port("https://api.openai.com/v1").as_deref(),
+            Some("api.openai.com:443")
+        );
+        assert_eq!(
+            host_port("https://u:pw@host.example/v1").as_deref(),
+            Some("host.example:443")
+        );
+        assert_eq!(host_port("nonsense"), None);
+    }
+
+    #[test]
+    fn an_unreadable_config_is_one_failure_and_nothing_after_it() {
+        let host = Host::system()
+            .with_env(MapEnv::new())
+            .with_fs(MemFs::new().file("/c.toml", "version = 1\nbogus = 2\n", 0o600, 1));
+        let v = doctor_checks_in(
+            Some(Path::new("/c.toml")),
+            &host,
+            &shellmate_builtin::registry(),
+        );
+        assert_eq!(v.len(), 2, "{v:?}");
+        assert_eq!((v[0].name, v[1].name), ("version", "config"));
+        assert_eq!(v[1].status, Status::Fail);
+    }
+
+    #[test]
+    fn a_missing_config_file_fails_with_the_setup_remedy() {
+        let c = one(ctx_with(
+            "version = 1",
+            MapEnv::new(),
+            MemFs::new(),
+            config_is_valid,
+        ));
+        assert_eq!(c.status, Status::Fail);
+        assert_eq!(c.remedy.as_deref(), Some("run `shellmate setup`"));
+    }
+
+    #[test]
+    fn a_valid_config_file_passes() {
+        let fs = MemFs::new().file("/cfg/shellmate/config.toml", "version = 1", 0o600, 1);
+        let toml = crate::admin::templates::template("ollama", "m").unwrap();
+        let c = one(ctx_with(&toml, MapEnv::new(), fs, config_is_valid));
+        assert_eq!(c.status, Status::Ok, "{c:?}");
+        // the same file with no provider is not a working setup
+        let fs = MemFs::new().file("/cfg/shellmate/config.toml", "version = 1", 0o600, 1);
+        let c = one(ctx_with("version = 1", MapEnv::new(), fs, config_is_valid));
+        assert_eq!(c.status, Status::Fail);
+        assert!(c.detail.contains("config.no_provider"));
+    }
+
+    #[test]
+    fn the_terminal_check_wants_a_utf8_locale() {
+        let run = |env: MapEnv| one(ctx_with("version = 1", env, MemFs::new(), terminal)).status;
+        assert_eq!(run(MapEnv::new().with("LANG", "en_US.UTF-8")), Status::Ok);
+        assert_eq!(
+            run(MapEnv::new()
+                .with("LC_ALL", "C")
+                .with("LANG", "en_US.UTF-8")),
+            Status::Warn,
+            "LC_ALL wins"
+        );
+        assert_eq!(run(MapEnv::new()), Status::Warn);
+    }
+
+    #[test]
+    fn the_shell_check_knows_three_shells() {
+        let run = |env: MapEnv| {
+            let v = ctx_with("version = 1", env, MemFs::new(), |c| {
+                // only the part that does not read the real home directory
+                shell_name(c.host.env.as_ref())
+            });
+            v
+        };
+        assert_eq!(
+            run(MapEnv::new().with("SHELL", "/usr/bin/fish")).as_deref(),
+            Some("fish")
+        );
+        assert_eq!(run(MapEnv::new()), None);
+        let tcsh = ctx_with(
+            "version = 1",
+            MapEnv::new().with("SHELL", "/bin/tcsh"),
+            MemFs::new(),
+            shell_and_integration,
+        );
+        assert_eq!(tcsh[0].status, Status::Warn);
+        assert!(tcsh[0].detail.contains("tcsh"));
+        let unset = ctx_with(
+            "version = 1",
+            MapEnv::new(),
+            MemFs::new(),
+            shell_and_integration,
+        );
+        assert_eq!(unset[0].detail, "$SHELL is not set");
+        let session = ctx_with(
+            "version = 1",
+            MapEnv::new().with("SHELLMATE_SESSION", "s"),
+            MemFs::new(),
+            shell_and_integration,
+        );
+        assert!(session.iter().any(|c| c.name == "session"));
+    }
+
+    #[test]
+    fn the_integration_check_tells_the_four_states_apart() {
+        let rc = Path::new("/home/u/.bashrc");
+        let s = |text: &str| integration(text, "/bin/sm", rc).status;
+        assert_eq!(
+            s(&format!("{BEGIN}\neval \"$('/bin/sm' init bash)\"\n")),
+            Status::Ok
+        );
+        let other = integration(&format!("{BEGIN}\n'/old/sm'\n"), "/bin/sm", rc);
+        assert_eq!(other.status, Status::Warn);
+        assert!(other.detail.contains("another binary"));
+        assert_eq!(s("eval \"$(shellmate init bash)\""), Status::Ok);
+        let none = integration("export A=1", "/bin/sm", rc);
+        assert_eq!(none.status, Status::Warn);
+        assert_eq!(
+            none.remedy.as_deref(),
+            Some("run `shellmate install-shell`")
+        );
+    }
+
+    #[test]
+    fn a_man_tool_needs_a_man_binary_on_the_path() {
+        let with = MemFs::new().file("/usr/bin/man", "", 0o755, 0);
+        let env = MapEnv::new().with("PATH", "/nope:/usr/bin");
+        assert_eq!(
+            one(ctx_with("version = 1", env.clone(), with, man_tool)).status,
+            Status::Ok
+        );
+        let c = one(ctx_with("version = 1", env.clone(), MemFs::new(), man_tool));
+        assert_eq!(c.status, Status::Warn);
+        let off = "version = 1\n[tools.man]\nenabled = false\n";
+        assert!(ctx_with(off, env, MemFs::new(), man_tool).is_empty());
+    }
+
+    #[test]
+    fn a_shortcut_that_does_not_parse_is_a_failure() {
+        let bad = "version = 1\n[input.shortcuts]\n\"hyper+zz\" = \"ask\"\n";
+        let v = ctx_with(bad, MapEnv::new(), MemFs::new(), shortcuts);
+        assert!(v.iter().all(|c| c.status == Status::Fail), "{v:?}");
+        assert!(!v.is_empty());
+        assert!(ctx_with("version = 1", MapEnv::new(), MemFs::new(), shortcuts).is_empty());
+    }
+
+    #[test]
+    fn deciders_are_only_checked_when_the_semantic_check_is_on() {
+        assert!(ctx_with("version = 1", MapEnv::new(), MemFs::new(), deciders).is_empty());
+        let on = "version = 1\n[validator]\nsemantic = true\n";
+        let c = one(ctx_with(on, MapEnv::new(), MemFs::new(), deciders));
+        assert!(c.detail.contains("no decision model configured"));
+    }
+
+    #[test]
+    fn the_report_lists_remedies_only_for_what_is_not_ok() {
+        let checks = vec![
+            check("a", Status::Ok, "fine", Some("ignored")),
+            check("b", Status::Warn, "hmm", Some("do this")),
+        ];
+        let (text, failed) = render(&checks, false, &plain());
+        assert!(!failed);
+        assert!(
+            text.contains("OK    a") && text.contains("-> do this") && !text.contains("ignored")
+        );
+        let (json, _) = render(&[check("c", Status::Fail, "x", None)], true, &plain());
+        assert!(json.contains("\"status\": \"fail\""));
+        assert!(render(&[check("c", Status::Fail, "x", None)], false, &plain()).1);
+    }
+
+    #[test]
+    fn the_status_words_take_the_colour_of_their_meaning_and_the_text_is_unchanged() {
+        use shellmate_core::present::{presenter, Caps, Level};
+        let checks = vec![
+            check("a", Status::Ok, "fine", None),
+            check("b", Status::Warn, "hmm", Some("do this")),
+            check("c", Status::Fail, "bad", None),
+        ];
+        let colour = presenter(Caps {
+            width: 80,
+            unicode: true,
+            level: Level::Ansi16,
+            markdown: true,
+        });
+        let (styled, failed) = render(&checks, false, &*colour);
+        assert!(failed);
+        assert!(
+            styled.contains("\u{1b}[1m\u{1b}[32mOK   \u{1b}[0m"),
+            "{styled:?}"
+        );
+        assert!(styled.contains("\u{1b}[33mWARN \u{1b}[0m"), "{styled:?}");
+        assert!(
+            styled.contains("\u{1b}[1m\u{1b}[31mFAIL \u{1b}[0m"),
+            "{styled:?}"
+        );
+        let mut unstyled = String::new();
+        let mut rest = styled.as_str();
+        while let Some(i) = rest.find("\u{1b}[") {
+            unstyled.push_str(&rest[..i]);
+            rest = &rest[i..];
+            let end = rest.find('m').unwrap();
+            rest = &rest[end + 1..];
+        }
+        unstyled.push_str(rest);
+        assert_eq!(unstyled, render(&checks, false, &plain()).0);
+    }
+}

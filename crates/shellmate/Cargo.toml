@@ -1,0 +1,21 @@
+[package]
+name = "shellmate"
+description = "A shell companion that turns natural language into commands"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+clap.workspace = true
+libc.workspace = true
+serde_json.workspace = true
+shellmate-api.workspace = true
+shellmate-builtin.workspace = true
+shellmate-core.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+libc.workspace = true
+shellmate-testing.workspace = true
