@@ -24,7 +24,7 @@ Core code asks `Host` (`crates/shellmate-core/src/ports.rs`) for environment var
 ## The test pyramid here
 
 1. **Unit** (`#[cfg(test)]` in each crate): parsers, classifier, rules, redactor, validator, config.
-2. **Property** (`proptest`, `tests/properties.rs` in `shellmate-core` and `middleware-redact`): invariants over generated input.
+2. **Property** (`proptest`, `tests/properties.rs` in `shellmate-core`, `tests/middleware_redact_properties.rs` in `shellmate-builtin`): invariants over generated input.
 3. **Binary integration** (`crates/shellmate/tests/`): the real binary against mock HTTP/SSE servers. `approval_pty.rs` runs the approval prompt on a real pseudo-terminal.
 4. **End to end** (`tools/e2e/`): real fish, zsh, bash in tmux against `mock_openai.py`.
 5. **Evals** (`tools/bench/evals.py`): real models, scored by fixed rules. Not run in CI except as replays.

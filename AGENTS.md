@@ -33,9 +33,8 @@ These hold regardless of configuration. A change must not weaken them, and any c
 |---|---|
 | `crates/shellmate-api` | The plugin API: traits, types, `Registry`. Plugins depend only on this. |
 | `crates/shellmate-core` | Engine (`engine/`, one file per concern; the tool decisions are in `engine/tool_calls/`), config, prompts, conversations, tools, classifier (`command/`), validator, audit, rendering, and the ports for env, clock and files (`ports.rs`), and the presenter that turns answers, notices, notes and errors into terminal bytes (`present/`) |
-| `crates/shellmate-builtin` | Registers the first-party plugins by cargo feature |
+| `crates/shellmate-builtin` | The first-party plugins, one module each behind a cargo feature: `provider_openai_compatible`, `decider_systemone`, `middleware_redact`, `store_tmpfs`. Registers them. |
 | `crates/shellmate` | The binary: `cli.rs`, one module per command in `commands/`, setup, doctor and other admin commands in `admin/`, init, approval prompt, tty |
-| `crates/plugins/*` | `provider-openai-compatible`, `decider-systemone`, `middleware-redact`, `store-tmpfs` |
 | `crates/shells/` | Glue templates for fish, zsh, bash |
 | `tools/shellmate-testing` | Mock HTTP/SSE servers, a `FakeProvider` and an in-memory conversation store, `MemoryStore` (dev-dependency) |
 | `tools/e2e` | Real fish, zsh, bash in tmux against a mock provider |
@@ -80,7 +79,7 @@ Run fmt, clippy and tests before every commit. Both must be clean.
 
 The suite needs no model, no network and no special terminal. A mock provider stands in for the model, so tests are deterministic.
 
-- Unit tests sit next to the code. Property tests are in `tests/properties.rs` of `shellmate-core` and `middleware-redact` (proptest, `failure_persistence: None`). Binary tests are in `crates/shellmate/tests/` and drive the real binary against mock servers. `approval_pty.rs` runs the approval prompt in a pseudo-terminal.
+- Unit tests sit next to the code. Property tests are in `tests/properties.rs` of `shellmate-core` and `crates/shellmate-builtin/tests/` for the redactor (proptest, `failure_persistence: None`). Binary tests are in `crates/shellmate/tests/` and drive the real binary against mock servers. `approval_pty.rs` runs the approval prompt in a pseudo-terminal.
 - No wall-clock assertions. Use `SHELLMATE_TIME_SCALE` (`.cargo/config.toml` sets 5). Do not call `std::env::set_var` in a test: pass a `MapEnv`, `ManualClock` or `MemFs` through `Host`.
 - Tests that run the binary pin the colour variables (`NO_COLOR`, `CLICOLOR`, `CLICOLOR_FORCE`, and `TERM` for the pty tests), so a developer's own settings cannot change a result.
 - A unit-test block that outgrows its file goes in a sibling `tests.rs` (`#[cfg(test)] mod tests;`), where it can still see private items.

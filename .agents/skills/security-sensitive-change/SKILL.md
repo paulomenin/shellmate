@@ -15,7 +15,7 @@ shellmate does not trust the model. The model can be wrong, manipulated by text 
 | Tool parsing, policy, running `man`/`exec`/`read`, sanitized env, caps | `crates/shellmate-core/src/tools/` |
 | The decision for each `exec`/`read` call (parse, classifier, pre-approval, taint, ask the person), as `decide` functions that run nothing | `crates/shellmate-core/src/engine/tool_calls/` |
 | The approval prompt, typeahead flush, no-tty deny | `crates/shellmate/src/approval.rs`, `tty.rs` |
-| Redaction | `crates/plugins/middleware-redact/src/` |
+| Redaction | `crates/shellmate-builtin/src/middleware_redact/` |
 | Taint, context levels, outbound chain, INV-2 check | `crates/shellmate-core/src/engine/`, `collect/`, `capture.rs` |
 | Command validator (notes only, never blocks) | `crates/shellmate-core/src/validate/` |
 | Config, secrets as `env:`/`file:`/`cmd:` | `crates/shellmate-core/src/config/`, `secrets.rs`, `secret_cmd.rs` (runs `cmd:` programs), `engine/lazy.rs` (fetches them on first use) |

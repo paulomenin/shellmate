@@ -72,9 +72,8 @@ Some things use the real system on purpose: starting programs (`exec`, `man`, `g
 |---|---|
 | `crates/shellmate-api` | The plugin API (traits, types, registry) |
 | `crates/shellmate-core` | The engine (`engine/`, split by concern), config, prompts, conversations, tools, the command classifier, the validator, audit, the presenter that draws what you see (`present/`), and the ports for the environment, clock and files (`ports.rs`) |
-| `crates/shellmate-builtin` | Registers the first-party plugins |
+| `crates/shellmate-builtin` | The first-party plugins, one module each behind a cargo feature (provider-openai-compatible, decider-systemone, middleware-redact, store-tmpfs), and the registry that lists them |
 | `crates/shellmate` | The binary: the command line (`cli.rs`), one module per command (`commands/`), setup, doctor and the other admin commands (`admin/`), the approval prompt, the terminal |
-| `crates/plugins/` | provider-openai-compatible, decider-systemone, middleware-redact, store-tmpfs |
 | `crates/shells/` | Glue templates for fish, zsh and bash |
 | `tools/e2e/` | The real-shell conformance suite and a mock provider |
 | `tools/bench/` | Performance and model benchmarks |

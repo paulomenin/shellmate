@@ -42,7 +42,7 @@ The suite runs with no model, no network and no real terminal state. A mock prov
 | Layer | Where | What it covers |
 |---|---|---|
 | Unit | `#[cfg(test)]` in each crate; a long test block goes in a sibling `tests.rs` | Parsers, the classifier, rules, the redactor, the validator, the tool decisions |
-| Property | `tests/properties.rs` in `shellmate-core` and `middleware-redact` | Invariants over generated input: nothing leaks, accepted commands contain no shell syntax, streaming does not depend on how the text is split |
+| Property | `tests/properties.rs` in `shellmate-core` and the redactor's tests in `shellmate-builtin` | Invariants over generated input: nothing leaks, accepted commands contain no shell syntax, streaming does not depend on how the text is split |
 | Integration | `crates/shellmate/tests/` | The real binary against mock servers, including the approval prompt in a pseudo-terminal (`approval_pty.rs`) |
 | End to end | `tools/e2e/` | Real fish, zsh and bash in tmux, against a mock provider |
 
@@ -88,9 +88,8 @@ If a change touches one of these, say so in the pull request and show the test t
 ```text
 crates/shellmate-api            the plugin API
 crates/shellmate-core           engine (engine/), config, tools, classifier, validator, ports
-crates/shellmate-builtin        registers the first-party plugins
+crates/shellmate-builtin        the first-party plugins (one module each) and their registry
 crates/shellmate                the binary (commands/, admin/, approval prompt)
-crates/plugins/                 providers, middleware, stores, deciders
 crates/shells/                  glue templates for fish, zsh and bash
 tools/                          e2e suite, benchmarks, mutation testing, test helpers
 website/                        this site (Astro Starlight, pnpm)
