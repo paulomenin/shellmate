@@ -16,6 +16,7 @@ shellmate is in **early development**. There is no release yet.
 - The `read` tool (one text file from the working directory, asked first, credentials never), plus project-type and git context collectors.
 - Checks on every suggested command: the line parses in your shell, programs exist, risk notes. Optionally a decision model (any `/v1/systemone` endpoint) or the LLM judges whether the command matches your request.
 - `shellmate run -- <command>` and the `capture` shortcut: wrap a command, and your next question can use its output (private, bounded, redacted, and it taints the request).
+- Colour and formatting: answers, tool activity, errors and the report commands are coloured, and the markdown in answers (bold, italic, code, lists, headings, quotes, rules, fenced blocks) is formatted when the terminal can show it. Plain text otherwise. See [Colours and formatting](../../guides/output/).
 - `setup`, `doctor`, `install-shell`, `config show/init/check`, `audit`, `--explain`, `--timings`, `check`, `context`.
 - Benchmark tooling: process performance with budgets and baseline comparison, and model evaluations scored by fixed rules, with record and replay and ready-to-publish reports (see [Benchmarks](../../benchmarks/)).
 - A test suite that runs with no model: unit, property and integration tests (including the approval prompt in a pseudo-terminal), and a real fish, zsh and bash suite. Coverage (`cargo cov`) and mutation testing (`mise run mutants`) are set up. See [Contributing](../../contributing/).
@@ -26,7 +27,7 @@ shellmate is in **early development**. There is no release yet.
 - No published releases and no packages (AUR, Homebrew and Nix recipes are planned).
 - Untested: powerlevel10k, older shells, macOS and musl builds.
 - The interactive `setup` prompts and the remote-provider consent screen have only been exercised through `--yes`. Setup does not test the connection or list models yet.
-- The styled Markdown renderer is not built; answers are rendered as plain wrapped text.
+- The Markdown renderer does not handle tables or links; they are shown as written.
 - Mutation testing covers the classifier, the tools, the validator, the redactor, the engine's tool decisions and the presenter; the rest of the core has not been mutation tested. The parsers are property tested but not fuzzed, and the shell suite is not part of the coverage numbers.
 - The coverage and mutation CI setup has not yet run on GitHub.
 - The audit log is part of the core and does not yet record every event planned (for example config loading and redaction counts).
