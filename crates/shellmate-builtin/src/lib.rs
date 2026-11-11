@@ -1,17 +1,27 @@
-//! Registers the first-party plugins enabled by cargo features.
+//! The first-party plugins, in one crate for now. Each one is a module behind a cargo feature of the
+//! same name, and depends only on `shellmate-api`, as an external plugin would.
 
 use shellmate_api::Registry;
+
+#[cfg(feature = "decider-systemone")]
+pub mod decider_systemone;
+#[cfg(feature = "middleware-redact")]
+pub mod middleware_redact;
+#[cfg(feature = "provider-openai-compatible")]
+pub mod provider_openai_compatible;
+#[cfg(feature = "store-tmpfs")]
+pub mod store_tmpfs;
 
 pub fn registry() -> Registry {
     #[allow(unused_mut)]
     let mut r = Registry::new();
     #[cfg(feature = "provider-openai-compatible")]
-    shellmate_provider_openai_compatible::register(&mut r);
+    provider_openai_compatible::register(&mut r);
     #[cfg(feature = "decider-systemone")]
-    shellmate_decider_systemone::register(&mut r);
+    decider_systemone::register(&mut r);
     #[cfg(feature = "middleware-redact")]
-    shellmate_middleware_redact::register(&mut r);
+    middleware_redact::register(&mut r);
     #[cfg(feature = "store-tmpfs")]
-    shellmate_store_tmpfs::register(&mut r);
+    store_tmpfs::register(&mut r);
     r
 }

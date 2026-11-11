@@ -1,4 +1,4 @@
-use crate::client::*;
+use super::client::*;
 use shellmate_api::Message;
 use shellmate_api::{ChatRequest, Provider, ProviderErrorKind, StreamEvent, Usage};
 use shellmate_testing::{MockHttpServer, MockSseServer, SseChunk};

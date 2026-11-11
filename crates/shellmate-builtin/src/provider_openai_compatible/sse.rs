@@ -1,6 +1,6 @@
 //! Reading a streamed (server-sent events) answer.
 
-use crate::wire::*;
+use super::wire::*;
 use async_trait::async_trait;
 use serde::Deserialize;
 use shellmate_api::{EventStream, ProviderError, ProviderErrorKind, StreamEvent, Usage};

@@ -1,8 +1,10 @@
+#![cfg(feature = "middleware-redact")]
+
 //! Property tests for redaction, the privacy guarantee for remote providers: a secret in any supported
 //! form never survives `redact`, and the original text comes back exactly.
 
 use proptest::prelude::*;
-use shellmate_middleware_redact::{Mapping, Redactor};
+use shellmate_builtin::middleware_redact::{Mapping, Redactor};
 
 /// Built once: compiling the rules for every case would dominate the run time.
 fn redactor() -> &'static Redactor {

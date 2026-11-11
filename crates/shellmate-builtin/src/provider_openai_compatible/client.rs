@@ -1,6 +1,6 @@
 //! The non-streaming and streaming client for `/chat/completions`.
 
-use crate::{presets::*, settings::*, sse::*, wire::*, *};
+use super::{presets::*, settings::*, sse::*, wire::*, *};
 use async_trait::async_trait;
 use shellmate_api::{
     ChatRequest, ChatResponse, ChatStream, Error, Provider, ProviderError, ProviderErrorKind,

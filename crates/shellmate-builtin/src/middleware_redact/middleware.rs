@@ -1,6 +1,6 @@
 //! The `llm` middleware: redact on the way down, restore (across chunk borders) on the way up.
 
-use crate::{mapping::*, redactor::*, rules::*};
+use super::{mapping::*, redactor::*, rules::*};
 use async_trait::async_trait;
 use shellmate_api::{
     ChatRequest, ChatStream, EventStream, Middleware, Next, ProviderError, Result, StreamEvent,

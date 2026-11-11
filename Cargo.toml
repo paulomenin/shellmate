@@ -6,10 +6,6 @@ members = [
     "crates/shellmate-core",
     "crates/shellmate-builtin",
     "tools/shellmate-testing",
-    "crates/plugins/decider-systemone",
-    "crates/plugins/middleware-redact",
-    "crates/plugins/provider-openai-compatible",
-    "crates/plugins/store-tmpfs",
 ]
 
 [workspace.package]
@@ -38,10 +34,6 @@ shellmate-builtin = { path = "crates/shellmate-builtin" }
 shellmate-testing = { path = "tools/shellmate-testing" }
 # dev only: running the tests needs the toolchain in mise.toml, building shellmate needs only rust-version
 proptest = { version = "1.12", default-features = false, features = ["std"] }
-shellmate-middleware-redact = { path = "crates/plugins/middleware-redact" }
-shellmate-decider-systemone = { path = "crates/plugins/decider-systemone" }
-shellmate-provider-openai-compatible = { path = "crates/plugins/provider-openai-compatible" }
-shellmate-store-tmpfs = { path = "crates/plugins/store-tmpfs" }
 
 [profile.release]
 opt-level = 3

@@ -1,6 +1,6 @@
 [package]
 name = "shellmate-builtin"
-description = "Registers the first-party plugins"
+description = "The first-party plugins (provider, decider, middleware, store) and their registry"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,14 +9,23 @@ publish.workspace = true
 
 [features]
 default = ["provider-openai-compatible", "decider-systemone", "middleware-redact", "store-tmpfs"]
-provider-openai-compatible = ["dep:shellmate-provider-openai-compatible"]
-decider-systemone = ["dep:shellmate-decider-systemone"]
-middleware-redact = ["dep:shellmate-middleware-redact"]
-store-tmpfs = ["dep:shellmate-store-tmpfs"]
+provider-openai-compatible = ["dep:reqwest", "dep:tokio", "dep:async-trait", "dep:serde", "dep:serde_json"]
+decider-systemone = ["dep:reqwest", "dep:async-trait", "dep:serde", "dep:serde_json"]
+middleware-redact = ["dep:regex", "dep:sha2", "dep:async-trait", "dep:serde", "dep:serde_json"]
+store-tmpfs = ["dep:libc", "dep:serde", "dep:serde_json"]
 
 [dependencies]
 shellmate-api.workspace = true
-shellmate-decider-systemone = { workspace = true, optional = true }
-shellmate-middleware-redact = { workspace = true, optional = true }
-shellmate-provider-openai-compatible = { workspace = true, optional = true }
-shellmate-store-tmpfs = { workspace = true, optional = true }
+async-trait = { workspace = true, optional = true }
+libc = { workspace = true, optional = true }
+regex = { version = "1", optional = true }
+reqwest = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+sha2 = { version = "0.10", optional = true }
+tokio = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest.workspace = true
+shellmate-testing.workspace = true
+tokio.workspace = true

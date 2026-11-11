@@ -1,6 +1,6 @@
 //! Replacing secrets in outgoing text, and putting them back in the answer.
 
-use crate::{mapping::*, rules::*, *};
+use super::{mapping::*, rules::*, *};
 use regex::{Captures, Regex};
 use sha2::{Digest, Sha256};
 use shellmate_api::{Error, Result};

@@ -998,11 +998,17 @@ dependencies = [
 name = "shellmate-builtin"
 version = "0.0.1"
 dependencies = [
+ "async-trait",
+ "libc",
+ "proptest",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
  "shellmate-api",
- "shellmate-decider-systemone",
- "shellmate-middleware-redact",
- "shellmate-provider-openai-compatible",
- "shellmate-store-tmpfs",
+ "shellmate-testing",
+ "tokio",
 ]
 
 [[package]]
@@ -1020,57 +1026,6 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "toml",
-]
-
-[[package]]
-name = "shellmate-decider-systemone"
-version = "0.0.1"
-dependencies = [
- "async-trait",
- "reqwest",
- "serde",
- "serde_json",
- "shellmate-api",
- "shellmate-testing",
- "tokio",
-]
-
-[[package]]
-name = "shellmate-middleware-redact"
-version = "0.0.1"
-dependencies = [
- "async-trait",
- "proptest",
- "regex",
- "serde",
- "serde_json",
- "sha2",
- "shellmate-api",
- "shellmate-testing",
- "tokio",
-]
-
-[[package]]
-name = "shellmate-provider-openai-compatible"
-version = "0.0.1"
-dependencies = [
- "async-trait",
- "reqwest",
- "serde",
- "serde_json",
- "shellmate-api",
- "shellmate-testing",
- "tokio",
-]
-
-[[package]]
-name = "shellmate-store-tmpfs"
-version = "0.0.1"
-dependencies = [
- "libc",
- "serde",
- "serde_json",
- "shellmate-api",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 //! The two-way mapping between secret values and their placeholders, for one call.
 
-use crate::rules::*;
+use super::rules::*;
 use std::collections::HashMap;
 
 /// Original values and their placeholders for one conversation (here: one call).

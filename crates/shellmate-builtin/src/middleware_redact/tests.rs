@@ -1,5 +1,5 @@
 use super::*;
-use crate::{mapping::*, middleware::*, redactor::*, rules::*};
+use super::{mapping::*, middleware::*, redactor::*, rules::*};
 use async_trait::async_trait;
 use shellmate_api::{
     ChatRequest, ChatStream, Error, EventStream, Middleware, Next, Registry, Result, StreamEvent,
