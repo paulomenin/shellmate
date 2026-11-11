@@ -18,6 +18,7 @@ edition = "2021"
 license = "MIT"
 repository = "https://github.com/paulomenin/shellmate"
 rust-version = "1.86"
+publish = false
 
 [workspace.dependencies]
 anstyle = "1"
