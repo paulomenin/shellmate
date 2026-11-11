@@ -4,6 +4,7 @@ mod audit;
 mod context;
 mod context_report;
 mod exec;
+mod golden_tools;
 mod notices;
 mod read;
 mod run;
