@@ -149,7 +149,13 @@ pub fn setup(explicit: Option<&Path>, a: SetupArgs) -> Result<String> {
             path.display()
         ));
     } else {
-        let text = template_for(&provider, &model, base_url.as_deref(), key_env.as_deref())?;
+        let text = template_for(
+            &provider,
+            &model,
+            base_url.as_deref(),
+            key_env.as_deref(),
+            Some(&shell),
+        )?;
         out.push_str(&write_config(explicit, text, false)?);
     }
     print!("{out}");

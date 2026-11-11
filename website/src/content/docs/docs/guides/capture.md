@@ -21,7 +21,7 @@ You rarely know a command will matter before you run it, so wrap it as you type.
 
 ```toml
 [input.shortcuts]
-"alt+r" = "capture"
+"alt+r" = "capture"      # use "alt+e" in bash, where alt+r is readline's revert-line
 ```
 
 Type a command and press the key. The line becomes `shellmate run -- <your command>`; nothing is run and no model is called. Press Enter to run it as usual. Press the key again to take the wrapper off.

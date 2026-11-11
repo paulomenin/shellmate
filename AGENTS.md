@@ -12,7 +12,7 @@ Read this file first. Task-specific playbooks are in `.agents/skills/`.
 - **Everything that can be a plugin is one**, behind `shellmate-api`: providers, deciders, middleware, stores. The tools (`man`, `exec`, `read`) live in the core for now.
 - **Redaction is middleware** and fails closed. A remote provider is refused without an active redactor (INV-2).
 - **Config is TOML.** Secrets are only `env:NAME`, `file:PATH` or `cmd:PROGRAM ARGS` references, never literal values. `cmd:` is a core scheme, fetched on first use (`secret_cmd.rs`, `engine/lazy.rs`).
-- **Names:** binary `shellmate`, optional alias `sm`, default shortcut `alt+m`. `generate` is command-only (`alt+i`), `explain` is `alt+j`, `capture` is `alt+r` (`alt+e` in bash).
+- **Names:** binary `shellmate`, optional alias `sm`, default shortcut `alt+m`. `generate` is command-only (`alt+i`), `explain` is `alt+j`, `new-conversation` is `alt+k`, `capture` is `alt+r` (`alt+e` in bash). The built-in default is only `alt+m`; the config written by `setup` binds all of them.
 - **Website:** Astro Starlight, pnpm, fully static. Public docs live in `website/src/content/docs/docs/`.
 - **Non-goals:** a GUI, a full-screen chat client, telemetry of any kind, hard dependencies on one terminal emulator.
 

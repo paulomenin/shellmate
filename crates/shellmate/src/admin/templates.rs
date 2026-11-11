@@ -2,9 +2,10 @@
 
 use shellmate_api::{Error, Result};
 
-/// A documented starting config for a provider preset.
+/// A documented starting config for a provider preset, for tests (the commands pick a shell too).
+#[cfg(test)]
 pub fn template(provider: &str, model: &str) -> Result<String> {
-    template_for(provider, model, None, None)
+    template_for(provider, model, None, None, None)
 }
 
 /// True when the base URL points at this machine, so the provider can be trusted as local.
@@ -20,13 +21,24 @@ pub fn is_loopback_url(url: &str) -> bool {
     host == "localhost" || host == "::1" || host.starts_with("127.")
 }
 
+/// The key the starting config gives to `capture`. `alt+r` is readline's `revert-line` in bash, and shellmate
+/// never overrides a binding, so bash gets `alt+e`. (fish already uses `alt+e` for `edit_command_buffer`.)
+fn capture_key(shell: Option<&str>) -> &'static str {
+    if shell == Some("bash") {
+        "alt+e"
+    } else {
+        "alt+r"
+    }
+}
+
 /// Like [`template`], and for the `custom` provider: any OpenAI-compatible server at `base_url`, with an
-/// optional environment variable that holds its API key.
+/// optional environment variable that holds its API key. `shell` picks a free key for `capture`.
 pub fn template_for(
     provider: &str,
     model: &str,
     base_url: Option<&str>,
     key_env: Option<&str>,
+    shell: Option<&str>,
 ) -> Result<String> {
     let bad = |c: char| c == '"' || c == '\n' || c == '\\' || c.is_control();
     let (trust, key, settings_head) = match provider {
@@ -79,6 +91,7 @@ pub fn template_for(
         .map(|k| format!("api_key = \"env:{k}\"   # a reference; never paste the key here\n"))
         .unwrap_or_default();
     let level = if trust == "local" { 2 } else { 1 };
+    let capture_key = capture_key(shell);
     Ok(format!(
         r#"# shellmate configuration (docs: https://github.com/paulomenin/shellmate)
 version = 1
@@ -108,8 +121,9 @@ default_level = {level}
 "alt+m" = "ask"
 "alt+i" = "generate"
 "alt+j" = "explain"
-# "alt+k" = "new-conversation"
-# "alt+r" = "capture"          # wraps the line as `shellmate run -- ...`; the next question can use its output (context level 2)
+"alt+k" = "new-conversation"
+"{capture_key}" = "capture"       # wraps the line as `shellmate run -- ...`; the next question can use its output (context level 2)
+# shellmate never overrides a key that is already bound: alt+r is revert-line in bash, alt+e is edit_command_buffer in fish.
 
 [conversation]
 idle_timeout = "30m"       # a conversation idle this long is replaced by a new one
@@ -173,32 +187,69 @@ mod tests {
 
     #[test]
     fn custom_provider_needs_a_base_url_and_picks_trust_from_it() {
-        assert!(template_for("custom", "m", None, None).is_err());
-        assert!(template_for("custom", "m", Some("http://example.com/v1"), None).is_err()); // plain http, remote
+        assert!(template_for("custom", "m", None, None, None).is_err());
+        assert!(template_for("custom", "m", Some("http://example.com/v1"), None, None).is_err()); // plain http, remote
         assert!(template_for(
             "custom",
             "m",
             Some("https://x.test/v1\"\ntrust = \"local"),
+            None,
             None
         )
         .is_err());
-        let remote = template_for("custom", "m", Some("https://x.test/v1"), Some("X_KEY")).unwrap();
+        let remote = template_for(
+            "custom",
+            "m",
+            Some("https://x.test/v1"),
+            Some("X_KEY"),
+            None,
+        )
+        .unwrap();
         assert!(
             remote.contains("endpoint = \"https://x.test/v1\"")
                 && remote.contains("trust = \"remote\"")
         );
         assert!(remote.contains("api_key = \"env:X_KEY\""));
         Config::parse(&remote).unwrap();
-        let local = template_for("custom", "m", Some("http://127.0.0.1:8000/v1"), None).unwrap();
+        let local =
+            template_for("custom", "m", Some("http://127.0.0.1:8000/v1"), None, None).unwrap();
         assert!(local.contains("trust = \"local\"") && !local.contains("\napi_key"));
         Config::parse(&local).unwrap();
         // a key given as a literal value is refused
-        assert!(
-            template_for("custom", "m", Some("https://x.test/v1"), Some("sk-abc.def")).is_err()
-        );
+        assert!(template_for(
+            "custom",
+            "m",
+            Some("https://x.test/v1"),
+            Some("sk-abc.def"),
+            None
+        )
+        .is_err());
         // a "local-looking" host that is not loopback stays remote
         assert!(!is_loopback_url("https://localhost.evil.test/v1"));
         assert!(!is_loopback_url("http://127.0.0.1@evil.test/v1"));
+    }
+
+    #[test]
+    fn the_starting_config_binds_every_action_with_a_free_capture_key() {
+        for (shell, key) in [
+            (None, "alt+r"),
+            (Some("fish"), "alt+r"),
+            (Some("zsh"), "alt+r"),
+            (Some("bash"), "alt+e"),
+        ] {
+            let t = template_for("ollama", "m", None, None, shell).unwrap();
+            let c = Config::parse(&t).unwrap();
+            let actions: std::collections::BTreeMap<_, _> = c
+                .input
+                .shortcuts
+                .iter()
+                .map(|(k, a)| (a.as_str(), k.as_str()))
+                .collect();
+            for a in ["ask", "generate", "explain", "new-conversation"] {
+                assert!(actions.contains_key(a), "{shell:?}: {a}");
+            }
+            assert_eq!(actions["capture"], key, "{shell:?}");
+        }
     }
 
     #[test]

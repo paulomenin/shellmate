@@ -12,7 +12,7 @@ The glue is deliberately thin: collect prompt state, call `shellmate invoke`, pu
 - Templates: `crates/shells/{fish/glue.fish,zsh/glue.zsh,bash/glue.bash}`.
 - Generation and key translation: `crates/shellmate/src/init.rs` (`parse_key`, one generator per shell, `generate`). Placeholders in the templates are filled there; a test asserts none are left.
 - Rc-file install and removal: `install-shell` (`crates/shellmate/src/admin/install_shell.rs`).
-- Defaults and the shortcut table: `[input.shortcuts]` in `crates/shellmate-core/src/config/sections.rs`. Defaults: `alt+m` ask, `alt+i` generate, `alt+j` explain, `alt+r` capture (`alt+e` in bash, because `alt+r` is readline's revert-line and shellmate never overrides an existing binding).
+- Defaults and the shortcut table: `[input.shortcuts]` in `crates/shellmate-core/src/config/sections.rs`. The built-in default is only `alt+m` ask. The starter config that `setup` and `config init` write (`crates/shellmate/src/admin/templates.rs`) binds all five: `alt+m` ask, `alt+i` generate, `alt+j` explain, `alt+k` new-conversation and `capture` on `alt+r`, or `alt+e` in bash because `alt+r` is readline's revert-line (and `alt+e` is taken in fish by `edit_command_buffer`). shellmate never overrides an existing binding.
 - Conformance suite: `tools/e2e/conformance.sh <fish|zsh|bash> [plain|starship]`, `run-all.sh`, and the mock model `mock_openai.py`.
 
 ## Rules for glue

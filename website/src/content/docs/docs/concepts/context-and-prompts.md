@@ -14,10 +14,10 @@ The glue names an action in the envelope. Four reach the engine and one is handl
 | `ask` | `alt+m` | Answers a question. May suggest a command. | Yes | `man`, `exec`, `read` | The first command block, if any |
 | `generate` | `alt+i` | Turns a request into exactly one command. The model's own words are not shown, unless it asks a clarifying question. | Yes | `man` | The command |
 | `explain` | `alt+j` | Explains the command in the input line: what it does, each part, the risk. | Yes | `man` | No |
-| `new-conversation` | `alt+k` (suggested) | Forgets the session's conversation. | No | none | No |
-| `capture` | `alt+r` (suggested) | Wraps the line as `shellmate run -- ...`, or unwraps it. | No | none | The rewritten line |
+| `new-conversation` | `alt+k` | Forgets the session's conversation. | No | none | No |
+| `capture` | `alt+r` (`alt+e` in bash) | Wraps the line as `shellmate run -- ...`, or unwraps it. | No | none | The rewritten line |
 
-The built-in default knows only `alt+m` for `ask`. The starter config that `shellmate setup` and `config init` write adds `alt+i` and `alt+j`, and has `alt+k` and `alt+r` commented out for you to enable. Shortcuts live in `[input.shortcuts]`.
+The built-in default knows only `alt+m` for `ask`. The starter config that `shellmate setup` and `config init` write binds all five actions. It picks the key for `capture` from your shell: `alt+r`, or `alt+e` in bash, where `alt+r` is readline's `revert-line`. Shortcuts live in `[input.shortcuts]`.
 
 An empty input line is refused (`input.empty`) before anything is sent.
 

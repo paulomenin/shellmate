@@ -1,7 +1,8 @@
 //! `config init` and `config show`.
 
 use super::config_path;
-use super::templates::template;
+use super::doctor::shell_name;
+use super::templates::template_for;
 use shellmate_api::{Error, Result};
 use shellmate_core::ports::SystemEnv;
 use shellmate_core::present::{Presenter, Tone};
@@ -14,7 +15,10 @@ pub fn config_init(
     model: &str,
     force: bool,
 ) -> Result<String> {
-    write_config(explicit, template(provider, model)?, force)
+    // the shell in $SHELL picks a free key for `capture`
+    let shell = shell_name(&SystemEnv);
+    let text = template_for(provider, model, None, None, shell.as_deref())?;
+    write_config(explicit, text, force)
 }
 
 /// Write an already rendered starting config (after checking it parses), refusing to overwrite without `force`.

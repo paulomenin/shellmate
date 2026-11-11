@@ -12,8 +12,8 @@ You type in your normal prompt and press a shortcut. shellmate sends your text, 
 | `ask` | `alt+m` | A question in plain language | The answer streams below the prompt. If it contains a command, that command is placed in your input line. |
 | `generate` | `alt+i` (suggested) | A description of what you want | Command only. Exactly one command is placed in your input line and nothing is printed, no explanation and no alternatives. If one command cannot do it, or the request is ambiguous, you get one short sentence instead (a reason or a question) and your line is left alone. |
 | `explain` | `alt+j` (suggested) | A command | A breakdown streams below the prompt. Your line is left untouched. |
-| `new-conversation` | `alt+k` (suggested) | none | Starts a fresh [conversation](../conversations/) for this shell. |
-| `capture` | `alt+r` (suggested; in bash that key is readline's `revert-line`, so use `alt+e`) | A command | Wraps the line as `shellmate run -- ...` so the next question can use its output. No model call, nothing runs. See [Asking about a command's output](../capture/). |
+| `new-conversation` | `alt+k` | none | Starts a fresh [conversation](../conversations/) for this shell. |
+| `capture` | `alt+r` (`alt+e` in bash, where `alt+r` is readline's `revert-line`) | A command | Wraps the line as `shellmate run -- ...` so the next question can use its output. No model call, nothing runs. See [Asking about a command's output](../capture/). |
 
 Only `alt+m` is bound by default. The others are suggestions that `setup` writes into your config; bind whatever you like (see below).
 
@@ -34,12 +34,12 @@ $ du -ah . | sort -rh | head -5█
 "alt+i" = "generate"
 "alt+j" = "explain"
 "alt+k" = "new-conversation"
-"alt+r" = "capture"
+"alt+r" = "capture"      # "alt+e" in bash
 ```
 
 - Keys are written the same way for every shell: `alt+m`, `ctrl+x`, `ctrl+alt+j`.
 - A shortcut needs `ctrl` or `alt` (a bare letter would stop you typing it), and a single letter or digit as the key. Chords such as `ctrl+x ctrl+e` are not supported yet.
-- shellmate never overrides an existing binding. If the key is taken it prints a notice when the shell starts and leaves your binding alone. Pick another key.
+- shellmate never overrides an existing binding. If the key is taken it prints a notice when the shell starts and leaves your binding alone. Pick another key. No single key for `capture` is free in all three shells: `alt+r` is taken in bash and `alt+e` is taken in fish (`edit_command_buffer`). `setup` and `config init` choose by your shell.
 
 ## While it works
 
