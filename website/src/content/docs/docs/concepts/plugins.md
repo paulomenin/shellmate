@@ -1,0 +1,127 @@
+---
+title: Plugins
+description: The four kinds of plugin, when each one is called, which are required, how many of each you can have, and how to turn them on and off.
+---
+
+shellmate has four kinds of plugin. They depend only on the plugin API crate (`shellmate-api`), and the first-party ones are compiled into the binary and registered through cargo features. Outside plugins are designed but not built, so the only plugin ids that exist are `builtin:<id>`.
+
+The three tools (`man`, `exec`, `read`) are **not plugins yet**. They live in the core, where every call goes through the classifier and the policy. See [Tool calling](../tool-calling/).
+
+## The four kinds at a glance
+
+| Kind | Trait | Built-in plugins | How many | Required? | Called |
+|---|---|---|---|---|---|
+| Provider | `Provider` | `builtin:openai-compatible` | One or more, tried in order | Yes, for `ask`, `generate` and `explain` | Once per model round, in order until one answers |
+| Decider | `Decider` | `builtin:systemone` | Zero or more, tried in order | No | After an answer, only when `[validator] semantic = true` |
+| `llm` middleware | `Middleware<ChatRequest, ChatStream>` | `builtin:redact` | Zero or more, stacked | Only if a provider or decider is `remote` | Around every provider call, and around remote decider calls |
+| Store | `Store` | `builtin:store-tmpfs` | One, or none | No | When a request starts and when it ends |
+
+"Required" means what the engine needs to work, not what you must configure. A fresh `shellmate setup` writes a provider for you.
+
+## How plugins are found and built
+
+```mermaid
+flowchart LR
+    feat["cargo features<br/>(default: all four)"] --> reg["shellmate_builtin::registry()"]
+    reg --> engine["Engine::from_config"]
+    cfg["config.toml"] --> engine
+    engine --> p["providers"]
+    engine --> d["deciders"]
+    engine --> m["llm middleware"]
+    engine --> s["store"]
+```
+
+1. `shellmate_builtin::registry()` creates a `Registry` and asks each compiled-in plugin to register a **constructor** under its id (`openai-compatible`, `systemone`, `redact`, `store-tmpfs`).
+2. The engine reads the config, and for each plugin the config names, looks the constructor up by id and calls it with that plugin's `settings` table, converted to JSON, with secret references already resolved.
+3. An id the registry does not know fails with `config.unknown_plugin`, and the hint lists the ids that exist. An id without the `builtin:` prefix fails with `config.unsupported`.
+
+Constructors must be cheap. They build an object and check the settings. They never open the network, because start-up has a 30 ms budget. A constructor rejects unknown or mistyped settings with a `config.*` error.
+
+`shellmate config check` builds every provider and decider in the config without sending anything, so a typo is caught before a request.
+
+### Settings and secrets
+
+Each provider and decider has a table `[providers.<name>]` or `[deciders.<name>]`:
+
+```toml
+[providers.local]
+plugin = "builtin:openai-compatible"
+trust = "local"                  # "local" or "remote" (default "remote")
+max_context_level = 2            # optional ceiling, see Context and prompts
+
+[providers.local.settings]       # handed to the plugin as is
+preset = "ollama"
+model = "qwen2.5-coder:7b"
+```
+
+Middleware and the store use `[plugins."builtin:<id>"]` with `enabled` and `settings`. The store id itself is `[conversation] store`.
+
+Any setting whose name looks like a secret (`api_key`, `token`, `password`, `secret`, or a name ending in `_key`, `_token` or `_secret`) must be a reference: `env:NAME`, `file:PATH`, `cmd:PROGRAM ARGS` or `keyring:service/account`. A literal value is refused. Plugins receive the resolved string wrapped in `Secret`, so it cannot be printed by accident.
+
+## Provider
+
+A provider turns a chat request into a stream of text. The trait has `info` (plugin, model, endpoint), an optional `prepare` (get ready: this is where a lazy `cmd:` secret is fetched), `chat`, and `chat_stream` (which defaults to one event holding the whole answer).
+
+- **More than one:** yes. `[llm] chain` lists provider names, primary first, then fallbacks. If `chain` is empty, the first provider by name is used. A provider that is defined but not in the chain is never built and never called.
+- **When it is called:** once per round of the tool loop, for the first provider in the chain, and for the next ones only if the first fails in a way that allows a fallback. See [The LLM pipeline](../llm-pipeline/).
+- **Trust:** each provider is `local` or `remote`, default `remote`. Trust sets the default context ceiling (3 for local, 1 for remote), decides which earlier turns it may be shown, and decides whether redaction is mandatory.
+- **To turn one off:** remove it from `[llm] chain` (or delete its table). There is no `enabled` key on a provider.
+- **Built in:** `builtin:openai-compatible` talks to any server that implements `/chat/completions` with streaming: Ollama, LM Studio, LocalAI, OpenRouter, OpenAI, or an `endpoint` you give. Cleartext `http` is accepted only for loopback hosts.
+
+## Decider
+
+A decider answers typed questions about a command, with a label and probabilities, and no free text. It is used only by the optional semantic check (see [Command checks](../command-checks/)).
+
+- **More than one:** yes. `[validator] deciders` lists names, tried in order. The first one that answers wins.
+- **When it is called:** after the answer is complete, for `ask` and `generate` when a command was suggested, and only if `[validator] semantic = true`. The call has its own timeout (`[validator] timeout`, default 5 s).
+- **Fallback:** if no decider answers and `[validator] llm_fallback` is on (the default), the provider chain answers the same questions as a chat request.
+- **Trust:** a `local` decider gets the record as is. A `remote` one gets it after it has been through the redaction chain, and a remote decider is refused when no redactor is active.
+- **To turn one off:** set `semantic = false`, or take it out of `deciders`.
+- **Built in:** `builtin:systemone` speaks the System One wire format (`POST {endpoint}/v1/systemone`), served by Ollama decision models, Ollaya and hosted APIs that use the same format.
+
+## `llm` middleware
+
+Middleware wraps the provider call like layers of an onion. Each layer can change the request on the way in and the response on the way out, and can call the next layer zero, one or many times.
+
+- **More than one:** yes. `[pipeline] llm` is the list, outermost first. The default is `["..."]`, and `"..."` stands for the built-in defaults, today just `builtin:redact`.
+- **When it is called:** around **every** provider call: each round of the tool loop, each fallback provider, a remote decider's request, and the LLM answering the semantic questions. Not around a local decider.
+- **Roles:** a middleware declares a role when it registers. `Redactor` hides sensitive data, `Filter` rewrites for other reasons, `Observer` only watches. The core uses the role to enforce INV-2, so never declare one you do not fulfil.
+- **To turn one off:** `[plugins."builtin:redact"] enabled = false`, or leave it out of `[pipeline] llm`. Turning the redactor off while a remote provider is in the chain makes the engine refuse to run (`privacy.no_redaction`), unless you set that provider's `trust = "local"`.
+- **Built in:** `builtin:redact`. See [The LLM pipeline](../llm-pipeline/) for what it replaces and how it restores.
+
+## Store
+
+A store keeps conversations. The core owns the turn format and gives the store opaque JSON values. A store only has to keep order, append atomically, and lock a conversation across processes.
+
+- **More than one:** no. `[conversation] store` names exactly one store, or `"none"`.
+- **When it is called:** when a request starts (find the session's conversation and lock it), when it ends (append the turn), and by the `shellmate conversation` commands.
+- **Required:** no. With `store = "none"`, every request is stateless. If the configured store cannot be opened, conversations are turned off for that run and you get a note. shellmate never silently switches to another store.
+- **To turn it off:** `store = "none"`, or set `[actions.<name>] conversation = "fresh"` for one action.
+- **Built in:** `builtin:store-tmpfs` keeps one JSON-lines file per conversation on tmpfs, with advisory `flock` locks, so transcripts disappear at logout. See [State on disk](../state-and-storage/).
+
+## Turning things on and off
+
+| Thing | On | Off |
+|---|---|---|
+| A provider | Put it in `[llm] chain` | Take it out of the chain |
+| A decider | `[validator] semantic = true` and list it in `deciders` | `semantic = false` |
+| Redaction | Default | `[plugins."builtin:redact"] enabled = false` (needs no remote providers) |
+| A middleware | List it in `[pipeline] llm` | Remove it, or `enabled = false` |
+| Conversations | Default (`builtin:store-tmpfs`) | `[conversation] store = "none"` |
+| The command check | `[validator] enabled = true` (default) | `enabled = false` |
+| A tool | `[tools.<name>] enabled = true` | `enabled = false` or `approval = "deny"` |
+
+Turning a tool off also removes its instructions from the prompt, so the model is not told it exists.
+
+At build time you can leave a plugin out entirely with cargo features (`--no-default-features --features ...`). A config that names a plugin that is not compiled in fails with `config.unknown_plugin`.
+
+## The rules plugins cannot break
+
+Plugins add capability, never trust. These hold whatever is installed:
+
+- A plugin cannot approve a command. The approval prompt is implemented only in the binary, and a plugin can only make approval stricter.
+- A request reaches a network provider only through the whole outbound chain, and a remote provider needs a redactor (INV-2).
+- Secrets reach plugins only as the references you wrote, resolved by the core.
+- The audit log records what shellmate did, never prompts, answers or tool results.
+
+See [Security model](../security-model/) for the full list.

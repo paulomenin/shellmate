@@ -3,6 +3,22 @@ title: Architecture
 description: How a key press becomes an answer, and how the pieces fit together.
 ---
 
+This page is the overview. Each part has its own page with the details:
+
+| If you want to know | Read |
+|---|---|
+| Every step from key press to answer, in order | [Life of a request](../request-lifecycle/) |
+| The kinds of plugin, when each is called, which are required, how many you can have | [Plugins](../plugins/) |
+| How the middleware chain, redaction and provider fallback work | [The LLM pipeline](../llm-pipeline/) |
+| How the model asks for a tool, the loop, and the checks on each call | [Tool calling](../tool-calling/) |
+| What the model is told, and how levels and trust limit it | [Context and prompts](../context-and-prompts/) |
+| How a suggested command is checked | [Command checks](../command-checks/) |
+| Conversations, captures, the audit log and every file on disk | [State on disk](../state-and-storage/) |
+| How the answer reaches your terminal | [Output and presentation](../output-and-presentation/) |
+| What the shell integration does and the protocol it speaks | [Shell glue](../glue-protocol/) |
+| Where each piece lives in the source tree | [Module guide](../module-guide/) |
+| The rules that always hold | [Security model](../security-model/) |
+
 ## One request, end to end
 
 ```mermaid
@@ -20,14 +36,14 @@ flowchart LR
 2. It runs `shellmate invoke`, a short-lived process, with that file as input.
 3. The core builds a prompt for the action, applies the context level, and walks the **provider chain**. For each provider the whole request is rebuilt: the context is capped to that provider's ceiling, the conversation history is assembled for its trust, and middleware such as redaction wraps the call.
 4. The answer streams back. A word-wrapping, append-only renderer writes it to your terminal; the part of the reply that is a command is held back and placed in your input line.
-5. If the model asks for a tool, the request is classified, checked against policy, run, and its result is fed back (up to `max_tool_rounds` rounds).
-6. The turn is stored in the conversation and a content-free line is written to the audit log.
+5. If the model asks for a tool, the call is checked (grammar, classifier, your rules, your approval), run, and its result is fed back to the model in the next round, up to `max_tool_rounds` rounds. See [Tool calling](../tool-calling/).
+6. The suggested command is checked, the turn is stored in the conversation, and a content-free line is written to the audit log.
 
 A run takes about 8 ms before any network traffic (p50, with a 30 ms budget enforced in CI).
 
-## Everything is a plugin
+## Plugins and tools
 
-The core is small: the pipeline, the config, the invariants. Providers, deciders, middleware (such as redaction) and conversation stores are plugins that depend only on the plugin API crate. The first-party ones are compiled into the binary and registered through cargo features, using the same API an outside plugin would. The tools are not plugins yet: they live in the core, where every call goes through the classifier and the policy.
+The core is small: the pipeline, the config, the invariants. Providers, deciders, middleware (such as redaction) and conversation stores are plugins that depend only on the plugin API crate. The first-party ones are compiled into the binary as modules of one crate, `shellmate-builtin`, and registered through cargo features, using the same API an outside plugin would. The tools are not plugins yet: they live in the core, where every call goes through the classifier and the policy. [Plugins](../plugins/) explains when each kind is called and how many of each you can have.
 
 | Plugin | Kind | What it does |
 |---|---|---|
@@ -67,6 +83,8 @@ The environment that an `exec` command receives is built from the same `Env` por
 Some things use the real system on purpose: starting programs (`exec`, `man`, `git`), the path checks of the `read` tool (symlinks and `..` must be resolved by the real file system to mean anything), and anything that writes (the audit log, captures, conversation stores).
 
 ## Source layout
+
+The [Module guide](../module-guide/) lists every module and what it is responsible for. The top level:
 
 | Path | What |
 |---|---|
