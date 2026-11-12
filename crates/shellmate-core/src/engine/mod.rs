@@ -51,6 +51,8 @@ pub struct Engine {
     /// Why the configured store could not be used (conversations are then off, with a visible note).
     store_note: Option<String>,
     policy: ToolPolicy,
+    /// Tools added through the plugin API, with the settings the core keeps for each.
+    plugged: Vec<tool_calls::Plugged>,
     audit: Option<Arc<dyn AuditSink>>,
     /// Asks the human before a model-driven command runs. `None` (no terminal): every such request is denied.
     approver: Option<Arc<dyn Approver>>,
@@ -188,6 +190,7 @@ impl Engine {
             store_note: None,
             audit: None,
             approver: None,
+            plugged: Vec::new(),
             policy: ToolPolicy::new(crate::config::ManTool {
                 enabled: false,
                 ..Default::default()
@@ -205,6 +208,17 @@ impl Engine {
     /// Decision models for the semantic check (tests and embedding; `from_config` does this from the config).
     pub fn with_deciders(mut self, deciders: Vec<DeciderSpec>) -> Self {
         self.deciders = deciders;
+        self
+    }
+
+    /// Add a tool that implements the plugin API (tests and embedding). The core keeps its settings and
+    /// enforces approval, pre-approval, taint and escaping; the tool describes and runs.
+    pub fn with_tool(
+        mut self,
+        tool: Arc<dyn shellmate_api::Tool>,
+        settings: shellmate_api::ToolSettings,
+    ) -> Self {
+        self.plugged.push(tool_calls::Plugged { tool, settings });
         self
     }
 

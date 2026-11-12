@@ -125,6 +125,16 @@ pub enum Risk {
     High,
 }
 
+impl Risk {
+    pub fn label(self) -> &'static str {
+        match self {
+            Risk::Low => "low",
+            Risk::Medium => "medium",
+            Risk::High => "high",
+        }
+    }
+}
+
 /// What the person is asked about.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ApprovalKind {
@@ -366,7 +376,8 @@ pub struct FileTarget {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileText {
     pub text: String,
-    pub bytes: usize,
+    /// The size of the file, not of `text`.
+    pub bytes: u64,
     pub truncated: bool,
 }
 

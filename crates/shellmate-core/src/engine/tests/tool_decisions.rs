@@ -352,7 +352,7 @@ async fn a_man_call_is_dispatched_to_the_man_tool() {
 
 fn offered(cfg: &Config, action: crate::action::Action) -> Vec<&'static str> {
     let policy = ToolPolicy::new(cfg.tools.man.clone());
-    crate::engine::tool_calls::offers(cfg, &policy, action)
+    crate::engine::tool_calls::offers(cfg, &policy, &[], action)
         .iter()
         .map(|text| {
             if text.contains("manual page") {
@@ -404,7 +404,7 @@ fn a_tool_that_is_off_or_cannot_ask_is_not_offered() {
 fn every_offer_names_the_block_the_model_must_use_and_calls_results_data() {
     let cfg = Config::defaults();
     let policy = ToolPolicy::new(cfg.tools.man.clone());
-    let all = crate::engine::tool_calls::offers(&cfg, &policy, crate::action::Action::Ask);
+    let all = crate::engine::tool_calls::offers(&cfg, &policy, &[], crate::action::Action::Ask);
     assert_eq!(all.len(), 3);
     for text in &all {
         assert!(text.contains(crate::response::TOOL_LABEL), "{text}");

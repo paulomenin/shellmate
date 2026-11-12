@@ -58,7 +58,7 @@ impl Engine {
             spec.trust == Trust::Local,
             &self.cfg.conversation.history,
         );
-        let tool_offers = super::tool_calls::offers(&self.cfg, &self.policy, action);
+        let tool_offers = super::tool_calls::offers(&self.cfg, &self.policy, &self.plugged, action);
         let extras = Extras {
             history: &history.messages,
             tool_offers: &tool_offers,

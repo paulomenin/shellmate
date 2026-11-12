@@ -3,22 +3,7 @@
 use super::parse::parse_strict;
 use super::tables::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Risk {
-    Low,
-    Medium,
-    High,
-}
-
-impl Risk {
-    pub fn label(self) -> &'static str {
-        match self {
-            Risk::Low => "low",
-            Risk::Medium => "medium",
-            Risk::High => "high",
-        }
-    }
-}
+pub use shellmate_api::Risk;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Verdict {

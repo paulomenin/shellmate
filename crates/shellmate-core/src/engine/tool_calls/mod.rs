@@ -7,7 +7,11 @@
 
 pub(in crate::engine) mod exec;
 mod man;
+mod plugged;
 pub(in crate::engine) mod read;
+mod services;
+
+pub(in crate::engine) use plugged::Plugged;
 
 use super::Engine;
 use crate::action::Action;
@@ -48,11 +52,28 @@ pub(in crate::engine) trait Tool: Sync {
 
 const TOOLS: [&dyn Tool; 3] = [&man::Man, &exec::Exec, &read::Read];
 
-/// The offers of every tool that is available for `action`, in the order the prompt shows them.
-pub(in crate::engine) fn offers(cfg: &Config, policy: &ToolPolicy, action: Action) -> Vec<String> {
+/// The offers of every tool that is available for `action`, in the order the prompt shows them: the
+/// built-in tools, then the others in the order they were added.
+pub(in crate::engine) fn offers(
+    cfg: &Config,
+    policy: &ToolPolicy,
+    plugged: &[Plugged],
+    action: Action,
+) -> Vec<String> {
+    let api_action = match action {
+        Action::Ask => Some(shellmate_api::ToolAction::Ask),
+        Action::Generate => Some(shellmate_api::ToolAction::Generate),
+        Action::Explain => Some(shellmate_api::ToolAction::Explain),
+        Action::NewConversation => None,
+    };
     TOOLS
         .iter()
         .filter_map(|t| t.offer(cfg, policy, action))
+        .chain(
+            api_action
+                .into_iter()
+                .flat_map(|a| plugged.iter().filter_map(move |p| p.offer(a))),
+        )
         .collect()
 }
 
@@ -88,6 +109,9 @@ impl Engine {
             tainted,
             dest,
         };
+        if let Some(p) = self.plugged.iter().find(|p| p.name() == call.name) {
+            return p.run(&call, &env).await;
+        }
         match find(&call.name) {
             Some(tool) => tool.run(&call, &env).await,
             // Not a tool we have: the policy gives the reason, as it does for a refused `man`.

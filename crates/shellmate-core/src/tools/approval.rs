@@ -2,12 +2,8 @@
 
 use crate::command::Risk;
 
-/// What the model is asking to do.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ApprovalKind {
-    Run,
-    Read,
-}
+/// What the model is asking to do (`Run`, `Read` or a tool's own verb).
+pub use shellmate_api::ApprovalKind;
 
 /// What the user is shown when the model wants to run a command (`approval-ux.md` §4.1).
 #[derive(Debug, Clone)]

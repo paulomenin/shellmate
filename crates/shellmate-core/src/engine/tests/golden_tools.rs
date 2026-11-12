@@ -251,7 +251,7 @@ async fn exec_approved_runs_and_reports() {
     assert_eq!(t.asked.len(), 1);
     let q = &t.asked[0];
     assert_eq!(
-        (q.kind, q.command.as_str(), q.cwd.as_deref(), q.risk),
+        (q.kind.clone(), q.command.as_str(), q.cwd.as_deref(), q.risk),
         (ApprovalKind::Run, "echo golden", None, Risk::Low)
     );
     assert!(q.reasons.is_empty());
@@ -433,7 +433,7 @@ async fn read_approved_returns_the_file_as_delimited_data() {
     assert_eq!(t.asked.len(), 1);
     let q = &t.asked[0];
     assert_eq!(
-        (q.kind, q.command.as_str(), q.cwd.as_deref(), q.risk),
+        (q.kind.clone(), q.command.as_str(), q.cwd.as_deref(), q.risk),
         (
             ApprovalKind::Read,
             "notes.txt",
