@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 
 if ! cargo mutants --version >/dev/null 2>&1; then
     echo "cargo-mutants is not installed. Run:" >&2
-    echo "  cargo install --locked cargo-mutants --version 27.1.0" >&2
+    echo "  mise install" >&2
     exit 1
 fi
 

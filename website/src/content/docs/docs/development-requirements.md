@@ -53,9 +53,8 @@ REQUIRE_TOOLS=1 cargo test --workspace --locked
 With mise (Rust, Node and pnpm at the pinned versions):
 
 ```sh
-mise install
+mise install                    # also installs cargo-mutants, built from source
 cargo install --locked cargo-llvm-cov --version 0.9.1
-cargo install --locked cargo-mutants --version 27.1.0
 cargo install --locked cargo-deny
 ```
 

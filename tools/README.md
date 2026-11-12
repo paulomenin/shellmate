@@ -19,7 +19,7 @@ Nothing here ships in the `shellmate` binary.
 Line coverage says a line ran; mutation testing says a test would notice if it were wrong. `cargo-mutants` changes the code (flips a `>`, empties a function, deletes a `match` arm) and runs the tests. A mutant that no test fails on has *survived*, and that is a gap.
 
 ```
-cargo install --locked cargo-mutants --version 27.1.0
+mise install                                            # installs cargo-mutants at the pinned version
 mise run mutants                                        # command/, tools/, validate/, the engine tool decisions, the presenter and the redactor, about 30 minutes
 tools/mutants.sh -p shellmate-core -f 'crates/shellmate-core/src/command/*.rs'   # one file
 tools/mutants.sh --list                                 # what would be tried

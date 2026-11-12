@@ -62,7 +62,7 @@ Binary integration tests count; the shell e2e suite does not. Last baseline: abo
 ## Mutation testing
 
 ```sh
-cargo install --locked cargo-mutants --version 27.1.0
+mise install                                                  # installs cargo-mutants at the pinned version
 mise run mutants                                              # about 30 minutes: command/, tools/, validate/, engine/tool_calls/, present/, render.rs, sanitize.rs, secrets.rs, secret_cmd.rs, the redactor
 cargo mut -p shellmate-core -f 'crates/shellmate-core/src/command/*.rs'
 cargo mut --list                                              # what would be tried

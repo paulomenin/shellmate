@@ -63,7 +63,7 @@ Line coverage says code ran. Mutation testing says a test would notice if the co
 cargo install --locked cargo-llvm-cov --version 0.9.1
 cargo cov                       # HTML report in target/llvm-cov/html (or: mise run coverage, which also prints a summary)
 
-cargo install --locked cargo-mutants --version 27.1.0
+mise install                    # installs cargo-mutants at the pinned version
 mise run mutants                # the security modules, about 30 minutes
 cargo mut -p shellmate-core -f 'crates/shellmate-core/src/command/*.rs'   # one file
 ```
