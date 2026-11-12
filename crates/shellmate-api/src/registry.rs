@@ -1,4 +1,4 @@
-use crate::{ChatRequest, ChatStream, Decider, Error, Middleware, Provider, Store};
+use crate::{ChatRequest, ChatStream, Decider, Error, Middleware, Provider, Store, Tool, ToolCtor};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -92,6 +92,7 @@ pub struct Registry {
     llm_middleware: Catalog<dyn Middleware<ChatRequest, ChatStream>, Option<MiddlewareRole>>,
     stores: Catalog<dyn Store>,
     deciders: Catalog<dyn Decider>,
+    tools: Catalog<dyn Tool>,
 }
 
 impl Default for Registry {
@@ -101,6 +102,7 @@ impl Default for Registry {
             llm_middleware: Catalog::new("llm middleware", "available"),
             stores: Catalog::new("store", "available stores"),
             deciders: Catalog::new("decider", "available deciders"),
+            tools: Catalog::new("tool", "available tools"),
         }
     }
 }
@@ -169,6 +171,23 @@ impl Registry {
         settings: &serde_json::Value,
     ) -> Result<Arc<dyn Middleware<ChatRequest, ChatStream>>, Error> {
         self.llm_middleware.build(id, settings)
+    }
+
+    /// Register a tool. `id` is the tool's name, the one the model writes and `[tools.<name>]` uses.
+    pub fn register_tool(&mut self, id: &str, ctor: ToolCtor) {
+        self.tools.insert(id, (), ctor.into());
+    }
+
+    pub fn tool_ids(&self) -> impl Iterator<Item = &str> {
+        self.tools.ids()
+    }
+
+    pub fn build_tool(
+        &self,
+        id: &str,
+        settings: &serde_json::Value,
+    ) -> Result<Arc<dyn Tool>, Error> {
+        self.tools.build(id, settings)
     }
 
     pub fn register_store(&mut self, id: &str, ctor: StoreCtor) {
@@ -324,5 +343,53 @@ mod tests {
         );
         assert_eq!(r.llm_middleware_role("plain"), None);
         assert_eq!(r.llm_middleware_role("missing"), None);
+    }
+
+    #[test]
+    fn a_tool_is_registered_by_its_name_and_built_with_its_settings() {
+        use crate::{
+            Assessment, Granted, Prepared, ToolAction, ToolCall, ToolCtx, ToolInfo, ToolOutput,
+            ToolSettings,
+        };
+        struct Echo;
+        #[async_trait::async_trait]
+        impl Tool for Echo {
+            fn info(&self) -> ToolInfo {
+                ToolInfo {
+                    name: "echo",
+                    permissions: vec![],
+                    approval: crate::ApprovalMode::Never,
+                    untrusted_output: false,
+                }
+            }
+            fn offer(&self, _: ToolAction, _: &ToolSettings) -> Option<String> {
+                None
+            }
+            async fn assess(&self, _: &ToolCall, _: &ToolCtx<'_>) -> Assessment {
+                Assessment::Allow(Prepared::new(()))
+            }
+            async fn run(&self, _: Prepared, _: &Granted, _: &ToolCtx<'_>) -> ToolOutput {
+                unreachable!("not run in this test")
+            }
+        }
+        let mut r = Registry::new();
+        r.register_tool(
+            "echo",
+            Box::new(|s| {
+                assert_eq!(s["x"], 1);
+                Ok(Arc::new(Echo))
+            }),
+        );
+        assert_eq!(r.tool_ids().collect::<Vec<_>>(), ["echo"]);
+        assert_eq!(
+            r.build_tool("echo", &serde_json::json!({"x": 1}))
+                .unwrap()
+                .info()
+                .name,
+            "echo"
+        );
+        let e = r.build_tool("nope", &serde_json::json!({})).err().unwrap();
+        assert_eq!(e.message, "no tool plugin `nope`");
+        assert_eq!(e.hint.as_deref(), Some("available tools: echo"));
     }
 }

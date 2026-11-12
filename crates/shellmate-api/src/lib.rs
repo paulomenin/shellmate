@@ -12,6 +12,7 @@ mod registry;
 mod secret;
 mod store;
 mod stream;
+mod tool;
 mod types;
 
 pub use decider::{Answer, Decider, DecisionRequest, DecisionResponse, Question};
@@ -27,5 +28,11 @@ pub use secret::Secret;
 pub use store::{busy, ConversationInfo, ConversationLock, Current, Store};
 pub use stream::{
     collect, stream_from, stream_of_response, ChatStream, EventStream, StreamEvent, VecStream,
+};
+pub use tool::{
+    ApprovalKind, ApprovalMode, ApprovalNeed, ApprovalSetting, Assessment, CommandRisk, FileTarget,
+    FileText, Granted, Mark, Permission, Prepared, ProcessEnv, ProcessOutput, ProcessSpec, Refusal,
+    Risk, ToBuffer, Tone, Tool, ToolAction, ToolCall, ToolCtor, ToolCtx, ToolInfo, ToolNotice,
+    ToolOutput, ToolServices, ToolSettings,
 };
 pub use types::{ChatRequest, ChatResponse, Message, Role, Usage};
