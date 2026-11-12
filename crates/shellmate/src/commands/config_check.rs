@@ -8,13 +8,14 @@ pub(crate) fn run(config: Option<&std::path::Path>) -> i32 {
     let registry = shellmate_builtin::registry();
     let result = Config::load(config).and_then(|cfg| {
         cfg.validate_with(&registry, &shellmate_core::ports::Host::system())?;
-        Engine::from_config(&cfg, &registry)?; // also enforces the privacy rules (remote providers need redaction)
+        let engine = Engine::from_config(&cfg, &registry)?; // also enforces the privacy rules (remote providers need redaction)
         let chain = cfg
             .provider_chain()
             .map(|c| c.into_iter().map(String::from).collect::<Vec<_>>())?;
-        let mut risky = shellmate_core::command::dangerous_rules(&cfg.tools.exec.preapproved)
+        let mut risky = engine
+            .risky_tool_rules()
             .into_iter()
-            .map(|(r, why)| (format!("tools.exec.preapproved \"{r}\""), why))
+            .map(|(tool, r, why)| (format!("tools.{tool}.preapproved \"{r}\""), why))
             .collect::<Vec<_>>();
         risky.extend(
             shellmate_core::command::dangerous_read_rules(&cfg.tools.read.preapproved)

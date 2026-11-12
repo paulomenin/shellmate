@@ -6,8 +6,6 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ToolsConfig {
     #[serde(default)]
-    pub exec: ExecTool,
-    #[serde(default)]
     pub read: ReadTool,
     /// Every other `[tools.<name>]`, `man` among them. The name must be a tool the registry has; that is
     /// checked when the engine is built, so a misspelt name is an error that lists the tools there are.
@@ -98,6 +96,10 @@ fn default_read_bytes() -> usize {
     16384
 }
 
+fn default_ask() -> ExecApproval {
+    ExecApproval::Ask
+}
+
 /// `ask` shows a prompt for every command that is not covered by a pre-approval rule; `deny` turns the
 /// tool off. There is no `allow`: standing approvals are written as `preapproved` rules, and the classifier
 /// keeps its veto over them (`approval-ux.md` §9).
@@ -106,60 +108,4 @@ fn default_read_bytes() -> usize {
 pub enum ExecApproval {
     Ask,
     Deny,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ExecEnv {
-    Sanitized,
-    Inherit,
-}
-
-/// The `exec` tool: the model may ask to run a simple command to look at the machine.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ExecTool {
-    #[serde(default = "super::default_true")]
-    pub enabled: bool,
-    #[serde(default = "default_ask")]
-    pub approval: ExecApproval,
-    /// Commands that run without a prompt, written by the user (see `command::rule_matches`).
-    #[serde(default)]
-    pub preapproved: Vec<String>,
-    #[serde(default = "default_exec_timeout")]
-    pub timeout: String,
-    /// Longest stdout and longest stderr kept, in bytes.
-    #[serde(default = "default_exec_output")]
-    pub max_output: usize,
-    #[serde(default = "default_exec_env")]
-    pub env: ExecEnv,
-}
-
-impl Default for ExecTool {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            approval: ExecApproval::Ask,
-            preapproved: Vec::new(),
-            timeout: default_exec_timeout(),
-            max_output: default_exec_output(),
-            env: ExecEnv::Sanitized,
-        }
-    }
-}
-
-fn default_ask() -> ExecApproval {
-    ExecApproval::Ask
-}
-
-fn default_exec_timeout() -> String {
-    "30s".into()
-}
-
-fn default_exec_output() -> usize {
-    16 * 1024
-}
-
-fn default_exec_env() -> ExecEnv {
-    ExecEnv::Sanitized
 }

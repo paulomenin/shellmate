@@ -3,13 +3,10 @@
 //! timeout, the output cap and the checks are the core's, not the tool's.
 
 use crate::command;
-use crate::config::ExecEnv;
 use crate::ports::Host;
 use crate::tools;
 use async_trait::async_trait;
-use shellmate_api::{
-    CommandRisk, FileTarget, FileText, ProcessEnv, ProcessOutput, ProcessSpec, ToolServices,
-};
+use shellmate_api::{CommandRisk, FileTarget, FileText, ProcessOutput, ProcessSpec, ToolServices};
 use std::path::PathBuf;
 
 pub(in crate::engine) struct CoreServices<'a> {
@@ -48,21 +45,30 @@ impl ToolServices for CoreServices<'_> {
         command::rule_matches(rule, argv)
     }
 
+    fn risky_command_rules(&self, rules: &[String]) -> Vec<(String, String)> {
+        command::dangerous_rules(rules)
+    }
+
+    fn display_command(&self, argv: &[String]) -> String {
+        command::Prepared {
+            program: PathBuf::new(),
+            argv: argv.to_vec(),
+            cwd: None,
+        }
+        .display()
+    }
+
     async fn run_process(&self, spec: &ProcessSpec) -> ProcessOutput {
         let prepared = command::Prepared {
             program: spec.program.clone(),
             argv: spec.argv.clone(),
             cwd: spec.cwd.clone(),
         };
-        let env = match spec.env {
-            ProcessEnv::Sanitized => ExecEnv::Sanitized,
-            ProcessEnv::Inherit => ExecEnv::Inherit,
-        };
         let r = tools::run_exec_with(
             &prepared,
             spec.timeout,
             spec.max_output,
-            env,
+            spec.env,
             self.host.env.as_ref(),
             &spec.set_env,
             &spec.remove_env,
@@ -116,7 +122,7 @@ impl ToolServices for CoreServices<'_> {
 mod tests {
     use super::*;
     use crate::ports::MapEnv;
-    use shellmate_api::Risk;
+    use shellmate_api::{ProcessEnv, Risk};
     use std::time::Duration;
 
     fn host(path: &str) -> Host {
@@ -132,6 +138,10 @@ mod tests {
         assert!(s.is_dir("/"));
         assert!(!s.is_dir("/no/such/dir"));
         assert!(s.find_program("sh").is_some());
+        // a short internal limit is never shorter than asked, and is stretched when the clock is slow
+        let five = Duration::from_secs(5);
+        let limit = s.internal_limit(five);
+        assert!(limit >= five && limit <= five * 100, "{limit:?}");
         let none = host("");
         assert_eq!(CoreServices { host: &none }.find_program("sh"), None);
     }
@@ -146,6 +156,24 @@ mod tests {
         assert!(safe.safe && safe.risk == Risk::Low && safe.reasons.is_empty());
         let bad = s.classify_command("rm -rf /");
         assert!(!bad.safe && bad.risk == Risk::High && !bad.reasons.is_empty());
+        assert_eq!(
+            s.display_command(&[
+                "git".into(),
+                "commit".into(),
+                "-m".into(),
+                "a b".into(),
+                "".into()
+            ]),
+            "git commit -m 'a b' ''",
+            "words with a space, and empty ones, are quoted"
+        );
+        assert_eq!(
+            s.display_command(&["echo".into(), "it's".into()]),
+            "echo 'it'\\''s'"
+        );
+        let risky = s.risky_command_rules(&["*".into(), "ls -l".into(), "rm *".into()]);
+        assert_eq!(risky.len(), 2, "{risky:?}");
+        assert_eq!(risky[0].0, "*");
         assert!(s.command_rule_matches("git status", &["git".into(), "status".into()]));
         assert!(!s.command_rule_matches("git status", &["git".into(), "push".into()]));
     }

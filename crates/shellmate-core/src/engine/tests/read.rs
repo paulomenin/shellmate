@@ -212,7 +212,7 @@ async fn file_text_taints_the_rest_of_the_turn() {
     let d = work_dir("taint");
     let mut cfg = Config::defaults();
     cfg.tools.read.preapproved = vec!["notes.txt".into()];
-    cfg.tools.exec.preapproved = vec!["echo *".into()];
+    tool(&mut cfg, "exec").preapproved = vec!["echo *".into()];
     let a = FakeApprover::new(Choice::Deny);
     let p = FakeProvider::with(vec![
         Ok(read_call("notes.txt")),

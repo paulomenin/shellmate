@@ -4,6 +4,7 @@
 //! signatures (via `async_trait`), but no tokio types do.
 
 mod decider;
+mod duration;
 mod endpoint;
 mod error;
 mod middleware;
@@ -16,6 +17,7 @@ mod tool;
 mod types;
 
 pub use decider::{Answer, Decider, DecisionRequest, DecisionResponse, Question};
+pub use duration::parse_duration;
 pub use endpoint::check_endpoint;
 pub use error::{Error, Result};
 pub use middleware::{Middleware, Next, Terminal};

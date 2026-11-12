@@ -111,7 +111,7 @@ impl Tool for Probe {
         }
     }
 
-    fn rule_matches(&self, _: &str, _: &[String]) -> bool {
+    fn rule_matches(&self, _: &str, _: &[String], _: &dyn api::ToolServices) -> bool {
         self.rules_match
     }
 

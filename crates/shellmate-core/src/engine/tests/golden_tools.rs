@@ -162,7 +162,7 @@ fn work_dir(name: &str) -> std::path::PathBuf {
 
 fn exec_rules(rules: &[&str]) -> Config {
     let mut cfg = Config::defaults();
-    cfg.tools.exec.preapproved = rules.iter().map(|s| s.to_string()).collect();
+    tool(&mut cfg, "exec").preapproved = rules.iter().map(|s| s.to_string()).collect();
     cfg
 }
 
@@ -214,7 +214,7 @@ async fn a_tool_that_is_off_is_not_in_the_prompt() {
     )));
     let mut none = Config::defaults();
     man_off(&mut none);
-    none.tools.exec.enabled = false;
+    tool(&mut none, "exec").enabled = false;
     none.tools.read.enabled = false;
     let t = trace(&[], none, None, None).await;
     assert!(t
@@ -384,7 +384,7 @@ async fn exec_refuses_a_program_that_is_not_in_path_without_asking() {
 #[tokio::test]
 async fn exec_that_is_disabled_is_refused_even_if_the_model_asks() {
     let mut cfg = Config::defaults();
-    cfg.tools.exec.enabled = false;
+    tool(&mut cfg, "exec").enabled = false;
     let t = trace(&["exec echo golden"], cfg, Some(Choice::Run), None).await;
     assert_eq!(
         t.result(0),

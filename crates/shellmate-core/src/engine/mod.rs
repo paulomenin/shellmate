@@ -60,6 +60,16 @@ fn build_tools(cfg: &Config, registry: &Registry, host: &Host) -> Result<Vec<too
             false => serde_json::json!({}),
         };
         let tool = registry.build_tool(name, &settings).map_err(named)?;
+        if let Some(r) = entry
+            .preapproved
+            .iter()
+            .find(|r| r.trim().is_empty() || r.contains(|c: char| c.is_control()))
+        {
+            return Err(Error::new(
+                "config.invalid",
+                format!("tools.{name}.preapproved: invalid rule {r:?}"),
+            ));
+        }
         let needs_approval = tool.info().approval == ApprovalMode::Required;
         let approval = match entry.approval {
             Some(ToolApproval::Allow) if needs_approval => {
@@ -307,6 +317,19 @@ impl Engine {
     pub fn with_config(mut self, cfg: Config) -> Self {
         self.cfg = cfg;
         self
+    }
+
+    /// The user's `preapproved` rules that are too broad to be safe, as `(tool, rule, why)`. They still
+    /// work, because the classifier keeps its veto; `config check` reports them.
+    pub fn risky_tool_rules(&self) -> Vec<(String, String, String)> {
+        self.plugged
+            .iter()
+            .flat_map(|p| {
+                p.risky_rules(&self.host)
+                    .into_iter()
+                    .map(|(rule, why)| (p.name().to_string(), rule, why))
+            })
+            .collect()
     }
 
     /// Build the tools of the registry from the engine's config and host (tests and embedding;

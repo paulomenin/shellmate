@@ -48,7 +48,7 @@ impl Tool for Web {
             })),
         }
     }
-    fn rule_matches(&self, rule: &str, subject: &[String]) -> bool {
+    fn rule_matches(&self, rule: &str, subject: &[String], _: &dyn api::ToolServices) -> bool {
         subject.iter().any(|s| s.starts_with(rule))
     }
     async fn run(&self, p: Prepared, _: &Granted, _: &ToolCtx<'_>) -> ToolOutput {
@@ -153,8 +153,6 @@ fn a_misspelt_key_of_the_core_is_a_config_error_and_a_misspelt_one_of_the_tool_i
     assert!(Config::parse("version = 1\n[tools.web]\napproval = \"maybe\"").is_err());
     assert!(Config::parse("version = 1\n[tools.web]\nenabled = \"yes\"").is_err());
     assert!(Config::parse("version = 1\n[tools]\nweb = 3").is_err());
-    // the built-in tools are still strict
-    assert!(Config::parse("version = 1\n[tools.exec]\nbogus = 1").is_err());
     let cfg = config("[tools.web]\ntypo = 1\n");
     let e = Engine::from_config_in(
         &cfg,

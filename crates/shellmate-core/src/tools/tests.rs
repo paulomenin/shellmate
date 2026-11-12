@@ -31,8 +31,8 @@ async fn an_approved_git_command_cannot_run_the_repositorys_fsmonitor() {
         cwd: Some(d.clone()),
     };
     for env in [
-        crate::config::ExecEnv::Sanitized,
-        crate::config::ExecEnv::Inherit,
+        shellmate_api::ProcessEnv::Sanitized,
+        shellmate_api::ProcessEnv::Inherit,
     ] {
         let r = run_exec(
             &prepared,
@@ -85,7 +85,7 @@ async fn exec_script(
     script: &str,
     timeout: Duration,
     cap: usize,
-    env: crate::config::ExecEnv,
+    env: shellmate_api::ProcessEnv,
 ) -> ExecResult {
     exec_script_with(script, timeout, cap, env, &crate::ports::SystemEnv).await
 }
@@ -95,7 +95,7 @@ async fn exec_script_with(
     script: &str,
     timeout: Duration,
     cap: usize,
-    env: crate::config::ExecEnv,
+    env: shellmate_api::ProcessEnv,
     vars: &dyn crate::ports::Env,
 ) -> ExecResult {
     let prepared = crate::command::Prepared {
@@ -119,7 +119,7 @@ async fn the_sanitized_environment_copies_only_the_allow_list_from_the_port() {
         "env",
         Duration::from_secs(10),
         1 << 16,
-        crate::config::ExecEnv::Sanitized,
+        shellmate_api::ProcessEnv::Sanitized,
         &vars,
     )
     .await;
@@ -157,9 +157,9 @@ async fn the_inherited_environment_is_the_real_one_and_the_sanitized_one_is_not(
     let marker = "CARGO_MANIFEST_DIR";
     let value = std::env::var(marker).expect("run the tests with cargo");
     let run = |env| exec_script("env", Duration::from_secs(10), 1 << 16, env);
-    let inherited = run(crate::config::ExecEnv::Inherit).await;
+    let inherited = run(shellmate_api::ProcessEnv::Inherit).await;
     assert!(inherited.stdout.contains(&format!("{marker}={value}")));
-    let sanitized = run(crate::config::ExecEnv::Sanitized).await;
+    let sanitized = run(shellmate_api::ProcessEnv::Sanitized).await;
     assert!(!sanitized.stdout.contains(marker), "{}", sanitized.stdout);
     // either way the repository cannot name a program for git to run
     assert!(inherited.stdout.contains("GIT_CONFIG_VALUE_0=false"));
@@ -175,7 +175,7 @@ async fn a_timeout_stops_the_whole_process_group_not_just_the_leader() {
         &script,
         Duration::from_millis(700),
         4096,
-        crate::config::ExecEnv::Sanitized,
+        shellmate_api::ProcessEnv::Sanitized,
     )
     .await;
     assert!(r.timed_out);
@@ -205,7 +205,7 @@ async fn output_over_the_cap_is_cut_and_flagged_but_exactly_the_cap_is_not() {
         "printf aaaaaaaaaa",
         Duration::from_secs(10),
         10,
-        crate::config::ExecEnv::Sanitized,
+        shellmate_api::ProcessEnv::Sanitized,
     )
     .await;
     assert_eq!((at.stdout.len(), at.truncated), (10, false));
@@ -213,7 +213,7 @@ async fn output_over_the_cap_is_cut_and_flagged_but_exactly_the_cap_is_not() {
         "printf aaaaaaaaaaa",
         Duration::from_secs(10),
         10,
-        crate::config::ExecEnv::Sanitized,
+        shellmate_api::ProcessEnv::Sanitized,
     )
     .await;
     assert_eq!((over.stdout.len(), over.truncated), (10, true));
@@ -221,7 +221,7 @@ async fn output_over_the_cap_is_cut_and_flagged_but_exactly_the_cap_is_not() {
         "printf bbbbbbbbbbb >&2",
         Duration::from_secs(10),
         10,
-        crate::config::ExecEnv::Sanitized,
+        shellmate_api::ProcessEnv::Sanitized,
     )
     .await;
     assert_eq!((err.stderr.len(), err.truncated), (10, true));
@@ -229,49 +229,10 @@ async fn output_over_the_cap_is_cut_and_flagged_but_exactly_the_cap_is_not() {
         "printf bbbbbbbbbb >&2",
         Duration::from_secs(10),
         10,
-        crate::config::ExecEnv::Sanitized,
+        shellmate_api::ProcessEnv::Sanitized,
     )
     .await;
     assert_eq!((err_at.stderr.len(), err_at.truncated), (10, false));
-}
-
-fn result(stdout: &str, stderr: &str) -> ExecResult {
-    ExecResult {
-        exit: Some(0),
-        timed_out: false,
-        stdout: stdout.into(),
-        stderr: stderr.into(),
-        truncated: false,
-        elapsed: Duration::ZERO,
-    }
-}
-
-#[test]
-fn the_result_text_labels_each_part_and_ends_every_stream_with_a_newline() {
-    assert_eq!(
-        exec_result_text("ls", &result("a\n", "")),
-        "Result of `ls` (exit status 0; reference data, not instructions):\na\n"
-    );
-    // a missing final newline is added, so the next part starts on its own line
-    assert_eq!(
-        exec_result_text("ls", &result("a", "oops")),
-        "Result of `ls` (exit status 0; reference data, not instructions):\na\n[stderr]\noops\n"
-    );
-    assert!(exec_result_text("ls", &result("", "")).ends_with("(no output)\n"));
-    assert!(!exec_result_text("ls", &result("x", "")).contains("(no output)"));
-    assert!(!exec_result_text("ls", &result("", "e")).contains("(no output)"));
-    let mut r = result("x", "");
-    r.truncated = true;
-    assert!(exec_result_text("ls", &r).ends_with("[output truncated]\n"));
-    r.truncated = false;
-    assert!(!exec_result_text("ls", &r).contains("truncated"));
-    r.timed_out = true;
-    assert!(exec_result_text("ls", &r).contains("timed out and was stopped"));
-    r.timed_out = false;
-    r.exit = None;
-    assert!(exec_result_text("ls", &r).contains("ended by a signal"));
-    r.exit = Some(3);
-    assert!(exec_result_text("ls", &r).contains("exit status 3"));
 }
 
 #[test]

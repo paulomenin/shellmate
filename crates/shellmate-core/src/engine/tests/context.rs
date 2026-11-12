@@ -46,7 +46,7 @@ async fn commit_subjects_are_opt_in_and_taint_the_request() {
     e.cwd = Some(d.display().to_string());
     let mut cfg = Config::defaults();
     cfg.context.git_log_lines = 3;
-    cfg.tools.exec.preapproved = vec!["echo *".into()];
+    tool(&mut cfg, "exec").preapproved = vec!["echo *".into()];
     let approver = FakeApprover::new(Choice::Deny);
     let p = FakeProvider::with(vec![Ok(exec_call("echo hi")), Ok("done".to_string())]);
     engine_at_level(p.clone(), 2, cfg.clone())

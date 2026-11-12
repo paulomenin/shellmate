@@ -1,11 +1,11 @@
 //! Tool calls the model makes during a turn.
 //!
-//! Each tool implements [`Tool`]. `exec` and `read` need a human's approval (INV-1) and taint the turn
-//! with what they return (INV-4), so each splits its work in two: `decide` answers "may this happen?"
+//! `man` and `exec` live behind the plugin API (`plugged`). Each tool still here implements [`Tool`]. `read`
+//! needs a human's approval (INV-1) and taints the turn with what it returns (INV-4), so it splits its work
+//! in two: `decide` answers "may this happen?"
 //! (parse, classify, pre-approval, ask the person) and runs nothing, and `execute` does the work for a
 //! call that was allowed. `man` is read-only and has no approval step, and lives behind the plugin API (`plugged`).
 
-pub(in crate::engine) mod exec;
 mod plugged;
 pub(in crate::engine) mod read;
 mod services;
@@ -48,7 +48,7 @@ pub(in crate::engine) trait Tool: Sync {
     async fn run(&self, call: &ToolCall, env: &ToolEnv<'_>) -> ToolRun;
 }
 
-const TOOLS: [&dyn Tool; 2] = [&exec::Exec, &read::Read];
+const TOOLS: [&dyn Tool; 1] = [&read::Read];
 
 /// The offers of every tool that is available for `action`, in the order the prompt shows them: the tools
 /// behind the plugin API in the order they were registered, then the ones that still live here.

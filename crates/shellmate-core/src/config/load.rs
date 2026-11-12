@@ -59,21 +59,4 @@ impl Config {
     }
 }
 
-/// `90s`, `30m`, `2h`, `7d`. No bare numbers: the unit is always explicit.
-pub fn parse_duration(s: &str) -> Result<std::time::Duration> {
-    let bad = || {
-        Error::new("config.invalid", format!("invalid duration `{s}`"))
-            .with_hint("use a number and a unit: 90s, 30m, 2h, 7d")
-    };
-    let s = s.trim();
-    let (num, unit) = s.split_at(s.len().checked_sub(1).ok_or_else(bad)?);
-    let n: u64 = num.parse().map_err(|_| bad())?;
-    let secs = match unit {
-        "s" => n,
-        "m" => n.checked_mul(60).ok_or_else(bad)?,
-        "h" => n.checked_mul(3600).ok_or_else(bad)?,
-        "d" => n.checked_mul(86400).ok_or_else(bad)?,
-        _ => return Err(bad()),
-    };
-    Ok(std::time::Duration::from_secs(secs))
-}
+pub use shellmate_api::parse_duration;

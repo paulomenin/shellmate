@@ -35,15 +35,14 @@ impl Engine {
     }
 }
 
+/// The `[tools.<name>]` entry of `cfg`, made if it is not there.
+fn tool<'a>(cfg: &'a mut Config, name: &str) -> &'a mut crate::config::ToolEntry {
+    cfg.tools.other.entry(name.into()).or_default()
+}
+
 /// Turn the `man` tool off in `cfg`.
 fn man_off(cfg: &mut Config) {
-    cfg.tools.other.insert(
-        "man".into(),
-        crate::config::ToolEntry {
-            enabled: false,
-            ..Default::default()
-        },
-    );
+    tool(cfg, "man").enabled = false;
 }
 
 fn env(action: &str, buffer: &str) -> Envelope {
@@ -70,6 +69,7 @@ fn engine(list: Vec<(&str, Arc<FakeProvider>, u8)>) -> Engine {
         1,
     )
     .with_os("TestOS")
+    .with_builtin_tools()
 }
 
 fn remote(p: Arc<FakeProvider>) -> Vec<ProviderSpec> {

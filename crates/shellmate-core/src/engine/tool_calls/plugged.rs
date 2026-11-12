@@ -41,6 +41,15 @@ impl Plugged {
             .flatten()
     }
 
+    /// Rules of the user's that are too broad, as `(rule, why)`, for `config check`.
+    pub(in crate::engine) fn risky_rules(
+        &self,
+        host: &crate::ports::Host,
+    ) -> Vec<(String, String)> {
+        self.tool
+            .risky_rules(&self.settings.preapproved, &CoreServices { host })
+    }
+
     /// Decide and, if allowed, run one call. A refusal is a `ToolRun`, not an error.
     pub(in crate::engine) async fn run(&self, call: &ToolCall, env: &ToolEnv<'_>) -> ToolRun {
         let info = self.tool.info();
@@ -77,7 +86,7 @@ impl Plugged {
                 }
                 (p, api::Granted::NotRequired, ToolDecision::Allow)
             }
-            api::Assessment::NeedsApproval(need) => match self.approve(*need, env) {
+            api::Assessment::NeedsApproval(need) => match self.approve(*need, &services, env) {
                 Ok(go) => go,
                 Err(run) => return *run,
             },
@@ -92,6 +101,7 @@ impl Plugged {
     fn approve(
         &self,
         need: api::ApprovalNeed,
+        services: &CoreServices<'_>,
         env: &ToolEnv<'_>,
     ) -> Result<(api::Prepared, api::Granted, ToolDecision), Box<ToolRun>> {
         let rule = (need.preapprovable && !env.tainted)
@@ -99,7 +109,7 @@ impl Plugged {
                 self.settings
                     .preapproved
                     .iter()
-                    .find(|r| self.tool.rule_matches(r, &need.rule_subject))
+                    .find(|r| self.tool.rule_matches(r, &need.rule_subject, services))
             })
             .flatten();
         if let Some(rule) = rule {

@@ -70,8 +70,6 @@ impl Config {
                 ));
             }
         }
-        parse_duration(&self.tools.exec.timeout)
-            .map_err(|e| Error::new(e.code, format!("tools.exec.timeout: {}", e.message)))?;
         if self.tools.read.max_bytes == 0 {
             return Err(Error::new(
                 "config.invalid",
@@ -92,14 +90,6 @@ impl Config {
                 return Err(Error::new(
                     "config.invalid",
                     format!("tools.read.roots: `{r}` must be an absolute path or start with `~/`"),
-                ));
-            }
-        }
-        for r in &self.tools.exec.preapproved {
-            if r.contains(|c: char| c.is_control()) || r.trim().is_empty() {
-                return Err(Error::new(
-                    "config.invalid",
-                    format!("tools.exec.preapproved: invalid rule {r:?}"),
                 ));
             }
         }

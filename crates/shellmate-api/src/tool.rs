@@ -317,9 +317,20 @@ pub trait Tool: Send + Sync {
     async fn assess(&self, call: &ToolCall, ctx: &ToolCtx<'_>) -> Assessment;
 
     /// Whether a pre-approval `rule` of the user's covers `subject` ([`ApprovalNeed::rule_subject`]).
-    /// The core asks only when the call is preapprovable and the turn is not tainted.
-    fn rule_matches(&self, _rule: &str, _subject: &[String]) -> bool {
+    /// The core asks only when the call is preapprovable and the turn is not tainted. `services` has the
+    /// core's matching for command rules.
+    fn rule_matches(&self, _rule: &str, _subject: &[String], _services: &dyn ToolServices) -> bool {
         false
+    }
+
+    /// Rules among the user's `preapproved` that are too broad to be safe, as `(rule, why)`. They still
+    /// work, because the classifier keeps its veto; `config check` reports them.
+    fn risky_rules(
+        &self,
+        _rules: &[String],
+        _services: &dyn ToolServices,
+    ) -> Vec<(String, String)> {
+        Vec::new()
     }
 
     /// Do the work for a call the core let through.
@@ -406,6 +417,11 @@ pub trait ToolServices: Send + Sync {
     fn classify_command(&self, line: &str) -> CommandRisk;
     /// Whether a pre-approval rule written for commands covers `argv`.
     fn command_rule_matches(&self, rule: &str, argv: &[String]) -> bool;
+    /// Command rules that are too broad: they match programs the classifier flags, or everything.
+    fn risky_command_rules(&self, rules: &[String]) -> Vec<(String, String)>;
+    /// The command as the person reads it and the prompt shows it: words with spaces or quotes in them are
+    /// quoted. What is shown is what runs.
+    fn display_command(&self, argv: &[String]) -> String;
     async fn run_process(&self, spec: &ProcessSpec) -> ProcessOutput;
     /// `limit` for a short internal wait of the tool's own (not a time the user set), stretched when the
     /// machine is slow, which is how tests run under instrumentation.

@@ -29,6 +29,8 @@ pub struct FakeServices {
     pub read: Read,
     /// What a started program produces. Default: exit 0 with no output.
     pub process: Process,
+    /// What `risky_command_rules` answers, whatever the rules. Default: none.
+    pub risky_rules: Vec<(String, String)>,
     /// Every program the tool asked to start, in order.
     pub started: Mutex<Vec<ProcessSpec>>,
 }
@@ -47,6 +49,7 @@ impl Default for FakeServices {
             vet: Box::new(|a| Err(format!("no such file `{a}`"))),
             read: Box::new(|t, _| Err(format!("cannot read `{}`", t.shown))),
             process: Box::new(|_| output(Some(0), "", "")),
+            risky_rules: Vec::new(),
             started: Mutex::new(Vec::new()),
         }
     }
@@ -122,6 +125,24 @@ impl ToolServices for FakeServices {
             Some(prefix) => line.starts_with(prefix),
             None => rule == line,
         }
+    }
+
+    fn risky_command_rules(&self, _rules: &[String]) -> Vec<(String, String)> {
+        self.risky_rules.clone()
+    }
+
+    /// Words with a space or a quote in them are quoted, like the core does.
+    fn display_command(&self, argv: &[String]) -> String {
+        argv.iter()
+            .map(|w| {
+                if w.is_empty() || w.contains([' ', '\t', '\'', '"']) {
+                    format!("'{}'", w.replace('\'', "'\\''"))
+                } else {
+                    w.clone()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     async fn run_process(&self, spec: &ProcessSpec) -> ProcessOutput {

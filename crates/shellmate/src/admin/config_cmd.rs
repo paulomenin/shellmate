@@ -115,13 +115,6 @@ pub fn config_show(explicit: Option<&Path>, p: &dyn Presenter) -> Result<String>
         cfg.conversation.max_tool_rounds
     ));
     o.push_str(&format!(
-        "exec tool:     enabled={} approval={:?} preapproved={} timeout={}\n",
-        cfg.tools.exec.enabled,
-        cfg.tools.exec.approval,
-        cfg.tools.exec.preapproved.len(),
-        cfg.tools.exec.timeout
-    ));
-    o.push_str(&format!(
         "read tool:     enabled={} approval={:?} preapproved={} roots={} max_bytes={}\n",
         cfg.tools.read.enabled,
         cfg.tools.read.approval,
@@ -129,13 +122,13 @@ pub fn config_show(explicit: Option<&Path>, p: &dyn Presenter) -> Result<String>
         cfg.tools.read.roots.len(),
         cfg.tools.read.max_bytes
     ));
-    // the built-in `man` is on without a table, so it is listed either way
+    // the built-in `man` and `exec` are on without a table, so they are listed either way
     let man = shellmate_core::config::ToolEntry::default();
-    let listed = std::iter::once(("man", &man)).chain(
+    let listed = ["man", "exec"].map(|n| (n, &man)).into_iter().chain(
         cfg.tools
             .other
             .iter()
-            .filter(|(n, _)| n.as_str() != "man")
+            .filter(|(n, _)| !matches!(n.as_str(), "man" | "exec"))
             .map(|(n, t)| (n.as_str(), t)),
     );
     for (name, t) in listed {

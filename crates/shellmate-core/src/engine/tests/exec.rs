@@ -11,7 +11,7 @@ async fn run_exec(
         Ok("Done.\n```shellmate-command\nls\n```".to_string()),
     ]);
     let mut cfg = Config::defaults();
-    cfg.tools.exec.preapproved = preapproved.iter().map(|s| s.to_string()).collect();
+    tool(&mut cfg, "exec").preapproved = preapproved.iter().map(|s| s.to_string()).collect();
     let mut e = engine(vec![("a", p.clone(), 1)])
         .with_config(cfg)
         .with_builtin_tools();
@@ -72,7 +72,7 @@ async fn a_user_rule_runs_a_safe_command_without_asking() {
 async fn a_tainted_turn_suspends_user_rules() {
     // INV-4: a turn carrying untrusted content (captured output) must not run anything unasked
     let mut cfg = Config::defaults();
-    cfg.tools.exec.preapproved = vec!["echo *".into()];
+    tool(&mut cfg, "exec").preapproved = vec!["echo *".into()];
     for (tainted, asked) in [(false, 0), (true, 1)] {
         let a = FakeApprover::new(Choice::Deny);
         let e = engine(vec![("a", FakeProvider::replying("x"), 1)])
@@ -158,7 +158,7 @@ async fn to_buffer_places_the_command_in_the_input_line() {
 #[tokio::test]
 async fn exec_can_be_turned_off_and_is_only_offered_to_ask() {
     let mut cfg = Config::defaults();
-    cfg.tools.exec.approval = crate::config::ExecApproval::Deny;
+    tool(&mut cfg, "exec").approval = Some(crate::config::ToolApproval::Deny);
     let a = FakeApprover::new(Choice::Run);
     let p = FakeProvider::with(vec![Ok(exec_call("echo x")), Ok("ok".to_string())]);
     let _ = engine(vec![("a", p.clone(), 1)])
@@ -194,7 +194,9 @@ async fn exec_can_be_turned_off_and_is_only_offered_to_ask() {
 #[tokio::test]
 async fn long_output_is_capped() {
     let mut cfg = Config::defaults();
-    cfg.tools.exec.max_output = 100;
+    tool(&mut cfg, "exec")
+        .settings
+        .insert("max_output".into(), toml::Value::Integer(100));
     let p = FakeProvider::with(vec![Ok(exec_call("seq 1 5000")), Ok("ok".to_string())]);
     let _ = engine(vec![("a", p.clone(), 1)])
         .with_config(cfg)
