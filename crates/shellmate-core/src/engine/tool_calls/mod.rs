@@ -3,10 +3,9 @@
 //! Each tool implements [`Tool`]. `exec` and `read` need a human's approval (INV-1) and taint the turn
 //! with what they return (INV-4), so each splits its work in two: `decide` answers "may this happen?"
 //! (parse, classify, pre-approval, ask the person) and runs nothing, and `execute` does the work for a
-//! call that was allowed. `man` is read-only and has no approval step.
+//! call that was allowed. `man` is read-only and has no approval step, and lives behind the plugin API (`plugged`).
 
 pub(in crate::engine) mod exec;
-mod man;
 mod plugged;
 pub(in crate::engine) mod read;
 mod services;
@@ -18,13 +17,12 @@ use crate::action::Action;
 use crate::config::Config;
 use crate::ports::Host;
 use crate::present::{Mark, Notice, Tone};
-use crate::tools::{Approver, ToolCall, ToolPolicy};
+use crate::tools::{Approver, ToolCall};
 use async_trait::async_trait;
 
 /// Everything a tool may use for one call. A tool gets no more than this.
 pub(in crate::engine) struct ToolEnv<'a> {
     pub(in crate::engine) cfg: &'a Config,
-    pub(in crate::engine) policy: &'a ToolPolicy,
     /// `None` (no terminal): every call that needs a person is denied.
     pub(in crate::engine) approver: Option<&'a dyn Approver>,
     /// Environment and file system the tool may look at.
@@ -44,36 +42,27 @@ pub(in crate::engine) trait Tool: Sync {
     /// The instructions that offer this tool to the model for `action`, or `None` when it is not offered:
     /// turned off, not allowed to ask, or not an action that may use tools. Kept next to the tool so that
     /// what the model is told and what the tool accepts change together.
-    fn offer(&self, cfg: &Config, policy: &ToolPolicy, action: Action) -> Option<String>;
+    fn offer(&self, cfg: &Config, action: Action) -> Option<String>;
     /// Decide and, if allowed, run one call. Always returns what to show, what the model gets back, and
     /// what was decided; a refusal is a `ToolRun`, not an error.
     async fn run(&self, call: &ToolCall, env: &ToolEnv<'_>) -> ToolRun;
 }
 
-const TOOLS: [&dyn Tool; 3] = [&man::Man, &exec::Exec, &read::Read];
+const TOOLS: [&dyn Tool; 2] = [&exec::Exec, &read::Read];
 
-/// The offers of every tool that is available for `action`, in the order the prompt shows them: the
-/// built-in tools, then the others in the order they were added.
-pub(in crate::engine) fn offers(
-    cfg: &Config,
-    policy: &ToolPolicy,
-    plugged: &[Plugged],
-    action: Action,
-) -> Vec<String> {
+/// The offers of every tool that is available for `action`, in the order the prompt shows them: the tools
+/// behind the plugin API in the order they were registered, then the ones that still live here.
+pub(in crate::engine) fn offers(cfg: &Config, plugged: &[Plugged], action: Action) -> Vec<String> {
     let api_action = match action {
         Action::Ask => Some(shellmate_api::ToolAction::Ask),
         Action::Generate => Some(shellmate_api::ToolAction::Generate),
         Action::Explain => Some(shellmate_api::ToolAction::Explain),
         Action::NewConversation => None,
     };
-    TOOLS
-        .iter()
-        .filter_map(|t| t.offer(cfg, policy, action))
-        .chain(
-            api_action
-                .into_iter()
-                .flat_map(|a| plugged.iter().filter_map(move |p| p.offer(a))),
-        )
+    api_action
+        .into_iter()
+        .flat_map(|a| plugged.iter().filter_map(move |p| p.offer(a)))
+        .chain(TOOLS.iter().filter_map(|t| t.offer(cfg, action)))
         .collect()
 }
 
@@ -102,7 +91,6 @@ impl Engine {
         };
         let env = ToolEnv {
             cfg: &self.cfg,
-            policy: &self.policy,
             approver: self.approver.as_deref(),
             host: &self.host,
             cwd,
@@ -114,10 +102,26 @@ impl Engine {
         }
         match find(&call.name) {
             Some(tool) => tool.run(&call, &env).await,
-            // Not a tool we have: the policy gives the reason, as it does for a refused `man`.
-            None => man::denied_by_policy(&call, &env),
+            None => unknown_tool(&call),
         }
     }
+}
+
+/// A call to a tool that does not exist.
+fn unknown_tool(call: &ToolCall) -> ToolRun {
+    ToolRun::new(
+        Notice::new(
+            Tone::Warning,
+            Mark::Chevron,
+            format!("denied: {}", call.display()),
+        ),
+        format!(
+            "Tool call `{}` was denied: not allowed without approval: unknown tool `{}`.",
+            call.display(),
+            call.name
+        ),
+        ToolDecision::Deny,
+    )
 }
 
 /// What was decided about one tool call. [`ToolDecision::as_str`] is what the audit log records.

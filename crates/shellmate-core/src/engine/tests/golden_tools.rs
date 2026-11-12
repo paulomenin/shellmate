@@ -105,6 +105,7 @@ async fn trace_replies(
     let fake = approver.map(FakeApprover::new);
     let mut e = engine(vec![("a", provider.clone(), 1)])
         .with_config(cfg)
+        .with_builtin_tools()
         .with_audit(sink.clone());
     if let Some(a) = &fake {
         e = e.with_approver(a.clone());
@@ -188,7 +189,9 @@ async fn generate_and_explain_offer_only_man() {
         ("explain", "Explain the command the user wrote"),
     ] {
         let p = FakeProvider::replying("```shellmate-command\nls\n```");
-        let e = engine(vec![("a", p.clone(), 1)]).with_config(Config::defaults());
+        let e = engine(vec![("a", p.clone(), 1)])
+            .with_config(Config::defaults())
+            .with_builtin_tools();
         let _ = e.run(&env(action, "ls -la")).await;
         let system = system_prompt(&p);
         assert!(
@@ -203,14 +206,14 @@ async fn generate_and_explain_offer_only_man() {
 #[tokio::test]
 async fn a_tool_that_is_off_is_not_in_the_prompt() {
     let mut cfg = Config::defaults();
-    cfg.tools.man.enabled = false;
+    man_off(&mut cfg);
     cfg.tools.read.approval = crate::config::ExecApproval::Deny;
     let t = trace(&[], cfg, None, None).await;
     assert!(t.system().contains(&format!(
         "{RULES_END}{EXEC_OFFER}Answer the user's question."
     )));
     let mut none = Config::defaults();
-    none.tools.man.enabled = false;
+    man_off(&mut none);
     none.tools.exec.enabled = false;
     none.tools.read.enabled = false;
     let t = trace(&[], none, None, None).await;
@@ -798,7 +801,9 @@ async fn no_fallback_after_a_tool_has_run() {
     let down = ProviderError::new(ProviderErrorKind::Unavailable, "down");
     let first = FakeProvider::with(vec![Ok(block("man sm-golden-no-such-page")), Err(down)]);
     let second = FakeProvider::replying("never");
-    let e = engine(vec![("a", first, 1), ("b", second.clone(), 1)]).with_config(Config::defaults());
+    let e = engine(vec![("a", first, 1), ("b", second.clone(), 1)])
+        .with_config(Config::defaults())
+        .with_builtin_tools();
     let err = e.run(&env("ask", "look at it")).await.unwrap_err();
     assert_eq!(err.code, "provider.unavailable");
     assert!(second.seen.lock().unwrap().is_empty());

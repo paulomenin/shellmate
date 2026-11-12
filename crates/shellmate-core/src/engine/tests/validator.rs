@@ -75,6 +75,7 @@ async fn a_confident_decider_finding_is_shown_and_the_llm_is_not_asked_again() {
     let p = FakeProvider::replying(DF);
     let out = engine(vec![("a", p.clone(), 1)])
         .with_config(semantic_cfg(&["laya"], true))
+        .with_builtin_tools()
         .with_deciders(vec![spec("laya", d.clone(), Trust::Local)])
         .run(&env("ask", "show disk usage"))
         .await
@@ -108,6 +109,7 @@ async fn an_unsure_decider_stays_silent() {
     let d = FakeDecider::new(Ok(verdict(0.4, "destructive", 0.5)));
     let out = engine(vec![("a", FakeProvider::replying(DF), 1)])
         .with_config(semantic_cfg(&["laya"], true))
+        .with_builtin_tools()
         .with_deciders(vec![spec("laya", d, Trust::Local)])
         .run(&env("ask", "show disk usage"))
         .await
@@ -131,6 +133,7 @@ async fn a_failing_decider_falls_back_to_the_next_then_the_llm() {
     ]);
     let out = engine(vec![("a", p.clone(), 1)])
         .with_config(semantic_cfg(&["laya"], true))
+        .with_builtin_tools()
         .with_deciders(vec![spec("laya", down.clone(), Trust::Local)])
         .run(&env("ask", "list files"))
         .await
@@ -157,6 +160,7 @@ async fn with_no_decider_configured_the_llm_answers() {
     ]);
     let out = engine(vec![("a", p.clone(), 1)])
         .with_config(semantic_cfg(&[], true))
+        .with_builtin_tools()
         .run(&env("ask", "show disk usage"))
         .await
         .unwrap();
@@ -173,6 +177,7 @@ async fn without_fallback_and_without_a_decider_the_check_is_skipped_visibly() {
     let p = FakeProvider::replying(DF);
     let out = engine(vec![("a", p.clone(), 1)])
         .with_config(semantic_cfg(&[], false))
+        .with_builtin_tools()
         .run(&env("ask", "show disk usage"))
         .await
         .unwrap();
@@ -229,6 +234,7 @@ async fn the_validator_can_be_turned_off_and_never_runs_for_explain() {
     let p = FakeProvider::replying("```shellmate-command\nlsss -la\n```");
     let out = engine(vec![("a", p, 1)])
         .with_config(cfg)
+        .with_builtin_tools()
         .run(&env("generate", "list files"))
         .await
         .unwrap();

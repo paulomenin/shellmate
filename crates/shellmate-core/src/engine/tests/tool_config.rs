@@ -197,6 +197,22 @@ fn allow_is_for_tools_that_need_no_approval_only() {
     Engine::from_config_in(&cfg, &registry(ApprovalMode::Never, Arc::default()), host()).unwrap();
 }
 
+#[test]
+fn ask_is_for_tools_that_need_approval_only() {
+    let cfg = config("[tools.web]\napproval = \"ask\"\n");
+    let e = Engine::from_config_in(&cfg, &registry(ApprovalMode::Never, Arc::default()), host())
+        .err()
+        .unwrap();
+    assert_eq!(e.code, "config.invalid");
+    assert!(e.message.contains("tools.web.approval"), "{}", e.message);
+    Engine::from_config_in(
+        &cfg,
+        &registry(ApprovalMode::Required, Arc::default()),
+        host(),
+    )
+    .unwrap();
+}
+
 #[tokio::test]
 async fn a_tool_from_the_config_is_offered_and_asks_by_default() {
     let cfg = config("[tools.web]\n");
@@ -273,7 +289,7 @@ async fn the_approval_a_tool_sees_is_the_one_configured_or_its_default() {
         ),
         (
             "[tools.web]\napproval = \"ask\"\n",
-            ApprovalMode::Never,
+            ApprovalMode::Required,
             api::ApprovalSetting::Ask,
         ),
         (

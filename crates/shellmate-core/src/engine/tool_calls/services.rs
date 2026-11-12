@@ -58,12 +58,14 @@ impl ToolServices for CoreServices<'_> {
             ProcessEnv::Sanitized => ExecEnv::Sanitized,
             ProcessEnv::Inherit => ExecEnv::Inherit,
         };
-        let r = tools::run_exec(
+        let r = tools::run_exec_with(
             &prepared,
             spec.timeout,
             spec.max_output,
             env,
             self.host.env.as_ref(),
+            &spec.set_env,
+            &spec.remove_env,
         )
         .await;
         ProcessOutput {
@@ -74,6 +76,10 @@ impl ToolServices for CoreServices<'_> {
             truncated: r.truncated,
             elapsed: r.elapsed,
         }
+    }
+
+    fn internal_limit(&self, limit: std::time::Duration) -> std::time::Duration {
+        crate::limits::scaled(limit)
     }
 
     fn vet_file(
@@ -155,6 +161,8 @@ mod tests {
             timeout: Duration::from_millis(timeout_ms),
             max_output: cap,
             env: ProcessEnv::Sanitized,
+            set_env: vec![],
+            remove_env: vec![],
         };
         let ok = s
             .run_process(&spec("echo hi; echo oops >&2; exit 3", 10_000, 100))

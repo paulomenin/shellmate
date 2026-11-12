@@ -51,7 +51,6 @@ fn bad_conversation_settings_are_errors() {
         "[actions.new-conversation]\nconversation = \"fresh\"",
         "[actions.ask]\nidle_timeout = \"5\"",
         "[conversation]\nstore = \"tmpfs\"",
-        "[tools.man]\napproval = \"ask\"",
     ] {
         assert!(
             Config::parse(&format!("version = 1\n{bad}")).is_err(),

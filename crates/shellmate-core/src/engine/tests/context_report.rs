@@ -26,7 +26,8 @@ async fn report_at(level: u8, cap: u8, mut cfg: Config, e: &Envelope) -> Context
         level,
     )
     .with_os("TestOS")
-    .with_config(cfg);
+    .with_config(cfg)
+    .with_builtin_tools();
     engine.context_report(e).await.unwrap().remove(0)
 }
 

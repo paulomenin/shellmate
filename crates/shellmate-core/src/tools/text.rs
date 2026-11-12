@@ -40,22 +40,6 @@ pub fn clean_man(raw: &str) -> String {
     out.trim().to_string()
 }
 
-pub(super) fn truncate(text: &str, max: usize) -> String {
-    if text.len() <= max {
-        return text.to_string();
-    }
-    let mut end = max;
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    format!(
-        "{}\n[truncated: {} of {} bytes]",
-        &text[..end],
-        end,
-        text.len()
-    )
-}
-
 // ---- the read tool -----------------------------------------------------------------------------------------
 
 /// Remove escape sequences (colors, cursor moves, titles) and other control characters; keep `\n` and `\t`.

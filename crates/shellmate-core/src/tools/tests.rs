@@ -51,10 +51,7 @@ async fn an_approved_git_command_cannot_run_the_repositorys_fsmonitor() {
     let _ = std::fs::remove_dir_all(&d);
 }
 
-use super::man::run_man_with;
-use super::policy::{is_page, is_section};
 use super::*;
-use crate::config::{Approval, ManTool};
 use std::time::Duration;
 
 fn call(s: &str) -> ToolCall {
@@ -69,65 +66,9 @@ fn parses_single_line_calls_only() {
 }
 
 #[test]
-fn classifier_allows_plain_pages_and_sections() {
-    for ok in [
-        "man tar",
-        "man 5 crontab",
-        "man 3p printf",
-        "man git-commit",
-        "man ld.so",
-    ] {
-        assert_eq!(classify(&call(ok)), Verdict::Safe, "{ok}");
-    }
-}
-
-#[test]
-fn classifier_rejects_options_paths_and_other_tools() {
-    for bad in [
-        "man -P 'sh -c id' ls",
-        "man --pager=evil ls",
-        "man ./local.1",
-        "man /etc/passwd",
-        "man ../x",
-        "man ls extra stuff",
-        "man",
-        "man -k tar",
-        "rm -rf /",
-        "exec ls",
-    ] {
-        assert!(matches!(classify(&call(bad)), Verdict::Unsafe(_)), "{bad}");
-    }
-}
-
-#[test]
-fn policy_applies_the_tool_setting_after_the_classifier() {
-    let on = ToolPolicy::new(ManTool::default());
-    assert_eq!(on.decide(&call("man tar")), Decision::Allow);
-    assert!(matches!(on.decide(&call("man -P x ls")), Decision::Deny(_)));
-    let off = ToolPolicy::new(ManTool {
-        approval: Approval::Deny,
-        ..ManTool::default()
-    });
-    assert!(matches!(off.decide(&call("man tar")), Decision::Deny(_)));
-    assert!(!off.enabled());
-    let disabled = ToolPolicy::new(ManTool {
-        enabled: false,
-        ..ManTool::default()
-    });
-    assert!(!disabled.enabled());
-}
-
-#[test]
 fn man_output_is_cleaned() {
     let raw = "N\u{8}NA\u{8}AM\u{8}ME\u{8}E\n\n\n\n   tar - archive\u{1b}[1m  \n";
     assert_eq!(clean_man(raw), "NAME\n\n   tar - archive");
-}
-
-#[test]
-fn truncation_respects_char_boundaries() {
-    let t = truncate("ééééé", 5);
-    assert!(t.starts_with("éé") && t.contains("[truncated"));
-    assert_eq!(truncate("short", 100), "short");
 }
 
 // ---- tests written from a mutation run: each pins behaviour a mutant could remove unnoticed ----
@@ -333,58 +274,6 @@ fn the_result_text_labels_each_part_and_ends_every_stream_with_a_newline() {
     assert!(exec_result_text("ls", &r).contains("exit status 3"));
 }
 
-async fn fake_man(body: &str, max: usize) -> String {
-    let d = scratch(&format!("man{}", body.len()));
-    let script = d.join("man.sh");
-    std::fs::write(&script, body).unwrap();
-    let call = ToolCall {
-        name: "man".into(),
-        args: vec![script.display().to_string(), "tar".into()],
-        rest: String::new(),
-    };
-    let out = run_man_with("sh", &call, max).await;
-    let _ = std::fs::remove_dir_all(&d);
-    out
-}
-
-#[tokio::test]
-async fn man_text_is_cleaned_and_cut_and_failures_are_reported_as_text() {
-    let ok = fake_man("printf 'N\\bNA\\bAME\\n  body\\n'", 1000).await;
-    assert_eq!(ok, "NAME\n  body");
-    let cut = fake_man("printf 'abcdefghij'", 4).await;
-    assert!(cut.starts_with("abcd\n[truncated: 4 of 10 bytes]"), "{cut}");
-    let failed = fake_man("echo 'No manual entry for tar' >&2; exit 1", 1000).await;
-    assert!(
-        failed.contains("failed: No manual entry for tar"),
-        "{failed}"
-    );
-    let silent = fake_man("exit 2", 1000).await;
-    assert!(
-        silent.ends_with("failed`") || silent.ends_with(" failed"),
-        "{silent}"
-    );
-    assert!(!silent.contains(": "), "{silent}");
-    // a program that is missing is a result too, never a panic
-    let call = ToolCall::parse("man tar").unwrap();
-    assert!(run_man_with("/nonexistent/man", &call, 100)
-        .await
-        .starts_with("could not run man"));
-}
-
-#[test]
-fn the_real_man_wrapper_always_answers_with_text_about_the_call() {
-    // whether or not `man` is installed, a page that does not exist is a result, not a panic or an empty string
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    let out = rt.block_on(run_man(&call("man no-such-page-zz9"), 1000));
-    assert!(
-        out.contains("no-such-page-zz9") || out.contains("could not run man"),
-        "{out:?}"
-    );
-}
-
 #[test]
 fn man_output_loses_control_characters_but_keeps_tabs_and_lines() {
     assert_eq!(clean_man("a\u{7}b\tc\u{1}\rd\ne"), "ab\tcd\ne");
@@ -394,75 +283,6 @@ fn man_output_loses_control_characters_but_keeps_tabs_and_lines() {
     // more than one blank line collapses to one; a single blank line stays
     assert_eq!(clean_man("a\n\nb\n\n\n\nc"), "a\n\nb\n\nc");
     assert_eq!(clean_man("  a  \n"), "a");
-}
-
-#[test]
-fn truncation_cuts_on_a_character_boundary_and_says_how_much() {
-    assert_eq!(truncate("héllo", 5), "héll\n[truncated: 5 of 6 bytes]");
-    assert_eq!(truncate("héllo", 2), "h\n[truncated: 1 of 6 bytes]");
-    assert_eq!(truncate("héllo", 6), "héllo");
-    assert_eq!(truncate("héllo", 3), "hé\n[truncated: 3 of 6 bytes]");
-    assert_eq!(truncate("", 0), "");
-}
-
-#[test]
-fn section_and_page_names_are_exactly_what_man_accepts() {
-    for ok in ["1", "5", "3p", "1ssl", "n", "l"] {
-        assert!(is_section(ok), "{ok}");
-    }
-    for bad in ["", "a", "nn", "12", "1A", "3pppp", "ll", "-1"] {
-        assert!(!is_section(bad), "{bad}");
-    }
-    for ok in [
-        "tar",
-        "g++",
-        "a_b",
-        "ld.so",
-        "x-y",
-        "sd_notify:3",
-        "7z",
-        "a@b",
-    ] {
-        assert!(is_page(ok), "{ok}");
-    }
-    let long = "a".repeat(64);
-    assert!(is_page(&long));
-    for bad in [
-        "",
-        "-P",
-        ".hidden",
-        "a/b",
-        "a b",
-        "a;b",
-        "a$b",
-        &"a".repeat(65),
-        "é",
-    ] {
-        assert!(!is_page(bad), "{bad}");
-    }
-}
-
-#[test]
-fn the_policy_reports_enabled_only_when_the_tool_is_on_and_allowed() {
-    assert!(ToolPolicy::new(ManTool::default()).enabled());
-    let denied = ToolPolicy::new(ManTool {
-        approval: Approval::Deny,
-        ..ManTool::default()
-    });
-    // a plain page on a disabled tool says so; it is not "unknown"
-    let Decision::Deny(why) = denied.decide(&call("man tar")) else {
-        panic!()
-    };
-    assert!(why.contains("disabled"), "{why}");
-    let Decision::Deny(why) = ToolPolicy::new(ManTool::default()).decide(&call("man -P x ls"))
-    else {
-        panic!()
-    };
-    assert!(why.contains("not allowed without approval"), "{why}");
-    let Decision::Deny(why) = ToolPolicy::new(ManTool::default()).decide(&call("exec ls")) else {
-        panic!()
-    };
-    assert!(why.contains("not allowed"), "{why}");
 }
 
 #[test]

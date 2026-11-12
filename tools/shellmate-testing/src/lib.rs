@@ -1,7 +1,9 @@
 //! Test helpers: a fake provider and a tiny mock HTTP server. Dev-dependency only.
 
+mod services;
 mod store;
 
+pub use services::{output, FakeServices};
 pub use store::MemoryStore;
 
 use async_trait::async_trait;

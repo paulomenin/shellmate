@@ -21,7 +21,9 @@ async fn run_read(
     cfg: Config,
 ) -> Arc<FakeProvider> {
     let p = FakeProvider::with(vec![Ok(read_call(arg)), Ok("Done.".to_string())]);
-    let mut e = engine(vec![("a", p.clone(), 1)]).with_config(cfg);
+    let mut e = engine(vec![("a", p.clone(), 1)])
+        .with_config(cfg)
+        .with_builtin_tools();
     if let Some(a) = approver {
         e = e.with_approver(a);
     }
@@ -221,6 +223,7 @@ async fn file_text_taints_the_rest_of_the_turn() {
     env.cwd = Some(d.display().to_string());
     engine(vec![("a", p, 1)])
         .with_config(cfg.clone())
+        .with_builtin_tools()
         .with_approver(a.clone())
         .run(&env)
         .await
@@ -236,6 +239,7 @@ async fn file_text_taints_the_rest_of_the_turn() {
     let p = FakeProvider::with(vec![Ok(exec_call("echo hi")), Ok("Done.".to_string())]);
     engine(vec![("a", p, 1)])
         .with_config(cfg)
+        .with_builtin_tools()
         .with_approver(a.clone())
         .run(&env)
         .await

@@ -23,6 +23,9 @@ use std::any::Any;
 use std::path::PathBuf;
 use std::time::Duration;
 
+/// The label of the fenced block in which the model writes a tool call.
+pub const TOOL_LABEL: &str = "shellmate-tool";
+
 /// What a tool may be allowed to do. A tool declares these in [`ToolInfo`]; the user grants them (INV-3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Permission {
@@ -341,6 +344,10 @@ pub struct ProcessSpec {
     pub timeout: Duration,
     pub max_output: usize,
     pub env: ProcessEnv,
+    /// Variables set on top of `env`.
+    pub set_env: Vec<(String, String)>,
+    /// Variables removed after `env` and `set_env`.
+    pub remove_env: Vec<String>,
 }
 
 /// What a finished (or failed) program produced.
@@ -400,6 +407,9 @@ pub trait ToolServices: Send + Sync {
     /// Whether a pre-approval rule written for commands covers `argv`.
     fn command_rule_matches(&self, rule: &str, argv: &[String]) -> bool;
     async fn run_process(&self, spec: &ProcessSpec) -> ProcessOutput;
+    /// `limit` for a short internal wait of the tool's own (not a time the user set), stretched when the
+    /// machine is slow, which is how tests run under instrumentation.
+    fn internal_limit(&self, limit: Duration) -> Duration;
 
     /// Resolve and vet a path: inside the working directory or an allowed root, a plain text file, nothing
     /// credential-looking. `Err` is the reason.

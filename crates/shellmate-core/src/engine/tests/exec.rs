@@ -12,7 +12,9 @@ async fn run_exec(
     ]);
     let mut cfg = Config::defaults();
     cfg.tools.exec.preapproved = preapproved.iter().map(|s| s.to_string()).collect();
-    let mut e = engine(vec![("a", p.clone(), 1)]).with_config(cfg);
+    let mut e = engine(vec![("a", p.clone(), 1)])
+        .with_config(cfg)
+        .with_builtin_tools();
     if let Some(a) = approver {
         e = e.with_approver(a);
     }
@@ -75,6 +77,7 @@ async fn a_tainted_turn_suspends_user_rules() {
         let a = FakeApprover::new(Choice::Deny);
         let e = engine(vec![("a", FakeProvider::replying("x"), 1)])
             .with_config(cfg.clone())
+            .with_builtin_tools()
             .with_approver(a.clone());
         let run = e
             .run_tool("exec echo hi", None, tainted, "`a` (local)")
@@ -160,6 +163,7 @@ async fn exec_can_be_turned_off_and_is_only_offered_to_ask() {
     let p = FakeProvider::with(vec![Ok(exec_call("echo x")), Ok("ok".to_string())]);
     let _ = engine(vec![("a", p.clone(), 1)])
         .with_config(cfg)
+        .with_builtin_tools()
         .with_approver(a.clone())
         .run(&env("ask", "look"))
         .await
@@ -194,6 +198,7 @@ async fn long_output_is_capped() {
     let p = FakeProvider::with(vec![Ok(exec_call("seq 1 5000")), Ok("ok".to_string())]);
     let _ = engine(vec![("a", p.clone(), 1)])
         .with_config(cfg)
+        .with_builtin_tools()
         .with_approver(FakeApprover::new(Choice::Run))
         .run(&env("ask", "look"))
         .await

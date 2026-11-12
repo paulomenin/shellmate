@@ -33,6 +33,6 @@ pub use tool::{
     ApprovalKind, ApprovalMode, ApprovalNeed, ApprovalSetting, Assessment, CommandRisk, FileTarget,
     FileText, Granted, Mark, Permission, Prepared, ProcessEnv, ProcessOutput, ProcessSpec, Refusal,
     Risk, ToBuffer, Tone, Tool, ToolAction, ToolCall, ToolCtor, ToolCtx, ToolInfo, ToolNotice,
-    ToolOutput, ToolServices, ToolSettings,
+    ToolOutput, ToolServices, ToolSettings, TOOL_LABEL,
 };
 pub use types::{ChatRequest, ChatResponse, Message, Role, Usage};

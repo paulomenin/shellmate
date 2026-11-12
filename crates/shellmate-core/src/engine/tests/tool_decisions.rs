@@ -5,7 +5,7 @@ use super::*;
 use crate::engine::tool_calls::exec::{self, Exec};
 use crate::engine::tool_calls::read::{self, Read};
 use crate::engine::tool_calls::{ToolDecision, ToolEnv};
-use crate::tools::{ToolCall, ToolPolicy};
+use crate::tools::ToolCall;
 
 fn with<R>(
     cfg: &Config,
@@ -14,10 +14,8 @@ fn with<R>(
     cwd: Option<&str>,
     f: impl FnOnce(&ToolEnv<'_>) -> R,
 ) -> R {
-    let policy = ToolPolicy::new(cfg.tools.man.clone());
     f(&ToolEnv {
         cfg,
-        policy: &policy,
         approver: approver.map(|a| a as &dyn Approver),
         host: &Host::system(),
         cwd,
@@ -261,10 +259,8 @@ fn exec_looks_for_programs_on_the_path_of_its_environment() {
     let host = Host::system().with_env(MapEnv::new().with("PATH", ""));
     let a = FakeApprover::new(Choice::Run);
     let cfg = Config::defaults();
-    let policy = ToolPolicy::new(cfg.tools.man.clone());
     let env = ToolEnv {
         cfg: &cfg,
-        policy: &policy,
         approver: Some(&*a),
         host: &host,
         cwd: None,
@@ -287,11 +283,9 @@ fn exec_takes_its_working_directory_from_the_file_system_it_is_given() {
     let host = Host::system().with_fs(MemFs::new().dir("/only/in/memory"));
     let a = FakeApprover::new(Choice::Run);
     let cfg = Config::defaults();
-    let policy = ToolPolicy::new(cfg.tools.man.clone());
     let at = |cwd: &'static str| {
         let env = ToolEnv {
             cfg: &cfg,
-            policy: &policy,
             approver: Some(&*a),
             host: &host,
             cwd: Some(cwd),
@@ -338,7 +332,9 @@ async fn the_trace_shows_six_lines_of_output_and_marks_the_rest() {
 /// whether it is installed, does not matter here.)
 #[tokio::test]
 async fn a_man_call_is_dispatched_to_the_man_tool() {
-    let e = engine(vec![("a", FakeProvider::replying("x"), 1)]).with_config(Config::defaults());
+    let e = engine(vec![("a", FakeProvider::replying("x"), 1)])
+        .with_config(Config::defaults())
+        .with_builtin_tools();
     let run = e.run_tool("man sm-no-such-page", None, false, "`a`").await;
     assert_eq!(run.decision, ToolDecision::Allow);
     assert!(
@@ -351,8 +347,10 @@ async fn a_man_call_is_dispatched_to_the_man_tool() {
 }
 
 fn offered(cfg: &Config, action: crate::action::Action) -> Vec<&'static str> {
-    let policy = ToolPolicy::new(cfg.tools.man.clone());
-    crate::engine::tool_calls::offers(cfg, &policy, &[], action)
+    let e = engine(vec![("a", FakeProvider::replying("x"), 1)])
+        .with_config(cfg.clone())
+        .with_builtin_tools();
+    crate::engine::tool_calls::offers(&e.cfg, &e.plugged, action)
         .iter()
         .map(|text| {
             if text.contains("manual page") {
@@ -382,7 +380,7 @@ fn each_tool_offers_itself_for_the_actions_that_may_use_it() {
 fn a_tool_that_is_off_or_cannot_ask_is_not_offered() {
     use crate::action::Action;
     let mut no_man = Config::defaults();
-    no_man.tools.man.enabled = false;
+    man_off(&mut no_man);
     assert_eq!(offered(&no_man, Action::Ask), ["exec", "read"]);
     let mut no_exec = Config::defaults();
     no_exec.tools.exec.enabled = false;
@@ -394,7 +392,7 @@ fn a_tool_that_is_off_or_cannot_ask_is_not_offered() {
     read_denied.tools.read.approval = crate::config::ExecApproval::Deny;
     assert_eq!(offered(&read_denied, Action::Ask), ["man", "exec"]);
     let mut none = Config::defaults();
-    none.tools.man.enabled = false;
+    man_off(&mut none);
     none.tools.exec.enabled = false;
     none.tools.read.enabled = false;
     assert!(offered(&none, Action::Ask).is_empty());
@@ -402,9 +400,10 @@ fn a_tool_that_is_off_or_cannot_ask_is_not_offered() {
 
 #[test]
 fn every_offer_names_the_block_the_model_must_use_and_calls_results_data() {
-    let cfg = Config::defaults();
-    let policy = ToolPolicy::new(cfg.tools.man.clone());
-    let all = crate::engine::tool_calls::offers(&cfg, &policy, &[], crate::action::Action::Ask);
+    let e = engine(vec![("a", FakeProvider::replying("x"), 1)])
+        .with_config(Config::defaults())
+        .with_builtin_tools();
+    let all = crate::engine::tool_calls::offers(&e.cfg, &e.plugged, crate::action::Action::Ask);
     assert_eq!(all.len(), 3);
     for text in &all {
         assert!(text.contains(crate::response::TOOL_LABEL), "{text}");

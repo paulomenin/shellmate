@@ -5,7 +5,7 @@ use crate::sanitize::is_buffer_safe;
 
 pub const FENCE_LABEL: &str = "shellmate-command";
 /// Blocks with this label are tool calls (`man ssh`), run by the engine and never shown.
-pub const TOOL_LABEL: &str = "shellmate-tool";
+pub const TOOL_LABEL: &str = shellmate_api::TOOL_LABEL;
 /// The heading `ask` prints above the second and later command blocks. The prompt names it, so the model knows
 /// that an extra block reads as an alternative, never as a next step.
 pub const OTHER_OPTIONS_LABEL: &str = "Other options";

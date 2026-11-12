@@ -25,7 +25,7 @@ use crate::config::{Config, Trust};
 use crate::conversation;
 use crate::ports::{Host, RealFs};
 use crate::prompt;
-use crate::tools::{Approver, ToolPolicy};
+use crate::tools::Approver;
 use shellmate_api::{
     ChatRequest, ChatStream, Error, Middleware, MiddlewareRole, Registry, Result, Store,
 };
@@ -36,20 +36,30 @@ pub use types::{
     ProviderSpec, Report, Stages,
 };
 
-/// The tools of `[tools.<name>]` that are not built in: each is built by the registry from its own settings,
-/// and the core keeps `enabled`, `approval` and `preapproved` for it.
+/// Every tool of the registry, in the order it was registered, and any other `[tools.<name>]` (which the
+/// registry refuses). Each is built from its own settings; the core keeps `enabled`, `approval` and
+/// `preapproved`. A tool with no table is on, with its own approval default and no rules.
 fn build_tools(cfg: &Config, registry: &Registry, host: &Host) -> Result<Vec<tool_calls::Plugged>> {
     use crate::config::ToolApproval;
     use shellmate_api::{ApprovalMode, ApprovalSetting};
     let mut plugged = Vec::new();
-    for (name, entry) in &cfg.tools.other {
+    let mut names: Vec<&str> = registry.tool_ids().collect();
+    for n in cfg.tools.other.keys().map(String::as_str) {
+        if !names.contains(&n) {
+            names.push(n);
+        }
+    }
+    for name in names {
+        let entry = cfg.tools.other.get(name).cloned().unwrap_or_default();
         let named = |mut e: Error| {
             e.message = format!("tools.{name}: {}", e.message);
             e
         };
-        let tool = registry
-            .build_tool(name, &cfg.resolved_tool_settings(name, host)?)
-            .map_err(named)?;
+        let settings = match cfg.tools.other.contains_key(name) {
+            true => cfg.resolved_tool_settings(name, host)?,
+            false => serde_json::json!({}),
+        };
+        let tool = registry.build_tool(name, &settings).map_err(named)?;
         let needs_approval = tool.info().approval == ApprovalMode::Required;
         let approval = match entry.approval {
             Some(ToolApproval::Allow) if needs_approval => {
@@ -60,6 +70,13 @@ fn build_tools(cfg: &Config, registry: &Registry, host: &Host) -> Result<Vec<too
                     ),
                 )
                 .with_hint("use \"ask\", or list what may run without asking in `preapproved`"))
+            }
+            Some(ToolApproval::Ask) if !needs_approval => {
+                return Err(Error::new(
+                    "config.invalid",
+                    format!("tools.{name}.approval = \"ask\": this tool never asks"),
+                )
+                .with_hint("use \"allow\" to keep it on, or \"deny\" to turn it off"))
             }
             Some(ToolApproval::Allow) => ApprovalSetting::Allow,
             Some(ToolApproval::Ask) => ApprovalSetting::Ask,
@@ -72,7 +89,7 @@ fn build_tools(cfg: &Config, registry: &Registry, host: &Host) -> Result<Vec<too
             settings: shellmate_api::ToolSettings {
                 enabled: entry.enabled,
                 approval,
-                preapproved: entry.preapproved.clone(),
+                preapproved: entry.preapproved,
             },
         });
     }
@@ -93,7 +110,6 @@ pub struct Engine {
     store: Option<Arc<dyn Store>>,
     /// Why the configured store could not be used (conversations are then off, with a visible note).
     store_note: Option<String>,
-    policy: ToolPolicy,
     /// Tools added through the plugin API, with the settings the core keeps for each.
     plugged: Vec<tool_calls::Plugged>,
     audit: Option<Arc<dyn AuditSink>>,
@@ -200,7 +216,6 @@ impl Engine {
             .with_layers(layers, has_redactor);
         engine.deciders = deciders;
         engine.plugged = plugged;
-        engine.policy = ToolPolicy::new(cfg.tools.man.clone());
         engine.cfg = cfg.clone();
         engine.audit =
             Audit::from_config(&cfg.audit, &host).map(|a| Arc::new(a) as Arc<dyn AuditSink>);
@@ -236,10 +251,6 @@ impl Engine {
             audit: None,
             approver: None,
             plugged: Vec::new(),
-            policy: ToolPolicy::new(crate::config::ManTool {
-                enabled: false,
-                ..Default::default()
-            }),
         }
     }
 
@@ -291,11 +302,18 @@ impl Engine {
         self
     }
 
-    /// Replace the settings used for conversations and tools (tests and embedding).
+    /// Replace the settings used for conversations and tools (tests and embedding). The tools that
+    /// implement the plugin API are built from the config by [`Engine::with_tools_from`].
     pub fn with_config(mut self, cfg: Config) -> Self {
-        self.policy = ToolPolicy::new(cfg.tools.man.clone());
         self.cfg = cfg;
         self
+    }
+
+    /// Build the tools of the registry from the engine's config and host (tests and embedding;
+    /// `from_config` does this itself). They replace the tools added so far.
+    pub fn with_tools_from(mut self, registry: &Registry) -> Result<Self> {
+        self.plugged = build_tools(&self.cfg, registry, &self.host)?;
+        Ok(self)
     }
 
     pub fn with_os(mut self, os: &str) -> Self {

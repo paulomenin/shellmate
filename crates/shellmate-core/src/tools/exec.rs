@@ -46,6 +46,19 @@ pub async fn run_exec(
     env: crate::config::ExecEnv,
     vars: &dyn Env,
 ) -> ExecResult {
+    run_exec_with(prepared, timeout, max_output, env, vars, &[], &[]).await
+}
+
+/// [`run_exec`] with variables set on top of the environment it picks, and then others removed.
+pub async fn run_exec_with(
+    prepared: &crate::command::Prepared,
+    timeout: Duration,
+    max_output: usize,
+    env: crate::config::ExecEnv,
+    vars: &dyn Env,
+    set_env: &[(String, String)],
+    remove_env: &[String],
+) -> ExecResult {
     use tokio::io::AsyncReadExt;
     use tokio::process::Command;
     let started = std::time::Instant::now();
@@ -71,6 +84,12 @@ pub async fn run_exec(
     cmd.env("GIT_CONFIG_COUNT", "1")
         .env("GIT_CONFIG_KEY_0", "core.fsmonitor")
         .env("GIT_CONFIG_VALUE_0", "false");
+    for (k, v) in set_env {
+        cmd.env(k, v);
+    }
+    for k in remove_env {
+        cmd.env_remove(k);
+    }
     cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())

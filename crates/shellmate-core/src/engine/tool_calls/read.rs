@@ -7,7 +7,7 @@ use crate::config::{Config, ExecApproval};
 use crate::present::{Mark, Notice, Tone};
 use crate::response::TOOL_LABEL;
 use crate::sanitize;
-use crate::tools::{self, ApprovalKind, ApprovalRequest, Choice, ReadTarget, ToolCall, ToolPolicy};
+use crate::tools::{self, ApprovalKind, ApprovalRequest, Choice, ReadTarget, ToolCall};
 use async_trait::async_trait;
 
 pub(in crate::engine) struct Read;
@@ -140,7 +140,7 @@ impl Tool for Read {
         "read"
     }
 
-    fn offer(&self, cfg: &Config, _policy: &ToolPolicy, action: Action) -> Option<String> {
+    fn offer(&self, cfg: &Config, action: Action) -> Option<String> {
         (action == Action::Ask && enabled(cfg)).then(|| {
             format!(
                 "You can read one text file in the working directory before answering (a config, a log, source). \

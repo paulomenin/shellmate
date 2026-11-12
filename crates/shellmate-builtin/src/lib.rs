@@ -11,6 +11,8 @@ pub mod middleware_redact;
 pub mod provider_openai_compatible;
 #[cfg(feature = "store-tmpfs")]
 pub mod store_tmpfs;
+#[cfg(feature = "tool-man")]
+pub mod tool_man;
 
 pub fn registry() -> Registry {
     #[allow(unused_mut)]
@@ -23,5 +25,7 @@ pub fn registry() -> Registry {
     middleware_redact::register(&mut r);
     #[cfg(feature = "store-tmpfs")]
     store_tmpfs::register(&mut r);
+    #[cfg(feature = "tool-man")]
+    tool_man::register(&mut r);
     r
 }

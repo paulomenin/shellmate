@@ -8,7 +8,7 @@ use crate::ports::Env;
 use crate::present::{Mark, Notice, Tone};
 use crate::response::TOOL_LABEL;
 use crate::sanitize;
-use crate::tools::{self, ApprovalKind, ApprovalRequest, Choice, ToolCall, ToolPolicy};
+use crate::tools::{self, ApprovalKind, ApprovalRequest, Choice, ToolCall};
 use async_trait::async_trait;
 
 pub(in crate::engine) struct Exec;
@@ -185,7 +185,7 @@ impl Tool for Exec {
         "exec"
     }
 
-    fn offer(&self, cfg: &Config, _policy: &ToolPolicy, action: Action) -> Option<String> {
+    fn offer(&self, cfg: &Config, action: Action) -> Option<String> {
         (action == Action::Ask && enabled(cfg)).then(|| {
             format!(
                 "You can run one simple command to look at this machine before answering (for example `git status`, \

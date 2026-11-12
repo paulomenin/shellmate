@@ -6,7 +6,9 @@ use crate::present::{Mark, Notice, Tone};
 
 async fn notice_of(call: &str, approver: Option<Arc<FakeApprover>>) -> Notice {
     // the default config turns `man` on; the bare test engine has it off
-    let mut e = engine(vec![("a", FakeProvider::replying("x"), 1)]).with_config(Config::defaults());
+    let mut e = engine(vec![("a", FakeProvider::replying("x"), 1)])
+        .with_config(Config::defaults())
+        .with_builtin_tools();
     if let Some(a) = approver {
         e = e.with_approver(a);
     }

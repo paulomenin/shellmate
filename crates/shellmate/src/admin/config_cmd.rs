@@ -115,10 +115,6 @@ pub fn config_show(explicit: Option<&Path>, p: &dyn Presenter) -> Result<String>
         cfg.conversation.max_tool_rounds
     ));
     o.push_str(&format!(
-        "tools:         man enabled={} approval={:?}\n",
-        cfg.tools.man.enabled, cfg.tools.man.approval
-    ));
-    o.push_str(&format!(
         "exec tool:     enabled={} approval={:?} preapproved={} timeout={}\n",
         cfg.tools.exec.enabled,
         cfg.tools.exec.approval,
@@ -133,7 +129,17 @@ pub fn config_show(explicit: Option<&Path>, p: &dyn Presenter) -> Result<String>
         cfg.tools.read.roots.len(),
         cfg.tools.read.max_bytes
     ));
-    for (name, t) in &cfg.tools.other {
+    // the built-in `man` is on without a table, so it is listed either way
+    let man = shellmate_core::config::ToolEntry::default();
+    let listed = std::iter::once(("man", &man)).chain(
+        cfg.tools
+            .other
+            .iter()
+            .filter(|(n, _)| n.as_str() != "man")
+            .map(|(n, t)| (n.as_str(), t)),
+    );
+    for (name, t) in listed {
+        let t = cfg.tools.other.get(name).unwrap_or(t);
         o.push_str(&format!(
             "{:<14} enabled={} approval={} preapproved={}\n",
             format!("{name} tool:"),

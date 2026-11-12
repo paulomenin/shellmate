@@ -6,15 +6,20 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ToolsConfig {
     #[serde(default)]
-    pub man: ManTool,
-    #[serde(default)]
     pub exec: ExecTool,
     #[serde(default)]
     pub read: ReadTool,
-    /// Every other `[tools.<name>]`. The name must be a tool the registry has; that is checked when the
-    /// engine is built, so a misspelt name is an error that lists the tools there are.
+    /// Every other `[tools.<name>]`, `man` among them. The name must be a tool the registry has; that is
+    /// checked when the engine is built, so a misspelt name is an error that lists the tools there are.
     #[serde(flatten)]
     pub other: BTreeMap<String, ToolEntry>,
+}
+
+impl ToolsConfig {
+    /// Whether the tool is on: a tool with no table is on.
+    pub fn enabled(&self, name: &str) -> bool {
+        self.other.get(name).is_none_or(|t| t.enabled)
+    }
 }
 
 /// One `[tools.<name>]` of a tool that is not built in. The core keeps three keys, the same for every
@@ -34,6 +39,18 @@ pub struct ToolEntry {
     pub preapproved: Vec<String>,
     #[serde(flatten)]
     pub settings: toml::Table,
+}
+
+impl Default for ToolEntry {
+    /// What a tool has when its table is not in the file: on, with its own approval default, no rules.
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            approval: None,
+            preapproved: Vec::new(),
+            settings: toml::Table::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -145,43 +162,4 @@ fn default_exec_output() -> usize {
 
 fn default_exec_env() -> ExecEnv {
     ExecEnv::Sanitized
-}
-
-/// What may happen to a tool call without asking (`approval-ux.md`). `ask` arrives with the approval
-/// prompt (M5); until then a call that would need a prompt is denied.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Approval {
-    Allow,
-    Deny,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ManTool {
-    #[serde(default = "super::default_true")]
-    pub enabled: bool,
-    #[serde(default = "default_allow")]
-    pub approval: Approval,
-    /// Longest manual text sent to the model.
-    #[serde(default = "default_man_bytes")]
-    pub max_bytes: usize,
-}
-
-impl Default for ManTool {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            approval: Approval::Allow,
-            max_bytes: default_man_bytes(),
-        }
-    }
-}
-
-fn default_allow() -> Approval {
-    Approval::Allow
-}
-
-fn default_man_bytes() -> usize {
-    8192
 }

@@ -27,6 +27,25 @@ use shellmate_api::{
 use shellmate_testing::FakeProvider;
 use std::sync::{Arc, Mutex};
 
+impl Engine {
+    /// The tools of the built-in registry, built from the engine's config.
+    fn with_builtin_tools(self) -> Self {
+        self.with_tools_from(&shellmate_builtin::registry())
+            .unwrap()
+    }
+}
+
+/// Turn the `man` tool off in `cfg`.
+fn man_off(cfg: &mut Config) {
+    cfg.tools.other.insert(
+        "man".into(),
+        crate::config::ToolEntry {
+            enabled: false,
+            ..Default::default()
+        },
+    );
+}
+
 fn env(action: &str, buffer: &str) -> Envelope {
     Envelope {
         version: 1,
@@ -121,6 +140,7 @@ fn engine_at_level(p: Arc<FakeProvider>, level: u8, mut cfg: Config) -> Engine {
     )
     .with_os("TestOS")
     .with_config(cfg)
+    .with_builtin_tools()
 }
 
 fn system_prompt(p: &FakeProvider) -> String {

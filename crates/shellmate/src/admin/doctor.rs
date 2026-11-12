@@ -436,7 +436,7 @@ fn terminal(ctx: &Ctx<'_>) -> Vec<Check> {
 }
 
 fn man_tool(ctx: &Ctx<'_>) -> Vec<Check> {
-    if !ctx.cfg.tools.man.enabled {
+    if !ctx.cfg.tools.enabled("man") {
         return Vec::new();
     }
     let have = ctx.host.env.var("PATH").is_some_and(|p| {

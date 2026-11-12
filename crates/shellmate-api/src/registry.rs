@@ -93,6 +93,8 @@ pub struct Registry {
     stores: Catalog<dyn Store>,
     deciders: Catalog<dyn Decider>,
     tools: Catalog<dyn Tool>,
+    /// Tool names in the order they were registered: the order the model is offered them in.
+    tool_order: Vec<String>,
 }
 
 impl Default for Registry {
@@ -103,6 +105,7 @@ impl Default for Registry {
             stores: Catalog::new("store", "available stores"),
             deciders: Catalog::new("decider", "available deciders"),
             tools: Catalog::new("tool", "available tools"),
+            tool_order: Vec::new(),
         }
     }
 }
@@ -175,11 +178,15 @@ impl Registry {
 
     /// Register a tool. `id` is the tool's name, the one the model writes and `[tools.<name>]` uses.
     pub fn register_tool(&mut self, id: &str, ctor: ToolCtor) {
+        if !self.tool_order.iter().any(|t| t == id) {
+            self.tool_order.push(id.to_string());
+        }
         self.tools.insert(id, (), ctor.into());
     }
 
+    /// The names of the tools in the order they were registered, which is the order they are offered in.
     pub fn tool_ids(&self) -> impl Iterator<Item = &str> {
-        self.tools.ids()
+        self.tool_order.iter().map(String::as_str)
     }
 
     pub fn build_tool(
