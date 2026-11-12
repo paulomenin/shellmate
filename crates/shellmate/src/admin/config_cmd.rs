@@ -114,25 +114,20 @@ pub fn config_show(explicit: Option<&Path>, p: &dyn Presenter) -> Result<String>
         cfg.conversation.max_turns,
         cfg.conversation.max_tool_rounds
     ));
-    o.push_str(&format!(
-        "read tool:     enabled={} approval={:?} preapproved={} roots={} max_bytes={}\n",
-        cfg.tools.read.enabled,
-        cfg.tools.read.approval,
-        cfg.tools.read.preapproved.len(),
-        cfg.tools.read.roots.len(),
-        cfg.tools.read.max_bytes
-    ));
-    // the built-in `man` and `exec` are on without a table, so they are listed either way
+    // the built-in `man`, `exec` and `read` are on without a table, so they are listed either way
     let man = shellmate_core::config::ToolEntry::default();
-    let listed = ["man", "exec"].map(|n| (n, &man)).into_iter().chain(
-        cfg.tools
-            .other
-            .iter()
-            .filter(|(n, _)| !matches!(n.as_str(), "man" | "exec"))
-            .map(|(n, t)| (n.as_str(), t)),
-    );
+    let listed = ["man", "exec", "read"]
+        .map(|n| (n, &man))
+        .into_iter()
+        .chain(
+            cfg.tools
+                .entries
+                .iter()
+                .filter(|(n, _)| !matches!(n.as_str(), "man" | "exec" | "read"))
+                .map(|(n, t)| (n.as_str(), t)),
+        );
     for (name, t) in listed {
-        let t = cfg.tools.other.get(name).unwrap_or(t);
+        let t = cfg.tools.entries.get(name).unwrap_or(t);
         o.push_str(&format!(
             "{:<14} enabled={} approval={} preapproved={}\n",
             format!("{name} tool:"),

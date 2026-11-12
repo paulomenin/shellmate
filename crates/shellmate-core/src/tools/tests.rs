@@ -259,18 +259,6 @@ fn terminal_codes_are_removed_from_file_text() {
 }
 
 #[test]
-fn read_rules_need_a_pattern_and_a_match() {
-    assert!(read_rule_matches("src/*", "src/main.rs"));
-    assert!(read_rule_matches("*.md", "README.md"));
-    assert!(read_rule_matches("a?c", "abc"));
-    assert!(!read_rule_matches("src/*", "docs/x.md"));
-    assert!(!read_rule_matches("", "anything"));
-    assert!(!read_rule_matches("", ""));
-    assert!(read_rule_matches("exact.txt", "exact.txt"));
-    assert!(!read_rule_matches("exact.txt", "other.txt"));
-}
-
-#[test]
 fn a_file_is_cut_at_the_limit_and_flagged_only_beyond_it() {
     let d = scratch("limit");
     let f = d.join("t.txt");

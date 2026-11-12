@@ -17,11 +17,6 @@ pub(crate) fn run(config: Option<&std::path::Path>) -> i32 {
             .into_iter()
             .map(|(tool, r, why)| (format!("tools.{tool}.preapproved \"{r}\""), why))
             .collect::<Vec<_>>();
-        risky.extend(
-            shellmate_core::command::dangerous_read_rules(&cfg.tools.read.preapproved)
-                .into_iter()
-                .map(|(r, why)| (format!("tools.read.preapproved \"{r}\""), why)),
-        );
         let env = shellmate_core::ports::SystemEnv;
         risky.extend(cfg.cmd_secrets().into_iter().filter_map(|(path, line)| {
             shellmate_core::secret_cmd::has_embedded_secret(&line, &env).then(|| {

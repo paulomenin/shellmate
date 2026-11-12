@@ -255,33 +255,6 @@ fn control_and_non_ascii_characters_and_stray_symbols_are_told_apart() {
 }
 
 #[test]
-fn read_rules_that_match_everything_are_reported_and_narrow_ones_are_not() {
-    let rules: Vec<String> = [
-        "*",
-        "**",
-        "?*",
-        "*/*",
-        ".",
-        "./**",
-        "src/*",
-        "*.md",
-        "a?c",
-        "docs/**/*.md",
-    ]
-    .iter()
-    .map(|s| s.to_string())
-    .collect();
-    let flagged: Vec<String> = dangerous_read_rules(&rules)
-        .into_iter()
-        .map(|(r, _)| r)
-        .collect();
-    assert_eq!(flagged, ["*", "**", "?*", "*/*", ".", "./**"]);
-    let (_, reason) = &dangerous_read_rules(&["*".to_string()])[0];
-    assert!(reason.contains("every file"), "{reason}");
-    assert!(dangerous_read_rules(&[]).is_empty());
-}
-
-#[test]
 fn services_may_be_inspected_but_not_changed() {
     for ok in [
         "systemctl",

@@ -207,7 +207,7 @@ async fn generate_and_explain_offer_only_man() {
 async fn a_tool_that_is_off_is_not_in_the_prompt() {
     let mut cfg = Config::defaults();
     man_off(&mut cfg);
-    cfg.tools.read.approval = crate::config::ExecApproval::Deny;
+    tool(&mut cfg, "read").approval = Some(crate::config::ToolApproval::Deny);
     let t = trace(&[], cfg, None, None).await;
     assert!(t.system().contains(&format!(
         "{RULES_END}{EXEC_OFFER}Answer the user's question."
@@ -215,7 +215,7 @@ async fn a_tool_that_is_off_is_not_in_the_prompt() {
     let mut none = Config::defaults();
     man_off(&mut none);
     tool(&mut none, "exec").enabled = false;
-    none.tools.read.enabled = false;
+    tool(&mut none, "read").enabled = false;
     let t = trace(&[], none, None, None).await;
     assert!(t
         .system()
@@ -452,7 +452,7 @@ async fn read_approved_returns_the_file_as_delimited_data() {
 async fn read_preapproved_by_a_glob_does_not_ask() {
     let dir = work_dir("read-rule");
     let mut cfg = Config::defaults();
-    cfg.tools.read.preapproved = vec!["*.txt".into()];
+    tool(&mut cfg, "read").preapproved = vec!["*.txt".into()];
     let t = trace(&["read notes.txt"], cfg, Some(Choice::Deny), Some(&dir)).await;
     assert!(t.asked.is_empty());
     assert_eq!(
@@ -505,7 +505,7 @@ async fn read_with_nobody_to_ask_is_denied() {
 async fn read_never_opens_credentials_and_never_asks() {
     let dir = work_dir("read-cred");
     let mut cfg = Config::defaults();
-    cfg.tools.read.preapproved = vec![".env".into()];
+    tool(&mut cfg, "read").preapproved = vec![".env".into()];
     let t = trace(&["read .env"], cfg, Some(Choice::Run), Some(&dir)).await;
     assert_eq!(
         t.result(0),

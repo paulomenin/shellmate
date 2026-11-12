@@ -15,6 +15,8 @@ pub mod store_tmpfs;
 pub mod tool_exec;
 #[cfg(feature = "tool-man")]
 pub mod tool_man;
+#[cfg(feature = "tool-read")]
+pub mod tool_read;
 
 pub fn registry() -> Registry {
     #[allow(unused_mut)]
@@ -31,5 +33,7 @@ pub fn registry() -> Registry {
     tool_man::register(&mut r);
     #[cfg(feature = "tool-exec")]
     tool_exec::register(&mut r);
+    #[cfg(feature = "tool-read")]
+    tool_read::register(&mut r);
     r
 }

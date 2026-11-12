@@ -1,104 +1,8 @@
-//! The decision step of `read`, on its own: what is allowed, refused or asked, with nothing
-//! run or read. Dangerous inputs are checked for refusal (INV-1, INV-4).
+//! Tool dispatch: what is offered for each action, what a call to a tool nobody provides gets, and the
+//! names the audit log records.
 
 use super::*;
-use crate::engine::tool_calls::read::{self, Read};
-use crate::engine::tool_calls::{ToolDecision, ToolEnv};
-use crate::tools::ToolCall;
-
-fn with<R>(
-    cfg: &Config,
-    approver: Option<&FakeApprover>,
-    tainted: bool,
-    cwd: Option<&str>,
-    f: impl FnOnce(&ToolEnv<'_>) -> R,
-) -> R {
-    f(&ToolEnv {
-        cfg,
-        approver: approver.map(|a| a as &dyn Approver),
-        host: &Host::system(),
-        cwd,
-        tainted,
-        dest: "`a` (local)",
-    })
-}
-
-fn call(body: &str) -> ToolCall {
-    ToolCall::parse(body).unwrap()
-}
-
-fn work(name: &str) -> std::path::PathBuf {
-    let d = std::env::temp_dir().join(format!("sm-decide-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&d);
-    std::fs::create_dir_all(&d).unwrap();
-    std::fs::write(d.join("notes.txt"), "text\n").unwrap();
-    std::fs::write(d.join(".env"), "KEY=value\n").unwrap();
-    d
-}
-
-fn read_stopped(plan: read::Plan) -> crate::engine::tool_calls::ToolRun {
-    match plan {
-        read::Plan::Stop(run) => run,
-        read::Plan::Read { .. } => panic!("expected the call to be stopped"),
-    }
-}
-
-#[test]
-fn credentials_are_refused_without_asking_even_with_a_rule() {
-    let d = work("cred");
-    let mut cfg = Config::defaults();
-    cfg.tools.read.preapproved = vec![".env".into(), "*".into()];
-    let a = FakeApprover::new(Choice::Run);
-    let run = read_stopped(with(
-        &cfg,
-        Some(&a),
-        false,
-        Some(&d.display().to_string()),
-        |env| Read::decide(&call("read .env"), env),
-    ));
-    assert_eq!(run.decision, ToolDecision::Deny);
-    assert_eq!(a.count(), 0);
-    let _ = std::fs::remove_dir_all(&d);
-}
-
-#[test]
-fn read_asks_says_where_the_text_goes_and_denies_without_a_terminal() {
-    let d = work("ask");
-    let cwd = d.display().to_string();
-    let a = FakeApprover::new(Choice::Run);
-    let plan = with(&Config::defaults(), Some(&a), false, Some(&cwd), |env| {
-        Read::decide(&call("read notes.txt"), env)
-    });
-    assert!(matches!(plan, read::Plan::Read { rule: None, .. }));
-    let asked = a.asked.lock().unwrap();
-    assert!(asked[0].reasons[0].contains("`a` (local)"));
-    drop(asked);
-    let run = read_stopped(with(&Config::defaults(), None, false, Some(&cwd), |env| {
-        Read::decide(&call("read notes.txt"), env)
-    }));
-    assert_eq!(run.decision, ToolDecision::DeniedNoTerminal);
-    let _ = std::fs::remove_dir_all(&d);
-}
-
-#[test]
-fn a_tainted_turn_suspends_read_rules() {
-    let d = work("taint");
-    let cwd = d.display().to_string();
-    let mut cfg = Config::defaults();
-    cfg.tools.read.preapproved = vec!["notes.txt".into()];
-    let a = FakeApprover::new(Choice::Deny);
-    let allowed = with(&cfg, Some(&a), false, Some(&cwd), |env| {
-        Read::decide(&call("read notes.txt"), env)
-    });
-    assert!(matches!(allowed, read::Plan::Read { rule: Some(_), .. }));
-    assert_eq!(a.count(), 0);
-    let run = read_stopped(with(&cfg, Some(&a), true, Some(&cwd), |env| {
-        Read::decide(&call("read notes.txt"), env)
-    }));
-    assert_eq!(a.count(), 1);
-    assert_eq!(run.decision, ToolDecision::DeniedByUser);
-    let _ = std::fs::remove_dir_all(&d);
-}
+use crate::engine::tool_calls::ToolDecision;
 
 #[tokio::test]
 async fn an_unknown_tool_is_denied_and_runs_nothing() {
@@ -150,7 +54,7 @@ fn offered(cfg: &Config, action: crate::action::Action) -> Vec<&'static str> {
     let e = engine(vec![("a", FakeProvider::replying("x"), 1)])
         .with_config(cfg.clone())
         .with_builtin_tools();
-    crate::engine::tool_calls::offers(&e.cfg, &e.plugged, action)
+    crate::engine::tool_calls::offers(&e.plugged, action)
         .iter()
         .map(|text| {
             if text.contains("manual page") {
@@ -189,12 +93,12 @@ fn a_tool_that_is_off_or_cannot_ask_is_not_offered() {
     tool(&mut exec_denied, "exec").approval = Some(crate::config::ToolApproval::Deny);
     assert_eq!(offered(&exec_denied, Action::Ask), ["man", "read"]);
     let mut read_denied = Config::defaults();
-    read_denied.tools.read.approval = crate::config::ExecApproval::Deny;
+    tool(&mut read_denied, "read").approval = Some(crate::config::ToolApproval::Deny);
     assert_eq!(offered(&read_denied, Action::Ask), ["man", "exec"]);
     let mut none = Config::defaults();
     man_off(&mut none);
     tool(&mut none, "exec").enabled = false;
-    none.tools.read.enabled = false;
+    tool(&mut none, "read").enabled = false;
     assert!(offered(&none, Action::Ask).is_empty());
 }
 
@@ -203,7 +107,7 @@ fn every_offer_names_the_block_the_model_must_use_and_calls_results_data() {
     let e = engine(vec![("a", FakeProvider::replying("x"), 1)])
         .with_config(Config::defaults())
         .with_builtin_tools();
-    let all = crate::engine::tool_calls::offers(&e.cfg, &e.plugged, crate::action::Action::Ask);
+    let all = crate::engine::tool_calls::offers(&e.plugged, crate::action::Action::Ask);
     assert_eq!(all.len(), 3);
     for text in &all {
         assert!(text.contains(crate::response::TOOL_LABEL), "{text}");

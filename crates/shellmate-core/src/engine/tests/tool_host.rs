@@ -122,6 +122,7 @@ impl Tool for Probe {
             result: "RESULT".into(),
             notice: self.notice.clone(),
             untrusted: self.says_untrusted,
+            failed: false,
         }
     }
 }

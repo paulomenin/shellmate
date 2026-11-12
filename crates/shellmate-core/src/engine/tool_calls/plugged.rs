@@ -94,6 +94,9 @@ impl Plugged {
         let out = self.tool.run(prepared, &granted, &ctx).await;
         let mut run = ToolRun::new(notice(out.notice), out.result, decision);
         run.untrusted = out.untrusted || info.untrusted_output;
+        if out.failed {
+            run.decision = ToolDecision::Deny;
+        }
         run
     }
 

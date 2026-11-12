@@ -37,7 +37,7 @@ impl Engine {
 
 /// The `[tools.<name>]` entry of `cfg`, made if it is not there.
 fn tool<'a>(cfg: &'a mut Config, name: &str) -> &'a mut crate::config::ToolEntry {
-    cfg.tools.other.entry(name.into()).or_default()
+    cfg.tools.entries.entry(name.into()).or_default()
 }
 
 /// Turn the `man` tool off in `cfg`.

@@ -44,18 +44,18 @@ fn build_tools(cfg: &Config, registry: &Registry, host: &Host) -> Result<Vec<too
     use shellmate_api::{ApprovalMode, ApprovalSetting};
     let mut plugged = Vec::new();
     let mut names: Vec<&str> = registry.tool_ids().collect();
-    for n in cfg.tools.other.keys().map(String::as_str) {
+    for n in cfg.tools.entries.keys().map(String::as_str) {
         if !names.contains(&n) {
             names.push(n);
         }
     }
     for name in names {
-        let entry = cfg.tools.other.get(name).cloned().unwrap_or_default();
+        let entry = cfg.tools.entries.get(name).cloned().unwrap_or_default();
         let named = |mut e: Error| {
             e.message = format!("tools.{name}: {}", e.message);
             e
         };
-        let settings = match cfg.tools.other.contains_key(name) {
+        let settings = match cfg.tools.entries.contains_key(name) {
             true => cfg.resolved_tool_settings(name, host)?,
             false => serde_json::json!({}),
         };

@@ -56,6 +56,7 @@ impl Tool for Web {
             result: format!("fetched {}", p.downcast::<String>().unwrap()),
             notice: ToolNotice::new(api::Tone::Success, api::Mark::Check, "fetched"),
             untrusted: false,
+            failed: false,
         }
     }
 }
@@ -133,7 +134,7 @@ fn the_core_keeps_three_keys_and_the_tool_gets_the_rest_with_secrets_resolved() 
         "[tools.web]\nenabled = true\napproval = \"ask\"\npreapproved = [\"https://example.org\"]\n\
          api_key = \"env:WEB_KEY\"\ndepth = 3\n",
     );
-    let e = &cfg.tools.other["web"];
+    let e = &cfg.tools.entries["web"];
     assert_eq!(e.preapproved, ["https://example.org"]);
     Engine::from_config_in(
         &cfg,

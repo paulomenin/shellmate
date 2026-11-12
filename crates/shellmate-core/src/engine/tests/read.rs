@@ -138,7 +138,10 @@ async fn configured_roots_extend_the_reach_but_not_to_credentials() {
     let other = work_dir("roots-other");
     std::fs::write(other.join("shared.txt"), "from the other root").unwrap();
     let mut cfg = Config::defaults();
-    cfg.tools.read.roots = vec![other.display().to_string()];
+    tool(&mut cfg, "read").settings.insert(
+        "roots".into(),
+        toml::Value::Array(vec![toml::Value::String(other.display().to_string())]),
+    );
     let a = FakeApprover::new(Choice::Run);
     let p = run_read(
         &d,
@@ -168,7 +171,9 @@ async fn binary_and_big_files_are_handled() {
         "binary is found when reading, after the user agreed"
     );
     let mut cfg = Config::defaults();
-    cfg.tools.read.max_bytes = 1000;
+    tool(&mut cfg, "read")
+        .settings
+        .insert("max_bytes".into(), toml::Value::Integer(1000));
     let p = run_read(&d, "big.txt", Some(FakeApprover::new(Choice::Run)), cfg).await;
     let r = second_request(&p);
     assert!(r.contains("cut here") && r.len() < 1500, "{}", r.len());
@@ -192,7 +197,7 @@ async fn a_rule_skips_the_prompt_but_never_for_credentials_or_tainted_turns() {
     let d = work_dir("rule");
     std::fs::write(d.join(".env"), "TOKEN=abc").unwrap();
     let mut cfg = Config::defaults();
-    cfg.tools.read.preapproved = vec!["src/*".into(), "*".into()];
+    tool(&mut cfg, "read").preapproved = vec!["src/*".into(), "*".into()];
     let a = FakeApprover::new(Choice::Deny);
     let p = run_read(&d, "src/main.rs", Some(a.clone()), cfg.clone()).await;
     assert_eq!(a.count(), 0, "covered by the user's rule");
@@ -211,7 +216,7 @@ async fn file_text_taints_the_rest_of_the_turn() {
     // the file text is untrusted, so the rule stops applying and the user is asked (INV-4)
     let d = work_dir("taint");
     let mut cfg = Config::defaults();
-    cfg.tools.read.preapproved = vec!["notes.txt".into()];
+    tool(&mut cfg, "read").preapproved = vec!["notes.txt".into()];
     tool(&mut cfg, "exec").preapproved = vec!["echo *".into()];
     let a = FakeApprover::new(Choice::Deny);
     let p = FakeProvider::with(vec![
@@ -252,7 +257,7 @@ async fn file_text_taints_the_rest_of_the_turn() {
 async fn read_can_be_turned_off_and_is_only_offered_to_ask() {
     let d = work_dir("off");
     let mut cfg = Config::defaults();
-    cfg.tools.read.approval = crate::config::ExecApproval::Deny;
+    tool(&mut cfg, "read").approval = Some(crate::config::ToolApproval::Deny);
     let a = FakeApprover::new(Choice::Run);
     let p = run_read(&d, "notes.txt", Some(a.clone()), cfg).await;
     assert_eq!(a.count(), 0);

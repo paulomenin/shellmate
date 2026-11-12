@@ -43,7 +43,7 @@ impl Config {
     pub fn resolved_tool_settings(&self, tool: &str, host: &Host) -> Result<serde_json::Value> {
         let t = self
             .tools
-            .other
+            .entries
             .get(tool)
             .ok_or_else(|| Error::new("config.invalid", format!("unknown tool `{tool}`")))?;
         resolve_table(

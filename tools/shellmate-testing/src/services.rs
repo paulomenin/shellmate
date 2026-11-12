@@ -10,6 +10,9 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
 
+/// One `vet_file` call: the argument, the working directory and the roots.
+pub type Vetted = (String, Option<String>, Vec<String>);
+
 type Process = Box<dyn Fn(&ProcessSpec) -> ProcessOutput + Send + Sync>;
 type Classify = Box<dyn Fn(&str) -> CommandRisk + Send + Sync>;
 type Vet = Box<dyn Fn(&str) -> Result<FileTarget, String> + Send + Sync>;
@@ -33,6 +36,8 @@ pub struct FakeServices {
     pub risky_rules: Vec<(String, String)>,
     /// Every program the tool asked to start, in order.
     pub started: Mutex<Vec<ProcessSpec>>,
+    /// Every `vet_file` call: the argument, the working directory and the roots.
+    pub vetted: Mutex<Vec<Vetted>>,
 }
 
 impl Default for FakeServices {
@@ -51,6 +56,7 @@ impl Default for FakeServices {
             process: Box::new(|_| output(Some(0), "", "")),
             risky_rules: Vec::new(),
             started: Mutex::new(Vec::new()),
+            vetted: Mutex::new(Vec::new()),
         }
     }
 }
@@ -119,6 +125,26 @@ impl ToolServices for FakeServices {
     }
 
     /// A rule covers a command when it is the command's words joined, or a prefix of them ending in `*`.
+    fn glob_match(&self, pattern: &str, text: &str) -> bool {
+        match pattern.strip_suffix('*') {
+            Some(prefix) => text.starts_with(prefix),
+            None => pattern == text,
+        }
+    }
+
+    /// Control characters become `\u{..}`, like the core does.
+    fn escape(&self, text: &str) -> String {
+        text.chars()
+            .map(|c| {
+                if c.is_control() {
+                    format!("\\u{{{:x}}}", c as u32)
+                } else {
+                    c.to_string()
+                }
+            })
+            .collect()
+    }
+
     fn command_rule_matches(&self, rule: &str, argv: &[String]) -> bool {
         let line = argv.join(" ");
         match rule.strip_suffix('*') {
@@ -157,9 +183,13 @@ impl ToolServices for FakeServices {
     fn vet_file(
         &self,
         arg: &str,
-        _cwd: Option<&str>,
-        _roots: &[String],
+        cwd: Option<&str>,
+        roots: &[String],
     ) -> Result<FileTarget, String> {
+        self.vetted
+            .lock()
+            .unwrap()
+            .push((arg.into(), cwd.map(String::from), roots.to_vec()));
         (self.vet)(arg)
     }
 

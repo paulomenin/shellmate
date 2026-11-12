@@ -1,28 +1,22 @@
 //! Tool calls the model makes during a turn.
 //!
-//! `man` and `exec` live behind the plugin API (`plugged`). Each tool still here implements [`Tool`]. `read`
-//! needs a human's approval (INV-1) and taints the turn with what it returns (INV-4), so it splits its work
-//! in two: `decide` answers "may this happen?"
-//! (parse, classify, pre-approval, ask the person) and runs nothing, and `execute` does the work for a
-//! call that was allowed. `man` is read-only and has no approval step, and lives behind the plugin API (`plugged`).
+//! Every tool implements `shellmate_api::Tool`; `plugged` is the host that runs one, and where the core
+//! enforces (INV-1, INV-4): the approver, the pre-approval rules, taint, escaping. `services` is what the
+//! core lets a tool use. This file finds the tool for a call and holds what was decided about it.
 
 mod plugged;
-pub(in crate::engine) mod read;
 mod services;
 
 pub(in crate::engine) use plugged::Plugged;
 
 use super::Engine;
 use crate::action::Action;
-use crate::config::Config;
 use crate::ports::Host;
 use crate::present::{Mark, Notice, Tone};
 use crate::tools::{Approver, ToolCall};
-use async_trait::async_trait;
 
 /// Everything a tool may use for one call. A tool gets no more than this.
 pub(in crate::engine) struct ToolEnv<'a> {
-    pub(in crate::engine) cfg: &'a Config,
     /// `None` (no terminal): every call that needs a person is denied.
     pub(in crate::engine) approver: Option<&'a dyn Approver>,
     /// Environment and file system the tool may look at.
@@ -34,25 +28,9 @@ pub(in crate::engine) struct ToolEnv<'a> {
     pub(in crate::engine) dest: &'a str,
 }
 
-/// A tool the model can call.
-#[async_trait]
-pub(in crate::engine) trait Tool: Sync {
-    /// The name the model uses in a `shellmate-tool` block.
-    fn name(&self) -> &'static str;
-    /// The instructions that offer this tool to the model for `action`, or `None` when it is not offered:
-    /// turned off, not allowed to ask, or not an action that may use tools. Kept next to the tool so that
-    /// what the model is told and what the tool accepts change together.
-    fn offer(&self, cfg: &Config, action: Action) -> Option<String>;
-    /// Decide and, if allowed, run one call. Always returns what to show, what the model gets back, and
-    /// what was decided; a refusal is a `ToolRun`, not an error.
-    async fn run(&self, call: &ToolCall, env: &ToolEnv<'_>) -> ToolRun;
-}
-
-const TOOLS: [&dyn Tool; 1] = [&read::Read];
-
-/// The offers of every tool that is available for `action`, in the order the prompt shows them: the tools
-/// behind the plugin API in the order they were registered, then the ones that still live here.
-pub(in crate::engine) fn offers(cfg: &Config, plugged: &[Plugged], action: Action) -> Vec<String> {
+/// The offers of every tool that is available for `action`, in the order the prompt shows them: the order
+/// the tools were registered in.
+pub(in crate::engine) fn offers(plugged: &[Plugged], action: Action) -> Vec<String> {
     let api_action = match action {
         Action::Ask => Some(shellmate_api::ToolAction::Ask),
         Action::Generate => Some(shellmate_api::ToolAction::Generate),
@@ -62,12 +40,7 @@ pub(in crate::engine) fn offers(cfg: &Config, plugged: &[Plugged], action: Actio
     api_action
         .into_iter()
         .flat_map(|a| plugged.iter().filter_map(move |p| p.offer(a)))
-        .chain(TOOLS.iter().filter_map(|t| t.offer(cfg, action)))
         .collect()
-}
-
-fn find(name: &str) -> Option<&'static dyn Tool> {
-    TOOLS.iter().copied().find(|t| t.name() == name)
 }
 
 impl Engine {
@@ -90,7 +63,6 @@ impl Engine {
             }
         };
         let env = ToolEnv {
-            cfg: &self.cfg,
             approver: self.approver.as_deref(),
             host: &self.host,
             cwd,
@@ -100,10 +72,7 @@ impl Engine {
         if let Some(p) = self.plugged.iter().find(|p| p.name() == call.name) {
             return p.run(&call, &env).await;
         }
-        match find(&call.name) {
-            Some(tool) => tool.run(&call, &env).await,
-            None => unknown_tool(&call),
-        }
+        unknown_tool(&call)
     }
 }
 
@@ -183,23 +152,5 @@ impl ToolRun {
             to_buffer: None,
             untrusted: false,
         }
-    }
-
-    pub(super) fn untrusted(mut self) -> Self {
-        self.untrusted = true;
-        self
-    }
-
-    /// A refusal for `tool` (`exec`, `read`): shown as denied, and the model is told why.
-    pub(super) fn refused(tool: &str, rest: &str, why: &str, decision: ToolDecision) -> Self {
-        Self::new(
-            Notice::new(
-                Tone::Warning,
-                Mark::Chevron,
-                format!("denied: {tool} {}", crate::sanitize::escape(rest)),
-            ),
-            format!("Tool call `{tool} {rest}` was denied: {why}"),
-            decision,
-        )
     }
 }

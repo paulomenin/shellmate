@@ -70,29 +70,6 @@ impl Config {
                 ));
             }
         }
-        if self.tools.read.max_bytes == 0 {
-            return Err(Error::new(
-                "config.invalid",
-                "tools.read.max_bytes must be above 0",
-            ));
-        }
-        for r in &self.tools.read.preapproved {
-            if r.contains(|c: char| c.is_control()) || r.trim().is_empty() {
-                return Err(Error::new(
-                    "config.invalid",
-                    format!("tools.read.preapproved: invalid rule {r:?}"),
-                ));
-            }
-        }
-        for r in &self.tools.read.roots {
-            if !(r.starts_with('/') || r.starts_with("~/")) || r.contains(|c: char| c.is_control())
-            {
-                return Err(Error::new(
-                    "config.invalid",
-                    format!("tools.read.roots: `{r}` must be an absolute path or start with `~/`"),
-                ));
-            }
-        }
         if self.conversation.history.strategy != "window" {
             return Err(Error::new(
                 "config.unsupported",

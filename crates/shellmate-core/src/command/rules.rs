@@ -2,23 +2,6 @@
 
 use super::classify::*;
 
-/// Read-tool rules that match everything (`*`, `**`, `?*`): they would pre-approve every file in reach.
-pub fn dangerous_read_rules(rules: &[String]) -> Vec<(String, String)> {
-    rules
-        .iter()
-        .filter(|r| {
-            r.chars()
-                .all(|c| c == '*' || c == '?' || c == '/' || c == '.')
-        })
-        .map(|r| {
-            (
-                r.clone(),
-                "it matches every file the tool may read".to_string(),
-            )
-        })
-        .collect()
-}
-
 /// `*` and `?` glob match over one token.
 pub fn glob_match(pattern: &str, text: &str) -> bool {
     let (p, t): (Vec<char>, Vec<char>) = (pattern.chars().collect(), text.chars().collect());

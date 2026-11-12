@@ -41,6 +41,14 @@ impl ToolServices for CoreServices<'_> {
         }
     }
 
+    fn glob_match(&self, pattern: &str, text: &str) -> bool {
+        command::glob_match(pattern, text)
+    }
+
+    fn escape(&self, text: &str) -> String {
+        crate::sanitize::escape(text)
+    }
+
     fn command_rule_matches(&self, rule: &str, argv: &[String]) -> bool {
         command::rule_matches(rule, argv)
     }

@@ -301,6 +301,10 @@ pub struct ToolOutput {
     /// This output has text somebody else wrote in it. Adds to [`ToolInfo::untrusted_output`], never
     /// removes from it.
     pub untrusted: bool,
+    /// The call was let through but did not do what it was approved for (a file that turned out to be
+    /// binary). The audit log records a refusal. The turn is tainted all the same if the tool declares
+    /// untrusted output, so a tool cannot dodge it by failing.
+    pub failed: bool,
 }
 
 /// A tool the model can call.
@@ -415,6 +419,11 @@ pub trait ToolServices: Send + Sync {
     fn find_program(&self, name: &str) -> Option<PathBuf>;
     /// The classifier. It can only make things stricter.
     fn classify_command(&self, line: &str) -> CommandRisk;
+    /// `*` and `?` wildcards over one token, as a rule for paths is written.
+    fn glob_match(&self, pattern: &str, text: &str) -> bool;
+    /// Text that is not ours made safe to show or send: control, look-alike and direction-changing
+    /// characters become visible (`\u{1b}`).
+    fn escape(&self, text: &str) -> String;
     /// Whether a pre-approval rule written for commands covers `argv`.
     fn command_rule_matches(&self, rule: &str, argv: &[String]) -> bool;
     /// Command rules that are too broad: they match programs the classifier flags, or everything.

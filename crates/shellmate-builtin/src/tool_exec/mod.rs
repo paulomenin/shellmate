@@ -229,6 +229,7 @@ impl Tool for Exec {
             result: result_text(&plan.text, &result),
             notice,
             untrusted: true,
+            failed: false,
         }
     }
 }
