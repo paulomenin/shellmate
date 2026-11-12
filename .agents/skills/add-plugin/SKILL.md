@@ -15,6 +15,7 @@ Plugins depend only on `shellmate-api`. If you need something from `shellmate-co
 | Decider | `Decider` (`decider.rs`): `info`, `decide` | `register_decider` | `[deciders.<name>]`, same shape as providers |
 | `llm` middleware | `Middleware<ChatRequest, ChatStream>` (`middleware.rs`): `id`, `call(request, next)` | `register_llm_middleware(id, role, ctor)` | `[llm] middleware` list and `[plugins."builtin:<id>"]` (`enabled`, `settings`) |
 | Store | `Store` (`store.rs`) | `register_store` | the store section of the config |
+| Tool | `Tool` (`tool.rs`) | `register_tool` | `[tools.<name>]`. **Security-sensitive: follow `.agents/skills/add-tool/SKILL.md` instead.** |
 
 The nearest existing example for each: `provider_openai_compatible`, `decider_systemone`, `middleware_redact`, `store_tmpfs` (modules of `shellmate-builtin`). Copy the closest one.
 

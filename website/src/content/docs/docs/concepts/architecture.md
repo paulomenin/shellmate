@@ -43,7 +43,7 @@ A run takes about 8 ms before any network traffic (p50, with a 30 ms budget enfo
 
 ## Plugins and tools
 
-The core is small: the pipeline, the config, the invariants. Providers, deciders, middleware (such as redaction) and conversation stores are plugins that depend only on the plugin API crate. The first-party ones are compiled into the binary as modules of one crate, `shellmate-builtin`, and registered through cargo features, using the same API an outside plugin would. The tools are not plugins yet: they live in the core, where every call goes through the classifier and the policy. [Plugins](../plugins/) explains when each kind is called and how many of each you can have.
+The core is small: the pipeline, the config, the invariants. Providers, deciders, middleware (such as redaction) and conversation stores are plugins that depend only on the plugin API crate. The first-party ones are compiled into the binary as modules of one crate, `shellmate-builtin`, and registered through cargo features, using the same API an outside plugin would. The tools (`man`, `exec`, `read`) are plugins too, but the core runs them: it keeps approval, pre-approval, taint and escaping, so a tool cannot skip them. [Plugins](../plugins/) explains when each kind is called and how many of each you can have.
 
 | Plugin | Kind | What it does |
 |---|---|---|

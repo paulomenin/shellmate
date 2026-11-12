@@ -3,11 +3,11 @@ title: Plugins
 description: The four kinds of plugin, when each one is called, which are required, how many of each you can have, and how to turn them on and off.
 ---
 
-shellmate has four kinds of plugin. They depend only on the plugin API crate (`shellmate-api`), and the first-party ones are compiled into the binary and registered through cargo features. Outside plugins are designed but not built, so the only plugin ids that exist are `builtin:<id>`.
+shellmate has five kinds of plugin. They depend only on the plugin API crate (`shellmate-api`), and the first-party ones are compiled into the binary and registered through cargo features. Outside plugins are designed but not built, so the only plugin ids that exist are `builtin:<id>`.
 
-The three tools (`man`, `exec`, `read`) are **not plugins yet**. They live in the core, where every call goes through the classifier and the policy. See [Tool calling](../tool-calling/).
+The fifth kind, tools (`man`, `exec`, `read`), is described in [Tool calling](../tool-calling/). A tool does the work for a call. The core decides whether the call may go ahead.
 
-## The four kinds at a glance
+## The kinds at a glance
 
 | Kind | Trait | Built-in plugins | How many | Required? | Called |
 |---|---|---|---|---|---|
@@ -15,6 +15,7 @@ The three tools (`man`, `exec`, `read`) are **not plugins yet**. They live in th
 | Decider | `Decider` | `builtin:systemone` | Zero or more, tried in order | No | After an answer, only when `[validator] semantic = true` |
 | `llm` middleware | `Middleware<ChatRequest, ChatStream>` | `builtin:redact` | Zero or more, stacked | Only if a provider or decider is `remote` | Around every provider call, and around remote decider calls |
 | Store | `Store` | `builtin:store-tmpfs` | One, or none | No | When a request starts and when it ends |
+| Tool | `Tool` | `man`, `exec`, `read` | Any number, offered in registration order | No | When the model asks for it in the tool loop |
 
 "Required" means what the engine needs to work, not what you must configure. A fresh `shellmate setup` writes a provider for you.
 
@@ -22,7 +23,7 @@ The three tools (`man`, `exec`, `read`) are **not plugins yet**. They live in th
 
 ```mermaid
 flowchart LR
-    feat["cargo features<br/>(default: all four)"] --> reg["shellmate_builtin::registry()"]
+    feat["cargo features<br/>(default: all)"] --> reg["shellmate_builtin::registry()"]
     reg --> engine["Engine::from_config"]
     cfg["config.toml"] --> engine
     engine --> p["providers"]
@@ -31,7 +32,7 @@ flowchart LR
     engine --> s["store"]
 ```
 
-1. `shellmate_builtin::registry()` creates a `Registry` and asks each compiled-in plugin to register a **constructor** under its id (`openai-compatible`, `systemone`, `redact`, `store-tmpfs`).
+1. `shellmate_builtin::registry()` creates a `Registry` and asks each compiled-in plugin to register a **constructor** under its id (`openai-compatible`, `systemone`, `redact`, `store-tmpfs`, `man`, `exec`, `read`).
 2. The engine reads the config, and for each plugin the config names, looks the constructor up by id and calls it with that plugin's `settings` table, converted to JSON, with secret references already resolved.
 3. An id the registry does not know fails with `config.unknown_plugin`, and the hint lists the ids that exist. An id without the `builtin:` prefix fails with `config.unsupported`.
 
@@ -98,6 +99,16 @@ A store keeps conversations. The core owns the turn format and gives the store o
 - **Required:** no. With `store = "none"`, every request is stateless. If the configured store cannot be opened, conversations are turned off for that run and you get a note. shellmate never silently switches to another store.
 - **To turn it off:** `store = "none"`, or set `[actions.<name>] conversation = "fresh"` for one action.
 - **Built in:** `builtin:store-tmpfs` keeps one JSON-lines file per conversation on tmpfs, with advisory `flock` locks, so transcripts disappear at logout. See [State on disk](../state-and-storage/).
+
+## Tool
+
+A tool lets the model look at something before it answers. It is configured by `[tools.<name>]`, and every registered tool is on unless you turn it off. The core reads three keys from the table (`enabled`, `approval`, `preapproved`) and hands the rest to the tool, which rejects keys it does not know.
+
+- **More than one:** yes. They are offered to the model in registration order: `man`, `exec`, `read`.
+- **When it is called:** when a reply holds a `shellmate-tool` block naming it. See [Tool calling](../tool-calling/).
+- **What the tool decides:** whether a call is well formed, how risky it is, and whether it needs a person. **What the core decides:** whether a tool that says it needs approval can skip it (it cannot), whether a pre-approval rule may apply (only to a call the tool marks preapprovable, on an untainted turn, with your rule), who may answer yes (only the prompt in the binary), whether the turn is tainted, and escaping of everything the tool shows.
+- **To turn one off:** `[tools.<name>] enabled = false` or `approval = "deny"`.
+- **Built in:** `man`, `exec` and `read`, each behind a cargo feature (`tool-man`, `tool-exec`, `tool-read`).
 
 ## Turning things on and off
 

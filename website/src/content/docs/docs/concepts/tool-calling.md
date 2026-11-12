@@ -6,7 +6,7 @@ description: How the model is told which tools exist, how it asks for one, the l
 A tool lets the model look at something before it answers: a manual page, the output of a simple command, a file. shellmate has three: `man`, `exec` and `read`. This page explains the mechanism. The pages for each tool ([man](../../guides/man-tool/), [exec](../../guides/exec-tool/), [read](../../guides/read-tool/)) explain how to use and configure them.
 
 :::note
-The tools live in `shellmate-core` today. They are not plugins yet. Moving them behind the plugin API is planned, and the roadmap lists web search and MCP as later tools. This page describes how they work now.
+The tools are plugins that implement `shellmate_api::Tool`, and the first-party ones are in `shellmate-builtin`. The core runs every call and keeps the rules that protect you, whatever a tool says. The roadmap lists web search and MCP as later tools.
 :::
 
 ## It is a text protocol

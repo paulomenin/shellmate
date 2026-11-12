@@ -68,7 +68,7 @@ mise run mutants                # the security modules, about 30 minutes
 cargo mut -p shellmate-core -f 'crates/shellmate-core/src/command/*.rs'   # one file
 ```
 
-Run mutation testing after changing `command/`, `tools/`, `validate/`, `engine/tool_calls/`, `present/`, `render.rs`, `sanitize.rs` or the redactor. Every mutant that survives is either a missing test or a change that cannot be observed. Add the test, or add the mutant to `exclude_re` in `.cargo/mutants.toml` with the reason. See `tools/README.md` for how to read the results.
+Run mutation testing after changing `command/`, `tools/`, `validate/`, `engine/tool_calls/`, the tool plugins, `present/`, `render.rs`, `sanitize.rs` or the redactor. Every mutant that survives is either a missing test or a change that cannot be observed. Add the test, or add the mutant to `exclude_re` in `.cargo/mutants.toml` with the reason. See `tools/README.md` for how to read the results.
 
 ## What a change must keep true
 

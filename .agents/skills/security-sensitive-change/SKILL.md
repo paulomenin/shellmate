@@ -12,8 +12,9 @@ shellmate does not trust the model. The model can be wrong, manipulated by text 
 | Concern | Where |
 |---|---|
 | Classifier, strict command parser, rules, risk | `crates/shellmate-core/src/command/` |
-| Tool parsing, policy, running `man`/`exec`/`read`, sanitized env, caps | `crates/shellmate-core/src/tools/` |
-| The decision for each `exec`/`read` call (parse, classifier, pre-approval, taint, ask the person), as `decide` functions that run nothing | `crates/shellmate-core/src/engine/tool_calls/` |
+| The `man`, `exec` and `read` plugins: parsing, rules, what they run | `crates/shellmate-builtin/src/tool_*/` |
+| The services a tool may use: sanitized env, caps, path checks | `crates/shellmate-core/src/tools/`, `engine/tool_calls/services.rs` |
+| The host that enforces approval, pre-approval, taint and escaping around every tool | `crates/shellmate-core/src/engine/tool_calls/plugged.rs` |
 | The approval prompt, typeahead flush, no-tty deny | `crates/shellmate/src/approval.rs`, `tty.rs` |
 | Redaction | `crates/shellmate-builtin/src/middleware_redact/` |
 | Taint, context levels, outbound chain, INV-2 check | `crates/shellmate-core/src/engine/`, `collect/`, `capture.rs` |

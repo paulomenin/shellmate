@@ -20,7 +20,7 @@ Line coverage says a line ran; mutation testing says a test would notice if it w
 
 ```
 mise install                                            # installs cargo-mutants at the pinned version
-mise run mutants                                        # command/, tools/, validate/, the engine tool decisions, the presenter and the redactor, about 30 minutes
+mise run mutants                                        # command/, tools/, validate/, the tool host, the presenter, the redactor and the three tool plugins, about 30 minutes
 tools/mutants.sh -p shellmate-core -f 'crates/shellmate-core/src/command/*.rs'   # one file
 tools/mutants.sh --list                                 # what would be tried
 cargo mut -p shellmate-core -f 'crates/shellmate-core/src/command/*.rs'   # the same through a cargo alias

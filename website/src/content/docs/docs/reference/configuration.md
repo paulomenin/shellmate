@@ -109,6 +109,10 @@ For `ask`, `generate` and `explain`:
 | `conversation` | `auto` | `auto`, `continue` or `fresh`. |
 | `idle_timeout` | global value | Overrides `[conversation] idle_timeout` for this action. |
 
+## `[tools.<name>]`
+
+Every tool has a table. The core reads `enabled`, `approval` and `preapproved`, and the tool reads the other keys and rejects unknown ones. A name that is not a registered tool fails with `config.unknown_plugin`. `allow` is refused for a tool that needs approval, and `ask` for one that never asks.
+
 ## `[tools.man]`
 
 | Key | Default | Meaning |

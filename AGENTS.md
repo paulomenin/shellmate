@@ -9,7 +9,7 @@ Read this file first. Task-specific playbooks are in `.agents/skills/`.
 - **Thin glue, logic in Rust.** fish, zsh and bash get a small glue template (`crates/shells/`). Anything testable belongs in Rust.
 - **Buffer-first.** Suggestions go into the input line. Nothing the model produces runs without a person (INV-1).
 - **Oneshot runtime.** Every request is a new short-lived process (`shellmate invoke`). A daemon is planned, not built.
-- **Everything that can be a plugin is one**, behind `shellmate-api`: providers, deciders, middleware, stores. The tools (`man`, `exec`, `read`) live in the core for now.
+- **Everything that can be a plugin is one**, behind `shellmate-api`: providers, deciders, middleware, stores and tools. The core keeps the decisions that protect the user (approval, pre-approval, taint, escaping), so a tool can only ask for stricter handling.
 - **Redaction is middleware** and fails closed. A remote provider is refused without an active redactor (INV-2).
 - **Config is TOML.** Secrets are only `env:NAME`, `file:PATH` or `cmd:PROGRAM ARGS` references, never literal values. `cmd:` is a core scheme, fetched on first use (`secret_cmd.rs`, `engine/lazy.rs`).
 - **Names:** binary `shellmate`, optional alias `sm`, default shortcut `alt+m`. `generate` is command-only (`alt+i`), `explain` is `alt+j`, `new-conversation` is `alt+k`, `capture` is `alt+r` (`alt+e` in bash). The built-in default is only `alt+m`; the config written by `setup` binds all of them.
@@ -32,8 +32,8 @@ These hold regardless of configuration. A change must not weaken them, and any c
 | Path | What |
 |---|---|
 | `crates/shellmate-api` | The plugin API: traits, types, `Registry`. Plugins depend only on this. |
-| `crates/shellmate-core` | Engine (`engine/`, one file per concern; the tool decisions are in `engine/tool_calls/`), config, prompts, conversations, tools, classifier (`command/`), validator, audit, rendering, and the ports for env, clock and files (`ports.rs`), and the presenter that turns answers, notices, notes and errors into terminal bytes (`present/`) |
-| `crates/shellmate-builtin` | The first-party plugins, one module each behind a cargo feature: `provider_openai_compatible`, `decider_systemone`, `middleware_redact`, `store_tmpfs`. Registers them. |
+| `crates/shellmate-core` | Engine (`engine/`, one file per concern; the host that runs a tool and enforces approval, taint and escaping is `engine/tool_calls/`), config, prompts, conversations, tools, classifier (`command/`), validator, audit, rendering, and the ports for env, clock and files (`ports.rs`), and the presenter that turns answers, notices, notes and errors into terminal bytes (`present/`) |
+| `crates/shellmate-builtin` | The first-party plugins, one module each behind a cargo feature: `provider_openai_compatible`, `decider_systemone`, `middleware_redact`, `store_tmpfs`, and the tools `tool_man`, `tool_exec`, `tool_read`. Registers them. |
 | `crates/shellmate` | The binary: `cli.rs`, one module per command in `commands/`, setup, doctor and other admin commands in `admin/`, init, approval prompt, tty |
 | `crates/shells/` | Glue templates for fish, zsh, bash |
 | `tools/shellmate-testing` | Mock HTTP/SSE servers, a `FakeProvider` and an in-memory conversation store, `MemoryStore` (dev-dependency) |
@@ -113,4 +113,4 @@ The skills are plain Markdown with front matter, so any agent can read them. `.c
 
 ## Known gaps (do not claim otherwise)
 
-No release has been published and the CI jobs have not run on GitHub yet. macOS, musl, powerlevel10k and older shells are untested. Mutation testing covers `command/`, `tools/`, `validate/`, the redactor, `engine/tool_calls/`, `present/`, `render.rs`, `sanitize.rs`, `secrets.rs` and `secret_cmd.rs` only. The parsers are not fuzzed. The e2e suite is not in the coverage numbers. See the roadmap page for the full list.
+No release has been published and the CI jobs have not run on GitHub yet. macOS, musl, powerlevel10k and older shells are untested. Mutation testing covers `command/`, `tools/`, `validate/`, the redactor, the three tool plugins, `engine/tool_calls/`, `present/`, `render.rs`, `sanitize.rs`, `secrets.rs` and `secret_cmd.rs` only. The parsers are not fuzzed. The e2e suite is not in the coverage numbers. See the roadmap page for the full list.

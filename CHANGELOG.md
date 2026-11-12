@@ -4,6 +4,7 @@
 
 First public development version.
 
+- Tools are plugins: `man`, `exec` and `read` implement `shellmate_api::Tool` in `shellmate-builtin` (features `tool-man`, `tool-exec`, `tool-read`). Every `[tools.<name>]` table has `enabled`, `approval` and `preapproved`, kept by the core, and the tool's own keys. The core still enforces approval, pre-approval, taint and escaping, so a tool cannot skip them. Small changes: a failed `read` taints the turn, a `man` page is capped at 4 MiB, and `[tools.man] approval = "ask"` is refused when the engine is built.
 - `ask`, `generate` and `explain` from your prompt in fish, zsh and bash, streamed as they are generated.
 - Providers: OpenAI-compatible endpoints (OpenAI, OpenRouter, Ollama, LM Studio), with fallback chains.
 - Privacy: context levels per provider trust, reversible secret redaction (fails closed), `--dry-run`.

@@ -62,17 +62,15 @@ One file per concern. `Engine` is defined in `mod.rs`, along with its constructi
 | `terminals.rs` | The innermost handlers of the middleware chain: the provider, and a recorder |
 | `lazy.rs` | A provider whose `cmd:` secrets are fetched on first use |
 | `types.rs` | What a client sees: `Outcome`, `Report`, `Emit`, `ProviderSpec` and others |
-| `tool_calls/` | The decision for each tool (`man`, `exec`, `read`): enabled? grammar? classifier? pre-approval? approval? Runs nothing itself until allowed |
+| `tool_calls/` | The host for tools: `plugged.rs` enforces approval, pre-approval, taint and escaping around any `Tool`; `services.rs` is what a tool may use (classifier, path checks, process runner) |
 
 ### Tools (`tools/`)
 
-The tool code that does not decide anything: parsers and runners. `engine/tool_calls/` decides, and calls these once a call is allowed.
+The helpers behind the tool services: parser and runners. The tools themselves (`tool_man`, `tool_exec`, `tool_read`) are modules of `shellmate-builtin`.
 
 | File | Responsibility |
 |---|---|
 | `call.rs` | `ToolCall`: one line, a name and its words |
-| `policy.rs` | The policy for `man`: classifier first, then the setting |
-| `man.rs` | Running `man` with a fixed environment, a limit and a size cap |
 | `exec.rs` | Running a command: no shell, a process group, a sanitized environment, a timeout, capped output |
 | `read.rs` | Resolving and vetting a path, reading a file, and the delimited result |
 | `approval.rs` | `ApprovalRequest`, `Choice` and the `Approver` trait, which only the binary implements |
@@ -97,7 +95,7 @@ Strict: unknown keys are errors.
 | `mod.rs` | The `Config` struct, the provider chain, the middleware list |
 | `sections.rs` | `[runtime]`, `[context]`, `[validator]`, `[pipeline]`, `[ui]`, `[audit]`, `[conversation]`, `[actions]`, `[input]`, `[secrets]` |
 | `providers.rs` | `[providers]`, `[deciders]`, `[plugins]` and `Trust` |
-| `tools.rs` | `[tools.man]`, `[tools.exec]`, `[tools.read]` |
+| `tools.rs` | `[tools.<name>]`: `enabled`, `approval`, `preapproved`, and the rest passed to the tool |
 | `load.rs` | Finding, reading and parsing the file; durations such as `30s` |
 | `validate.rs` | Static checks on a parsed config, with no secrets read and nothing built |
 | `resolve.rs` | Turning the config into plugin settings: secrets resolved, plugin ids checked, `cmd:` secrets deferred |

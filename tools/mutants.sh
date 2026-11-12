@@ -34,8 +34,11 @@ cargo mutants -j 4 --timeout 120 -o target/mutants-core -p shellmate-core \
     -f 'crates/shellmate-core/src/secret_cmd.rs' \
     -f 'crates/shellmate-core/src/secrets.rs' \
     -f 'crates/shellmate-core/src/validate/*.rs' || true
-cargo mutants -j 4 --timeout 120 -o target/mutants-redact -p shellmate-builtin \
-    -f 'crates/shellmate-builtin/src/middleware_redact/*.rs' || true
+cargo mutants -j 4 --timeout 120 -o target/mutants-builtin -p shellmate-builtin \
+    -f 'crates/shellmate-builtin/src/middleware_redact/*.rs' \
+    -f 'crates/shellmate-builtin/src/tool_man/*.rs' \
+    -f 'crates/shellmate-builtin/src/tool_exec/*.rs' \
+    -f 'crates/shellmate-builtin/src/tool_read/*.rs' || true
 
 echo
 echo "== summary =="
