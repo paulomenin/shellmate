@@ -280,3 +280,91 @@ fn a_program_that_cannot_start_is_an_error() {
     let e = run("k", "/nope/x", &h, &CmdOptions::default()).unwrap_err();
     assert_eq!(e.code, "config.secret_cmd_missing");
 }
+
+#[test]
+fn a_control_character_is_refused_inside_quotes_too() {
+    let env = MapEnv::new();
+    for line in [
+        "a b\u{7}c",
+        "a 'b\u{7}c'",
+        "a \"b\u{7}c\"",
+        "a 'b\nc'",
+        "a \"b\nc\"",
+    ] {
+        let e = split("k", line, &env).unwrap_err();
+        assert!(
+            e.message.contains("control character"),
+            "{line:?}: {}",
+            e.message
+        );
+    }
+}
+
+#[test]
+fn a_tilde_is_only_the_home_directory_at_the_start_of_an_unquoted_word() {
+    let env = MapEnv::new().with("HOME", "/home/u");
+    let s = |l: &str| split("k", l, &env).unwrap();
+    // an empty quoted part already started the word, so the `~/` that follows is not at its start
+    assert_eq!(s("a ''~/y"), ["a", "~/y"]);
+    assert_eq!(s("a \"\"~/y"), ["a", "~/y"]);
+    assert_eq!(s("a ~/y"), ["a", "/home/u/y"]);
+    assert_eq!(s("a ~y ~"), ["a", "~y", "~"], "no slash, no expansion");
+}
+
+#[test]
+fn a_key_pasted_into_the_line_is_recognised() {
+    // a well-known prefix and at least 8 more characters
+    for p in [
+        "sk-",
+        "ghp_",
+        "gho_",
+        "github_pat_",
+        "xox",
+        "AKIA",
+        "eyJ",
+        "glpat-",
+        "AIza",
+    ] {
+        assert!(looks_like_a_secret(&format!("{p}abcdefgh")), "{p}");
+        assert!(
+            !looks_like_a_secret(&format!("{p}abcdefg")),
+            "{p} with 7 more"
+        );
+    }
+    // a prefix is not enough, and neither is length alone
+    assert!(!looks_like_a_secret("sk-"));
+    assert!(!looks_like_a_secret("hello-world-abc"));
+    assert!(!looks_like_a_secret("a.b.c.d.e.f.g.h.i.j.k"));
+
+    // a long run of letters and digits, with `_` and `-` allowed
+    let run32 = "a1".repeat(16);
+    assert_eq!(run32.len(), 32);
+    assert!(looks_like_a_secret(&run32));
+    assert!(!looks_like_a_secret(&run32[..31]));
+    assert!(looks_like_a_secret(&format!("{}_", &run32[..31])));
+    assert!(looks_like_a_secret(&format!("{}-", &run32[..31])));
+    assert!(!looks_like_a_secret(&format!("{}.", &run32[..31])));
+    assert!(!looks_like_a_secret(&format!("{}/", &run32[..31])));
+    // it needs both a letter and a digit
+    assert!(!looks_like_a_secret(&"a".repeat(32)));
+    assert!(!looks_like_a_secret(&"7".repeat(32)));
+    assert!(!looks_like_a_secret(&"_".repeat(32)));
+}
+
+#[test]
+fn only_the_arguments_after_the_program_are_judged_for_a_secret() {
+    let env = MapEnv::new();
+    assert!(has_embedded_secret("pass sk-abcdefgh", &env));
+    assert!(!has_embedded_secret("pass show api/openai", &env));
+    assert!(
+        !has_embedded_secret(&format!("{} show", "a1".repeat(16)), &env),
+        "the program name is not an argument"
+    );
+}
+
+#[test]
+fn output_that_arrives_after_the_program_exits_is_still_read() {
+    // the program exits at once; a helper keeps the pipe and prints a moment later, inside the grace period
+    let line = "/bin/sh -c '(sleep 0.05; echo sk-late) & exit 0'";
+    assert_eq!(run_line(line).unwrap(), "sk-late");
+}
