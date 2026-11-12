@@ -36,6 +36,8 @@ struct Probe {
     rules_match: bool,
     /// Whether `run` says its output is untrusted.
     says_untrusted: bool,
+    /// Whether `run` says the call failed after it was allowed.
+    fails: bool,
     offered_for: Vec<ToolAction>,
     ran: Mutex<Vec<(String, Granted)>>,
     notice: ToolNotice,
@@ -50,6 +52,7 @@ impl Probe {
             mode,
             rules_match: true,
             says_untrusted: false,
+            fails: false,
             offered_for: vec![ToolAction::Ask],
             ran: Mutex::new(Vec::new()),
             notice: ToolNotice::new(Tone_::Success, Mark::Check, "did it"),
@@ -122,7 +125,7 @@ impl Tool for Probe {
             result: "RESULT".into(),
             notice: self.notice.clone(),
             untrusted: self.says_untrusted,
-            failed: false,
+            failed: self.fails,
         }
     }
 }
@@ -573,4 +576,34 @@ async fn text_a_tool_writes_for_the_terminal_is_escaped() {
         assert!(!text.chars().any(char::is_control), "{text:?}");
     }
     assert_eq!(n.text, "a\\u{1b}[31mred");
+}
+
+#[tokio::test]
+async fn a_call_that_fails_after_the_yes_is_audited_as_a_refusal_and_still_taints() {
+    let mut failing = Probe::new("failing", ApprovalMode::Never, Mode::Allow);
+    failing.fails = true;
+    failing.untrusted_output = true;
+    let failing = Arc::new(failing);
+    let probe = Arc::new(Probe::new(
+        "probe",
+        ApprovalMode::Required,
+        Mode::Need {
+            preapprovable: true,
+            to_buffer: false,
+        },
+    ));
+    let s = go(
+        vec![
+            (failing.clone(), settings(&[])),
+            (probe.clone(), settings(&["*"])),
+        ],
+        "ask",
+        &["failing x", "probe go"],
+        Some(Choice::Run),
+    )
+    .await;
+    assert_eq!(failing.ran().len(), 1, "it did run");
+    assert_eq!(s.audited[0], ("failing".to_string(), "deny".to_string()));
+    assert_eq!(s.asked.len(), 1, "a tool cannot dodge taint by failing");
+    assert_eq!(probe.ran(), [("payload:go".to_string(), Granted::Person)]);
 }
