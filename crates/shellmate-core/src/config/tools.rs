@@ -1,9 +1,9 @@
-//! The `[tools]` section: `man`, `exec` and `read`.
+//! The `[tools]` section: `man`, `exec` and `read`, and any other tool a plugin provides.
 
 use serde::Deserialize;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ToolsConfig {
     #[serde(default)]
     pub man: ManTool,
@@ -11,6 +11,37 @@ pub struct ToolsConfig {
     pub exec: ExecTool,
     #[serde(default)]
     pub read: ReadTool,
+    /// Every other `[tools.<name>]`. The name must be a tool the registry has; that is checked when the
+    /// engine is built, so a misspelt name is an error that lists the tools there are.
+    #[serde(flatten)]
+    pub other: BTreeMap<String, ToolEntry>,
+}
+
+/// One `[tools.<name>]` of a tool that is not built in. The core keeps three keys, the same for every
+/// tool. Everything else is the tool's own and goes to it untouched (secret references resolved); the tool
+/// refuses a key it does not know.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ToolEntry {
+    #[serde(default = "super::default_true")]
+    pub enabled: bool,
+    /// `ask` for every call, `allow` for none (only a tool that is read-only and constrained enough to need
+    /// no approval accepts it), or `deny` to turn it off. Left out: the tool's own default.
+    #[serde(default)]
+    pub approval: Option<ToolApproval>,
+    /// Standing approvals, written by the user. What a rule means is up to the tool, but a call the
+    /// classifier flags is never covered by one, and neither is any call in a turn with untrusted text.
+    #[serde(default)]
+    pub preapproved: Vec<String>,
+    #[serde(flatten)]
+    pub settings: toml::Table,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolApproval {
+    Allow,
+    Ask,
+    Deny,
 }
 
 /// The `read` tool: the model may ask to read one text file. Each file asks first unless a rule covers it.

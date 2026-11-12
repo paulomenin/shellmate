@@ -38,6 +38,22 @@ impl Config {
         )
     }
 
+    /// The tool's own settings (everything under `[tools.<name>]` but the keys the core keeps) as JSON with
+    /// secret references resolved.
+    pub fn resolved_tool_settings(&self, tool: &str, host: &Host) -> Result<serde_json::Value> {
+        let t = self
+            .tools
+            .other
+            .get(tool)
+            .ok_or_else(|| Error::new("config.invalid", format!("unknown tool `{tool}`")))?;
+        resolve_table(
+            &format!("tools.{tool}"),
+            &t.settings,
+            host,
+            &self.cmd_options(),
+        )
+    }
+
     pub fn plugin_settings(&self, id: &str, host: &Host) -> Result<serde_json::Value> {
         match self.plugins.get(id) {
             Some(p) => resolve_table(

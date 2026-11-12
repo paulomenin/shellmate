@@ -133,6 +133,16 @@ pub fn config_show(explicit: Option<&Path>, p: &dyn Presenter) -> Result<String>
         cfg.tools.read.roots.len(),
         cfg.tools.read.max_bytes
     ));
+    for (name, t) in &cfg.tools.other {
+        o.push_str(&format!(
+            "{:<14} enabled={} approval={} preapproved={}\n",
+            format!("{name} tool:"),
+            t.enabled,
+            t.approval
+                .map_or("default".to_string(), |a| format!("{a:?}").to_lowercase()),
+            t.preapproved.len()
+        ));
+    }
     o.push_str(&format!(
         "collectors:    project={} git={} git_log_lines={}\n",
         cfg.context.project, cfg.context.git, cfg.context.git_log_lines

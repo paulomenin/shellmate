@@ -9,6 +9,7 @@ mod notices;
 mod read;
 mod run;
 mod secrets;
+mod tool_config;
 mod tool_decisions;
 mod tool_host;
 mod turns;

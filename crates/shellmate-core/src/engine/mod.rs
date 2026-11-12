@@ -36,6 +36,49 @@ pub use types::{
     ProviderSpec, Report, Stages,
 };
 
+/// The tools of `[tools.<name>]` that are not built in: each is built by the registry from its own settings,
+/// and the core keeps `enabled`, `approval` and `preapproved` for it.
+fn build_tools(cfg: &Config, registry: &Registry, host: &Host) -> Result<Vec<tool_calls::Plugged>> {
+    use crate::config::ToolApproval;
+    use shellmate_api::{ApprovalMode, ApprovalSetting};
+    let mut plugged = Vec::new();
+    for (name, entry) in &cfg.tools.other {
+        let named = |mut e: Error| {
+            e.message = format!("tools.{name}: {}", e.message);
+            e
+        };
+        let tool = registry
+            .build_tool(name, &cfg.resolved_tool_settings(name, host)?)
+            .map_err(named)?;
+        let needs_approval = tool.info().approval == ApprovalMode::Required;
+        let approval = match entry.approval {
+            Some(ToolApproval::Allow) if needs_approval => {
+                return Err(Error::new(
+                    "config.invalid",
+                    format!(
+                        "tools.{name}.approval = \"allow\": this tool needs approval for each call"
+                    ),
+                )
+                .with_hint("use \"ask\", or list what may run without asking in `preapproved`"))
+            }
+            Some(ToolApproval::Allow) => ApprovalSetting::Allow,
+            Some(ToolApproval::Ask) => ApprovalSetting::Ask,
+            Some(ToolApproval::Deny) => ApprovalSetting::Deny,
+            None if needs_approval => ApprovalSetting::Ask,
+            None => ApprovalSetting::Allow,
+        };
+        plugged.push(tool_calls::Plugged {
+            tool,
+            settings: shellmate_api::ToolSettings {
+                enabled: entry.enabled,
+                approval,
+                preapproved: entry.preapproved.clone(),
+            },
+        });
+    }
+    Ok(plugged)
+}
+
 pub struct Engine {
     providers: Vec<ProviderSpec>,
     /// Decision models for the semantic check, in order (empty: the LLM answers, when allowed).
@@ -151,10 +194,12 @@ impl Engine {
             has_redactor |= registry.llm_middleware_role(id) == Some(MiddlewareRole::Redactor);
             layers.push(registry.build_llm_middleware(id, &cfg.plugin_settings(&layer, &host)?)?);
         }
+        let plugged = build_tools(cfg, registry, &host)?;
         let mut engine = Self::with_providers(providers, cfg.context.default_level)
             .with_host(host.clone())
             .with_layers(layers, has_redactor);
         engine.deciders = deciders;
+        engine.plugged = plugged;
         engine.policy = ToolPolicy::new(cfg.tools.man.clone());
         engine.cfg = cfg.clone();
         engine.audit =
