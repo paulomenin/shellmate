@@ -754,3 +754,181 @@ fn a_bare_config_init_is_valid_and_leaves_the_provider_to_you() {
         .unwrap()
         .contains("model = \"my/typed-model\""));
 }
+
+#[tokio::test]
+async fn setup_yes_verify_asks_each_server_with_the_key_and_writes_the_checker() {
+    let server = MockHttpServer::start(200, r#"{"data":[{"id":"m"}]}"#).await;
+    let url = server.url();
+    let home = Scratch::new("setup-verify");
+    let h = home.0.clone();
+    let r = tokio::task::spawn_blocking(move || {
+        let home = Scratch(h);
+        let r = raw(
+            &[
+                "setup",
+                "--yes",
+                "--shell",
+                "bash",
+                "--provider",
+                "custom",
+                "--base-url",
+                &url,
+                "--model",
+                "m",
+                "--api-key",
+                "env:SETUP_TEST_KEY",
+                "--checker",
+                "custom",
+                "--checker-url",
+                &url,
+                "--checker-model",
+                "jev",
+                "--checker-api-key",
+                "env:SETUP_TEST_KEY",
+                "--verify",
+            ],
+            &home,
+            &[("SETUP_TEST_KEY", "sk-test-123")],
+        );
+        std::mem::forget(home);
+        r
+    })
+    .await
+    .unwrap();
+    assert_eq!(r.code, 0, "{}{}", r.stdout, r.stderr);
+    let cfg = std::fs::read_to_string(home.path("config/shellmate/config.toml")).unwrap();
+    assert!(
+        cfg.contains("[deciders.checker]") && cfg.contains("semantic = true"),
+        "{cfg}"
+    );
+    assert!(cfg.contains("api_key = \"env:SETUP_TEST_KEY\""), "{cfg}");
+    assert!(
+        !cfg.contains("sk-test-123"),
+        "the key must never be written"
+    );
+    // both servers were asked for their models with the key, and were sent nothing else (the empty
+    // connections are the reachability probes of the `doctor` that setup ends with)
+    let real: Vec<String> = server
+        .requests()
+        .await
+        .into_iter()
+        .filter(|r| !r.is_empty())
+        .collect();
+    assert_eq!(real.len(), 2, "{real:?}");
+    for seen in &real {
+        assert!(seen.starts_with("GET /v1/models"), "{seen}");
+        assert!(
+            seen.to_lowercase()
+                .contains("authorization: bearer sk-test-123"),
+            "{seen}"
+        );
+        assert!(
+            !seen.contains("messages") && !seen.contains("questions"),
+            "{seen}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn setup_yes_verify_stops_before_writing_when_the_key_is_rejected() {
+    let server = MockHttpServer::start(401, r#"{"error":{"message":"bad key"}}"#).await;
+    let url = server.url();
+    let home = Scratch::new("setup-rejected");
+    let h = home.0.clone();
+    let r = tokio::task::spawn_blocking(move || {
+        let home = Scratch(h);
+        let r = raw(
+            &[
+                "setup",
+                "--yes",
+                "--shell",
+                "bash",
+                "--provider",
+                "custom",
+                "--base-url",
+                &url,
+                "--model",
+                "m",
+                "--api-key",
+                "env:SETUP_TEST_KEY",
+                "--verify",
+            ],
+            &home,
+            &[("SETUP_TEST_KEY", "sk-test-123")],
+        );
+        std::mem::forget(home);
+        r
+    })
+    .await
+    .unwrap();
+    assert_eq!(r.code, 1, "{}{}", r.stdout, r.stderr);
+    assert!(
+        r.stderr.contains("did not answer") && r.stderr.contains("401"),
+        "{}",
+        r.stderr
+    );
+    assert!(!r.stderr.contains("sk-test-123") && !r.stdout.contains("sk-test-123"));
+    assert!(
+        !home.path("config/shellmate/config.toml").exists(),
+        "nothing is written"
+    );
+    assert!(
+        !home.path(".bashrc").exists(),
+        "the shell is left alone too"
+    );
+}
+
+#[test]
+fn setup_yes_without_verify_contacts_nothing_and_refuses_a_pasted_key() {
+    let home = Scratch::new("setup-offline");
+    // a closed port: if setup tried to connect, it would fail
+    let r = raw(
+        &[
+            "setup",
+            "--yes",
+            "--shell",
+            "bash",
+            "--provider",
+            "custom",
+            "--base-url",
+            "http://127.0.0.1:9",
+            "--model",
+            "m",
+            "--api-key",
+            "env:SETUP_TEST_KEY",
+        ],
+        &home,
+        &[],
+    );
+    assert_eq!(r.code, 0, "{}{}", r.stdout, r.stderr);
+    assert!(
+        r.stdout.contains("SETUP_TEST_KEY"),
+        "reminds you to set the variable: {}",
+        r.stdout
+    );
+    let pasted = raw(
+        &[
+            "setup",
+            "--yes",
+            "--shell",
+            "bash",
+            "--provider",
+            "openrouter",
+            "--model",
+            "m",
+            "--api-key",
+            "sk-or-v1-0123456789abcdef",
+            "--config",
+            &home.str("other.toml"),
+        ],
+        &home,
+        &[],
+    );
+    assert_eq!(pasted.code, 1);
+    assert!(
+        pasted.stderr.contains("setup.bad_key_ref") || pasted.stderr.contains("not a reference"),
+        "{}",
+        pasted.stderr
+    );
+    assert!(!pasted.stderr.contains("sk-or-v1"), "{}", pasted.stderr);
+}

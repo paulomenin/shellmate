@@ -5,9 +5,11 @@
 mod audit_cmd;
 mod config_cmd;
 mod config_edit;
+mod detect;
 mod doctor;
 mod install_shell;
 mod keyref;
+mod prompter;
 mod setup;
 mod templates;
 

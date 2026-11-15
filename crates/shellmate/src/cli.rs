@@ -146,19 +146,39 @@ pub(crate) enum Cmd {
         /// Don't ask; use the given options
         #[arg(long)]
         yes: bool,
-        /// ollama, lmstudio, localai, openai, openrouter or custom
+        /// openrouter, openai, ollama, lmstudio, localai or custom
         #[arg(long)]
         provider: Option<String>,
+        /// The model, as the provider lists it. It is never guessed
         #[arg(long)]
         model: Option<String>,
         #[arg(long)]
         shell: Option<String>,
-        /// For `--provider custom`: the base URL of the OpenAI-compatible server, e.g. http://localhost:8000/v1
+        /// The base URL of the server: required for `custom`, and replaces a preset's own address
         #[arg(long, value_name = "URL")]
         base_url: Option<String>,
-        /// For `--provider custom`: the name of the environment variable that holds its API key
+        /// Where the API key is: `env:NAME` or `file:PATH`, never the key itself
+        #[arg(long, value_name = "REF")]
+        api_key: Option<String>,
+        /// The name of the environment variable that holds the API key (same as `--api-key env:NAME`)
         #[arg(long, value_name = "NAME")]
         api_key_env: Option<String>,
+        /// Also set up a checker, a decision model that judges each suggested command: openrouter, ollama,
+        /// typesafe or custom
+        #[arg(long, value_name = "PROVIDER")]
+        checker: Option<String>,
+        /// The checker's model, as its provider lists it
+        #[arg(long, value_name = "MODEL")]
+        checker_model: Option<String>,
+        /// The checker's base URL: required for `custom`, and replaces a preset's own address
+        #[arg(long, value_name = "URL")]
+        checker_url: Option<String>,
+        /// Where the checker's API key is: `env:NAME` or `file:PATH`
+        #[arg(long, value_name = "REF")]
+        checker_api_key: Option<String>,
+        /// With --yes: ask each server for its models to confirm the address and the key (sends the key)
+        #[arg(long)]
+        verify: bool,
     },
     /// Add (or with --remove, delete) the shellmate block in your shell's rc file
     InstallShell {

@@ -141,6 +141,12 @@ impl MockHttpServer {
             .unwrap_or_default()
     }
 
+    /// Every request received so far, in order. A connection that sent nothing (a reachability probe) is an
+    /// empty string.
+    pub async fn requests(&self) -> Vec<String> {
+        self.requests.lock().await.clone()
+    }
+
     pub async fn request_count(&self) -> usize {
         self.requests.lock().await.len()
     }

@@ -9,6 +9,14 @@ pub enum KeyRef {
 }
 
 impl KeyRef {
+    /// The reference as written in the config.
+    pub fn as_config(&self) -> String {
+        match self {
+            KeyRef::Env(n) => format!("env:{n}"),
+            KeyRef::File(p) => format!("file:{p}"),
+        }
+    }
+
     /// `env:NAME`, `file:PATH`, or a bare variable name such as `MY_API_KEY`. Anything else is refused, and
     /// the refusal does not repeat the input: it may be a key that was pasted by mistake.
     pub fn parse(input: &str) -> Result<KeyRef> {
@@ -57,12 +65,12 @@ mod tests {
             KeyRef::Env("MY_KEY".into())
         );
         assert_eq!(
-            KeyRef::parse("  OPENROUTER_API_KEY ").unwrap(),
-            KeyRef::Env("OPENROUTER_API_KEY".into())
+            KeyRef::parse("  OPENROUTER_API_KEY ").unwrap().as_config(),
+            "env:OPENROUTER_API_KEY"
         );
         assert_eq!(
-            KeyRef::parse("file:~/.keys/openai").unwrap(),
-            KeyRef::File("~/.keys/openai".into())
+            KeyRef::parse("file:~/.keys/openai").unwrap().as_config(),
+            "file:~/.keys/openai"
         );
     }
 

@@ -48,7 +48,13 @@ fn main() {
             model,
             shell,
             base_url,
+            api_key,
             api_key_env,
+            checker,
+            checker_model,
+            checker_url,
+            checker_api_key,
+            verify,
         } => finish_text(admin::setup(
             cli.config.as_deref(),
             admin::SetupArgs {
@@ -57,7 +63,13 @@ fn main() {
                 model,
                 shell,
                 base_url,
+                api_key,
                 api_key_env,
+                checker,
+                checker_model,
+                checker_url,
+                checker_api_key,
+                verify,
             },
         )),
         Cmd::InstallShell {

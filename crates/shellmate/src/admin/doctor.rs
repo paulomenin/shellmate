@@ -181,7 +181,7 @@ fn providers(ctx: &Ctx<'_>) -> Vec<Check> {
         };
         v.push(match host_port(&endpoint) {
             Some(hp) if reachable(&hp) => check("provider", Status::Ok, format!("{name}: {model} at {hp} is reachable"), None),
-            Some(hp) => check("provider", Status::Warn, format!("{name}: cannot connect to {hp}"), Some("start the server (e.g. `ollama serve`) or check the endpoint; a fallback provider will be used if configured")),
+            Some(hp) => check("provider", Status::Warn, format!("{name}: cannot connect to {hp}"), Some("start the server (for Ollama, `ollama serve`) or check the endpoint; a fallback provider will be used if configured")),
             None => check("provider", Status::Warn, format!("{name}: unrecognised endpoint"), None),
         });
     }
