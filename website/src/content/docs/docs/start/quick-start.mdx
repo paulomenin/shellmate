@@ -12,22 +12,30 @@ If you ran `shellmate setup` you already have a config. This page shows the smal
 ```toml title="~/.config/shellmate/config.toml"
 version = 1
 
-[providers.local]
+[providers.main]
 plugin = "builtin:openai-compatible"
-trust = "local"
-[providers.local.settings]
-preset = "ollama"             # or: endpoint = "https://..." and api_key = "env:MY_API_KEY"
-model = "qwen2.5-coder:7b"
-# reasoning_effort = "none"   # much faster with reasoning models such as gemma4
+trust = "remote"             # use "local" for a server on this machine (Ollama, LM Studio, LocalAI)
+[providers.main.settings]
+preset = "openrouter"         # reads OPENROUTER_API_KEY; or: endpoint = "https://..." and api_key = "env:MY_API_KEY"
+model = "~openai/gpt-luna-latest"
+# reasoning_effort = "none"   # much faster with reasoning models
 
 [llm]
-chain = ["local"]
+chain = ["main"]
 
 [input.shortcuts]
 "alt+m" = "ask"
 "alt+i" = "generate"
 "alt+j" = "explain"
 ```
+
+To change it later, open the file in your editor:
+
+```sh
+shellmate config edit
+```
+
+It uses `$VISUAL`, then `$EDITOR` (or `vi`), and runs `shellmate config check` when you close it, so a mistake shows up at once.
 
 Validate it without any network access:
 

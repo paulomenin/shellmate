@@ -14,7 +14,7 @@ target/release/shellmate setup        # picks a provider, writes the config, add
 target/release/shellmate doctor       # checks everything and says how to fix what is wrong
 ```
 
-Non-interactive: `shellmate setup --yes --provider ollama --model qwen2.5-coder:7b --shell fish`. Other commands: `config show | init | check`, `install-shell [--remove]`, `audit show | export | clear`, `invoke --explain`.
+Non-interactive: `shellmate setup --yes --provider openrouter --model "~openai/gpt-luna-latest" --shell fish`. Other commands: `config show | init | edit | check`, `install-shell [--remove]`, `audit show | export | clear`, `invoke --explain`.
 
 ## Try it by hand
 
@@ -23,15 +23,15 @@ cargo build --release
 mkdir -p ~/.config/shellmate
 cat > ~/.config/shellmate/config.toml <<'EOF2'
 version = 1
-[providers.local]
+[providers.main]
 plugin = "builtin:openai-compatible"
-trust = "local"
-[providers.local.settings]
-preset = "ollama"            # or: endpoint = "https://..." + api_key = "env:MY_API_KEY"
-model = "qwen2.5-coder:7b"
-# reasoning_effort = "none"  # much faster with reasoning models such as gemma4
+trust = "remote"             # "local" for a server on this machine (Ollama, LM Studio, LocalAI)
+[providers.main.settings]
+preset = "openrouter"        # reads OPENROUTER_API_KEY; or: endpoint = "https://..." + api_key = "env:MY_API_KEY"
+model = "~openai/gpt-luna-latest"
+# reasoning_effort = "none"  # much faster with reasoning models
 [llm]
-chain = ["local"]
+chain = ["main"]
 [input.shortcuts]
 "alt+m" = "ask"
 "alt+i" = "generate"

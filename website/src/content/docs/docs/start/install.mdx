@@ -13,7 +13,7 @@ import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 - A recent stable Rust toolchain.
 - One of: fish, zsh, or bash 4.4 or newer. (macOS ships bash 3.2, which is not supported.)
-- An LLM endpoint that speaks the OpenAI chat API. A local [Ollama](https://ollama.com) works out of the box.
+- An LLM endpoint that speaks the OpenAI chat API: a hosted one such as [OpenRouter](https://openrouter.ai) or OpenAI, or a server on this machine such as [Ollama](https://ollama.com) or LM Studio.
 
 ## Build and set up
 
@@ -33,7 +33,7 @@ import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
    target/release/shellmate setup
    ```
 
-   Setup detects your shell and a running Ollama, asks for a provider and model, writes `~/.config/shellmate/config.toml`, adds one block to your shell's rc file and finishes with `shellmate doctor`. It never overwrites an existing config.
+   Setup detects your shell, the hosted services whose key variable is set and the model servers answering on this machine. It lists them, asks you to choose, confirms the connection and asks for the model name. It can also set up an optional checker. It then writes `~/.config/shellmate/config.toml`, adds one block to your shell's rc file and finishes with `shellmate doctor`. It never overwrites an existing config. See [`setup`](../../reference/cli/#setup) for each step.
 
 3. Open a new shell (or reload your rc file) and try it.
 
@@ -44,10 +44,12 @@ import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 ### Non-interactive setup
 
 ```sh
-shellmate setup --yes --provider ollama --model qwen2.5-coder:7b --shell fish
+shellmate setup --yes --provider openrouter --model "~openai/gpt-luna-latest" --shell fish
 ```
 
-Providers known to `setup` and `config init`: `ollama`, `lmstudio`, `localai`, `openai`, `openrouter`, and `custom`. With `custom`, setup asks for the base URL of any OpenAI-compatible server (and the name of the environment variable that holds its key, if it needs one). A URL on this machine is treated as local, any other as remote. For a remote provider, setup shows what will be sent and keeps the API key as an `env:` reference. It never writes a key into the file.
+With `--yes` nothing is asked or contacted, and `--provider` and `--model` are required. Add `--verify` to ask the server for its models first.
+
+Providers known to `setup` and `config init`: `openrouter`, `openai`, `ollama`, `lmstudio`, `localai`, and `custom`. With `custom`, give the base URL of any OpenAI-compatible server (`--base-url`), and where its key is if it needs one (`--api-key env:NAME` or `file:PATH`). A URL on this machine is treated as local, any other as remote. For a remote provider, interactive setup shows what will be sent and asks you to agree. The API key is only ever written as an `env:` or `file:` reference, never as the key itself. To add a checker, pass `--checker`, `--checker-model` and, for `custom`, `--checker-url`.
 
 ## What setup changes
 

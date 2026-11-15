@@ -5,20 +5,7 @@ description: Configure local and remote LLM providers, API keys, trust levels, a
 
 A **provider** is a named instance of a provider plugin plus its settings. The only plugin today is `builtin:openai-compatible`, which talks to any server that implements the OpenAI chat-completions API (with streaming).
 
-## Local: Ollama and LM Studio
-
-```toml
-[providers.ollama]
-plugin = "builtin:openai-compatible"
-trust = "local"
-[providers.ollama.settings]
-preset = "ollama"
-model = "qwen2.5-coder:7b"
-timeout_secs = 180        # the first request may have to load the model
-reasoning_effort = "none" # see the note below
-```
-
-## Remote: OpenRouter, OpenAI and others
+## Hosted: OpenRouter, OpenAI and others
 
 ```toml
 [providers.cloud]
@@ -26,29 +13,42 @@ plugin = "builtin:openai-compatible"
 trust = "remote"          # this is the default when omitted
 [providers.cloud.settings]
 preset = "openrouter"
-model = "your-provider/model-name"   # as listed by the provider
+model = "~openai/gpt-luna-latest"    # as listed by the provider
 # No api_key needed: the openrouter preset reads OPENROUTER_API_KEY from your environment.
 # To use another variable or a file, set it explicitly:
 # api_key = "env:MY_KEY_VARIABLE"      (or "file:/path/to/key", mode 0600)
 ```
 
+## On this machine: Ollama, LM Studio and LocalAI
+
+```toml
+[providers.local]
+plugin = "builtin:openai-compatible"
+trust = "local"
+[providers.local.settings]
+preset = "ollama"
+model = "your-model"      # as listed by `ollama list`
+timeout_secs = 180        # the first request may have to load the model
+reasoning_effort = "none" # see the note below
+```
+
 ## Presets and endpoints
 
-A preset supplies a default endpoint and, for hosted services, the environment variable that holds the API key. If you set `endpoint`, it wins, and the preset's key variable is no longer used (see [below](#default-variables-for-presets)).
+A preset supplies a default endpoint and, for hosted services, the environment variable that holds the API key. The endpoint is the base URL of the server, without a version: shellmate adds `/v1/chat/completions` itself. If you set `endpoint`, it wins, and the preset's key variable is no longer used (see [below](#default-variables-for-presets)).
 
 | Preset | Endpoint | Key variable (when `api_key` is not set) |
 |---|---|---|
-| `openai` | `https://api.openai.com/v1` | `OPENAI_API_KEY` |
-| `openrouter` | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` |
-| `ollama` | `http://localhost:11434/v1` | none |
-| `lmstudio` | `http://localhost:1234/v1` | none |
-| `localai` | `http://localhost:8080/v1` | none |
+| `openai` | `https://api.openai.com` | `OPENAI_API_KEY` |
+| `openrouter` | `https://openrouter.ai/api` | `OPENROUTER_API_KEY` |
+| `ollama` | `http://localhost:11434` | none |
+| `lmstudio` | `http://localhost:1234` | none |
+| `localai` | `http://localhost:8080` | none |
 
 For anything else, set the endpoint yourself:
 
 ```toml
 [providers.vllm.settings]
-endpoint = "http://localhost:8000/v1"
+endpoint = "http://localhost:8000"
 model = "my-model"
 ```
 
@@ -155,7 +155,7 @@ Override it per provider with `max_context_level`. The level actually used is th
 
 ```toml
 [llm]
-chain = ["cloud", "ollama"]    # the first is primary, the rest are fallbacks in order
+chain = ["cloud", "local"]   # the first is primary, the rest are fallbacks in order
 ```
 
 If a provider fails before anything has been shown (offline, timeout, error status), the next one is tried. For each provider shellmate rebuilds the whole request: the context level is capped to that provider's maximum, the conversation history is assembled for that provider's trust, and redaction is applied. Nothing prepared for one provider ever reaches another. Once text has been shown to you, there is no fallback.

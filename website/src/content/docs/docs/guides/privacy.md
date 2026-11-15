@@ -54,7 +54,7 @@ llm = ["..."]    # "..." stands for the built-in defaults, which include builtin
 `shellmate context` lists, for each provider in your chain, every piece of context and whether it would be sent:
 
 ```
-provider `ollama` (local) · context level 2 (ceiling 3) · redaction on
+provider `local` (local) · context level 2 (ceiling 3) · redaction on
   ✓ L0 your typed text    22 chars
   ✓ L1 shell and system   zsh on Arch Linux
   ✓ L1 working directory  ~/projects/shell-ai

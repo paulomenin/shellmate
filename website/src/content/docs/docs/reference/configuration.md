@@ -63,9 +63,9 @@ Decision-model backends, configured like providers.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `plugin` | none | Today: `builtin:systemone` (`POST {endpoint}/v1/systemone`). |
+| `plugin` | none | Today: `builtin:systemone` (a `POST` to `path` below the endpoint). |
 | `trust` | `remote` | `local` or `remote`. A remote decider needs an active redaction layer. |
-| `settings.*` | | `preset` (`ollama`) or `endpoint`, `model`, `api_key` (`env:`, `file:`, `keyring:` or `cmd:` reference), `timeout_secs` (default 10). |
+| `settings.*` | | `preset` (the same names as providers: `openai`, `openrouter`, `ollama`, `lmstudio`, `localai`; and `typesafe`) or `endpoint`, `path` (default `/v1/systemone`, or the preset's own: `/alpha/decisions` for `openrouter`), `model`, `api_key` (`env:`, `file:`, `keyring:` or `cmd:` reference), `timeout_secs` (default 10). |
 
 ## `[context]`
 
@@ -208,19 +208,19 @@ plugin = "builtin:openai-compatible"
 trust = "remote"
 [providers.cloud.settings]
 preset = "openrouter"
-model = "your/model-name"
+model = "~openai/gpt-luna-latest"
 api_key = "env:OPENROUTER_API_KEY"
 
-[providers.ollama]
+[providers.local]
 plugin = "builtin:openai-compatible"
 trust = "local"
-[providers.ollama.settings]
+[providers.local.settings]
 preset = "ollama"
-model = "qwen2.5-coder:7b"
+model = "your-model"       # as listed by `ollama list`
 timeout_secs = 180
 
 [llm]
-chain = ["cloud", "ollama"]
+chain = ["cloud", "local"]
 
 [context]
 default_level = 1

@@ -40,13 +40,17 @@ deciders = ["checker"]        # tried in order
 
 [deciders.checker]
 plugin = "builtin:systemone"
-trust = "local"
+trust = "remote"
 [deciders.checker.settings]
-preset = "ollama"             # http://localhost:11434
-model = "laya:latest"
+preset = "openrouter"         # reads OPENROUTER_API_KEY
+model = "~typesafe/jev-latest" # a "latest" alias: it follows the newest release
 ```
 
-`builtin:systemone` speaks `POST {endpoint}/v1/systemone`, the wire format used by Ollama's decision models, [Ollaya](https://github.com/ollaya-dev/ollaya) and hosted APIs such as TypeSafe's. Point it at any of them, and change the model by changing `model`:
+The `openrouter` preset calls OpenRouter's Decisions API, which is in alpha, so its path may change. To call TypeSafe directly instead, use `preset = "typesafe"` and `model = "jev-latest"`. To keep the check on your machine, use a decision model served locally (`preset = "ollama"`, `trust = "local"`).
+
+`builtin:systemone` speaks the System One wire format: a `state` and typed `questions`, answered with labels and probabilities. Hosted APIs such as TypeSafe's, Ollama's decision models and [Ollaya](https://github.com/ollaya-dev/ollaya) serve it. Point it at any of them, and change the model by changing `model`.
+
+The format is served at `/v1/systemone` below the endpoint, except where a preset knows better: `openrouter` uses `/alpha/decisions`. Set `path` to use another one. A preset's path applies only while the endpoint is the preset's own, so a custom `endpoint` gets `/v1/systemone` unless you set `path`. `preset` takes the same names as [providers](../providers/#presets-and-endpoints) (`openai`, `openrouter`, `ollama`, `lmstudio`, `localai`) with the same default key variables, and one more, `typesafe` (`https://api.typesafe.ai`, key from `TYPESAFE_API_KEY`, model `jev-latest`). Only a server that serves the format can be a decider. Use `endpoint` for any other:
 
 ```toml
 [deciders.hosted]

@@ -12,6 +12,7 @@ The language model can be wrong, can be manipulated by text it reads, and can ha
 1. **Nothing the model produces is executed without you (INV-1).** Suggested commands go into your input line and you press Enter. When the model asks to run a command with the `exec` tool, you approve it at a prompt only a human can answer, unless you wrote a rule for it yourself, and a classifier can overrule your rule. See [Letting the model run commands](../../guides/exec-tool/).
 2. **Tools are validated, behind a classifier and a policy.** `man` accepts only `man [section] page`. `exec` accepts only one simple command, run directly and never through a shell.
 3. **Remote providers need redaction (INV-2).** A `trust = "remote"` provider is refused unless a redaction layer is active.
+   The one thing that leaves outside that chain is the connection check of `setup`, which asks a server for its list of models. It carries no prompt, context or command, only the key, goes only to the address you just gave, and in interactive setup only after you agreed to use a remote service.
 4. **Untrusted content is framed as data.** Manual pages and other tool output are given to the model as reference data, never as instructions.
 
 ## Threats and mitigations

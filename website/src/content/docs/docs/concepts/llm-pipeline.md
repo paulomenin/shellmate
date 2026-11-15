@@ -122,7 +122,7 @@ A `cmd:` secret runs a program such as `pass` or `op`, which can take a while. S
 
 ### The built-in provider
 
-`builtin:openai-compatible` posts to `/chat/completions` and reads the reply as a server-sent-events stream. Settings: `preset` (`openai`, `openrouter`, `ollama`, `lmstudio`, `localai`) or `endpoint`, `model`, `api_key` (a reference), `timeout_secs` (default 60) and `reasoning_effort`.
+`builtin:openai-compatible` posts to `/v1/chat/completions` below the endpoint (a base URL with no version) and reads the reply as a server-sent-events stream. Settings: `preset` (`openai`, `openrouter`, `ollama`, `lmstudio`, `localai`) or `endpoint`, `model`, `api_key` (a reference), `timeout_secs` (default 60) and `reasoning_effort`.
 
 HTTP errors map to error kinds, and the kind decides fallback:
 

@@ -13,7 +13,7 @@ shellmate doctor
 OK    version        shellmate 0.0.1
 OK    config         ~/.config/shellmate/config.toml is valid
 WARN  provider       ollama: cannot connect to localhost:11434
-      -> start the server (e.g. `ollama serve`) or check the endpoint
+      -> start the server (for Ollama, `ollama serve`) or check the endpoint
 WARN  integration    not found in ~/.zshrc
       -> run `shellmate install-shell`
 ```

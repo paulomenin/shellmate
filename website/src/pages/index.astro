@@ -21,7 +21,7 @@ const features = [
 	},
 	{
 		title: 'Your model, your choice',
-		text: 'Ollama, LM Studio, OpenRouter, OpenAI or any OpenAI-compatible endpoint, with fallbacks when one is down.',
+		text: 'OpenRouter, OpenAI, Ollama, LM Studio or any OpenAI-compatible endpoint, with fallbacks when one is down.',
 	},
 	{
 		title: 'Fish, zsh and bash',
@@ -94,7 +94,7 @@ Use du, sorted by size:
 				<pre><code>cargo build --release
 target/release/shellmate setup</code></pre>
 				<p>
-					<code>setup</code> detects your shell and a local Ollama, writes a documented config, adds one marked block to your
+					<code>setup</code> detects your shell and a model server on this machine, writes a documented config, adds one marked block to your
 					rc file and runs <code>doctor</code>. Early development: <a href={docs('concepts/roadmap/')}>see what works today</a>.
 				</p>
 			</section>

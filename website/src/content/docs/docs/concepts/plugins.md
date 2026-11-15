@@ -45,14 +45,14 @@ Constructors must be cheap. They build an object and check the settings. They ne
 Each provider and decider has a table `[providers.<name>]` or `[deciders.<name>]`:
 
 ```toml
-[providers.local]
+[providers.main]
 plugin = "builtin:openai-compatible"
-trust = "local"                  # "local" or "remote" (default "remote")
-max_context_level = 2            # optional ceiling, see Context and prompts
+trust = "remote"                 # "local" or "remote" (default "remote")
+max_context_level = 1            # optional ceiling, see Context and prompts
 
-[providers.local.settings]       # handed to the plugin as is
-preset = "ollama"
-model = "qwen2.5-coder:7b"
+[providers.main.settings]       # handed to the plugin as is
+preset = "openrouter"
+model = "~openai/gpt-luna-latest"
 ```
 
 Middleware and the store use `[plugins."builtin:<id>"]` with `enabled` and `settings`. The store id itself is `[conversation] store`.
@@ -67,7 +67,7 @@ A provider turns a chat request into a stream of text. The trait has `info` (plu
 - **When it is called:** once per round of the tool loop, for the first provider in the chain, and for the next ones only if the first fails in a way that allows a fallback. See [The LLM pipeline](../llm-pipeline/).
 - **Trust:** each provider is `local` or `remote`, default `remote`. Trust sets the default context ceiling (3 for local, 1 for remote), decides which earlier turns it may be shown, and decides whether redaction is mandatory.
 - **To turn one off:** remove it from `[llm] chain` (or delete its table). There is no `enabled` key on a provider.
-- **Built in:** `builtin:openai-compatible` talks to any server that implements `/chat/completions` with streaming: Ollama, LM Studio, LocalAI, OpenRouter, OpenAI, or an `endpoint` you give. Cleartext `http` is accepted only for loopback hosts.
+- **Built in:** `builtin:openai-compatible` talks to any server that implements `/chat/completions` with streaming: OpenRouter, OpenAI, Ollama, LM Studio, LocalAI, or an `endpoint` you give. Cleartext `http` is accepted only for loopback hosts.
 
 ## Decider
 
@@ -78,7 +78,7 @@ A decider answers typed questions about a command, with a label and probabilitie
 - **Fallback:** if no decider answers and `[validator] llm_fallback` is on (the default), the provider chain answers the same questions as a chat request.
 - **Trust:** a `local` decider gets the record as is. A `remote` one gets it after it has been through the redaction chain, and a remote decider is refused when no redactor is active.
 - **To turn one off:** set `semantic = false`, or take it out of `deciders`.
-- **Built in:** `builtin:systemone` speaks the System One wire format (`POST {endpoint}/v1/systemone`), served by Ollama decision models, Ollaya and hosted APIs that use the same format.
+- **Built in:** `builtin:systemone` speaks the System One wire format (`POST {endpoint}/v1/systemone`), served by hosted APIs such as TypeSafe and OpenRouter, Ollama decision models and Ollaya.
 
 ## `llm` middleware
 

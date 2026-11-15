@@ -15,16 +15,34 @@ Guided first-time setup: writes the config, installs the shell integration and r
 
 ```sh
 shellmate setup
-shellmate setup --yes --provider ollama --model qwen2.5-coder:7b --shell fish
+shellmate setup --yes --provider openrouter --model "~openai/gpt-luna-latest" --shell fish
 ```
+
+Without `--yes`, setup is a conversation. It first looks at the machine: which hosted services have their key variable set (by name only, never the value) and which local servers answer on their default port. It lists the providers and says for each whether it is local or remote and what it found, asks you to choose, and then:
+
+1. For a local server, it confirms the port or takes another one.
+2. For a remote service, it shows what would be sent and asks you to agree. It does this before anything is contacted.
+3. It asks where the API key is, as `env:NAME` or `file:PATH`. A key pasted by mistake is refused. When the service's variable is already set, it does not ask.
+4. It asks the server for its list of models, to confirm the address and the key. Only the key is sent. A failure offers to try again, to continue anyway, or to cancel.
+5. It asks for the model name. The name is never guessed. One that is not in the server's list is kept with a note, because aliases are often not listed.
+
+It then does the same for an optional **checker** (a decision model that judges each suggested command), listing only the ones it found: a key variable that is set for OpenRouter or TypeSafe, or a local Ollama.
+
+With `--yes`, nothing is asked and nothing is contacted. `--provider` and `--model` are required.
 
 | Option | Meaning |
 |---|---|
 | `--yes` | Don't ask; use the given options. |
-| `--provider <P>` | `ollama`, `lmstudio`, `localai`, `openai`, `openrouter` or `custom`. |
-| `--base-url <URL>` | With `custom`: the base URL of the OpenAI-compatible server. |
-| `--api-key-env <NAME>` | With `custom`: the environment variable that holds its API key. |
-| `--model <M>` | The model name. |
+| `--provider <P>` | `openrouter`, `openai`, `ollama`, `lmstudio`, `localai` or `custom`. |
+| `--model <M>` | The model name, as the provider lists it. |
+| `--base-url <URL>` | The base URL of the server. Required for `custom`. With a preset it replaces the preset's address, and the preset's key variable no longer applies. |
+| `--api-key <REF>` | Where the key is: `env:NAME` or `file:PATH`. A value that is not a reference is refused. |
+| `--api-key-env <NAME>` | The same as `--api-key env:NAME`. |
+| `--checker <P>` | Also set up a checker: `openrouter`, `ollama`, `typesafe` or `custom`. |
+| `--checker-model <M>` | The checker's model. Required with `--checker`. |
+| `--checker-url <URL>` | The checker's base URL. Required for `custom`. |
+| `--checker-api-key <REF>` | Where the checker's key is: `env:NAME` or `file:PATH`. |
+| `--verify` | With `--yes`: ask each server for its models first, to confirm the address and the key. This sends the key, and a failure stops setup before anything is written. |
 | `--shell <S>` | `fish`, `zsh` or `bash`. |
 
 ## `install-shell [SHELL]`
@@ -51,7 +69,8 @@ Checks the installation and says how to fix problems. Exit status 1 if any check
 |---|---|
 | `config check` | Validate the config, including provider settings and secret references. No network access. |
 | `config show` | Print the effective configuration. Secrets appear only as references. |
-| `config init [--provider P] [--model M] [--force]` | Write a documented starting config (default provider `ollama`). Never overwrites an existing file without `--force`. |
+| `config edit` | Open the config file in `$VISUAL`, then `$EDITOR`, then `vi`, and run `config check` on the file when the editor closes. The editor line may carry arguments (`code --wait`) and is started directly, never through a shell. Your edit is kept even if the file no longer loads. It does not create a file: use `config init` first. |
+| `config init [--provider P --model M] [--force]` | Write a documented starting config. Without options the provider examples are comments and you choose one. `--provider` and `--model` go together and write an active config. Never overwrites an existing file without `--force`. |
 
 ## `conversation`
 

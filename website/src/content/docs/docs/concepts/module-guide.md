@@ -32,8 +32,8 @@ Runtime-agnostic: futures appear in signatures through `async_trait`, but no tok
 
 | File | What it defines |
 |---|---|
-| `provider.rs` | `Provider` (`info`, `prepare`, `chat`, `chat_stream`), `ProviderInfo`, `ProviderError` and `ProviderErrorKind`, which decide fallback |
-| `decider.rs` | `Decider`, and the typed `Question`, `DecisionRequest`, `Answer` and `DecisionResponse` |
+| `provider.rs` | `Provider` (`info`, `prepare`, `models`, `chat`, `chat_stream`), `ProviderInfo`, `ProviderError` and `ProviderErrorKind`, which decide fallback |
+| `decider.rs` | `Decider` (`info`, `models`, `decide`), and the typed `Question`, `DecisionRequest`, `Answer` and `DecisionResponse` |
 | `middleware.rs` | `Middleware`, `Next` (the rest of the chain) and `Terminal` (the innermost handler) |
 | `store.rs` | `Store`, `ConversationLock`, `Current` and `ConversationInfo` |
 | `registry.rs` | `Registry`: constructors by id for each kind of plugin, `MiddlewareRole` (`Redactor`, `Filter`, `Observer`) |
@@ -150,7 +150,7 @@ A thin client over the core.
 | `convo.rs` | The `conversation` commands |
 | `ctxview.rs`, `report_fmt.rs` | The text of `context`, `--explain` and `--timings` |
 | `timing.rs` | The zero of every `--timings` figure |
-| `admin/` | `setup`, `doctor`, `install-shell`, `config show` and `config init`, `audit`, and the starter config templates |
+| `admin/` | `setup`, `doctor`, `install-shell`, `config show`, `config init` and `config edit`, `audit`, and the starter config templates |
 
 ## Shell glue (`crates/shells/`)
 
