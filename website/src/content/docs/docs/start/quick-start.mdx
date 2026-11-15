@@ -55,9 +55,58 @@ shellmate config check
 	Press `Ctrl-C` to cancel while an answer is streaming. The request stops, `[cancelled]` is shown and anything you typed meanwhile is kept.
 </Aside>
 
-## See what would be sent
+## Control what the model sees
 
-Before trusting a provider, look at exactly what leaves your machine, after redaction:
+Three things decide what a request carries: the context level, the conversation, and any command output you chose to keep.
+
+### Context level
+
+By default the model sees your text, your shell and OS, the working directory and the kind of project (file names only). Raise the level to add more:
+
+| Level | Besides your text |
+|---|---|
+| 0 | Nothing. |
+| 1 (default) | Shell, OS, working directory, project kind. |
+| 2 | Also the last exit status, recent commands, git branch and change counts, and captured output. |
+
+```toml
+[context]
+default_level = 2
+```
+
+Each provider has a ceiling, 3 for `trust = "local"` and 1 for `trust = "remote"`, and the smaller of the two wins. A remote provider stays at level 1 until you raise its `max_context_level` yourself.
+
+### Conversations
+
+Press the shortcut again and the model remembers the earlier turns in this shell, so you can ask "same, but only .log files". Turns are kept in memory-backed storage (tmpfs), per shell session, and expire after 30 minutes idle. Start over when the topic changes:
+
+```sh
+shellmate conversation new     # or bind a key: "alt+k" = "new-conversation"
+```
+
+A turn answered at level 2 or above is never replayed to a remote provider. See [Follow-up conversations](../../guides/conversations/).
+
+### Command output
+
+shellmate does not record your terminal. To ask "why did that fail?", run the command through `shellmate run`, or press the `capture` shortcut (`alt+r`, `alt+e` in bash) to wrap the line you typed:
+
+```sh
+shellmate run -- cargo build
+```
+
+The next question carries the last output, redacted and cut to 8 KiB. It is sent only at level 2 or higher. See [Asking about a command's output](../../guides/capture/).
+
+### See what is sent
+
+`shellmate context` lists every piece of context, whether it would be sent to each provider, and why not if it is withheld. It never prints content. Add `--full` for the exact payload after redaction.
+
+```sh
+shellmate context why did my build fail
+```
+
+## Preview a request
+
+To look at exactly what leaves your machine, after redaction, without sending it:
 
 ```sh
 printf 'v=1\0action=ask\0shell=zsh\0cwd=%s\0buffer=%s\0' "$PWD" 'why did my build fail?' \
