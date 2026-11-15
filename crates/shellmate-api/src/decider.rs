@@ -50,5 +50,12 @@ impl DecisionResponse {
 #[async_trait]
 pub trait Decider: Send + Sync {
     fn info(&self) -> ProviderInfo;
+
+    /// The models the server offers, like [`Provider::models`]: `None` when it cannot list them. The default
+    /// cannot.
+    async fn models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        Ok(None)
+    }
+
     async fn decide(&self, request: &DecisionRequest) -> Result<DecisionResponse, ProviderError>;
 }

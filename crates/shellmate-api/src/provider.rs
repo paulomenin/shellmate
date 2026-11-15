@@ -88,6 +88,14 @@ pub trait Provider: Send + Sync {
         Ok(())
     }
 
+    /// The models the server offers, to confirm the connection and the key before a request (used by
+    /// `setup`). Carries no prompt or context, only the credentials. `None` means this provider cannot list
+    /// models, and `Some(vec![])` that it answered but its reply could not be read (see
+    /// [`parse_model_ids`](crate::parse_model_ids)). The default cannot list.
+    async fn models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        Ok(None)
+    }
+
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, ProviderError>;
 
     /// Streaming variant. Providers without streaming get this default: the whole answer as one event.

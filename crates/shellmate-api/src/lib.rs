@@ -8,6 +8,8 @@ mod duration;
 mod endpoint;
 mod error;
 mod middleware;
+mod models;
+mod preset;
 mod provider;
 mod registry;
 mod secret;
@@ -21,6 +23,8 @@ pub use duration::parse_duration;
 pub use endpoint::check_endpoint;
 pub use error::{Error, Result};
 pub use middleware::{Middleware, Next, Terminal};
+pub use models::parse_model_ids;
+pub use preset::{resolve_api_key, resolve_endpoint, Preset, PRESETS};
 pub use provider::{Provider, ProviderError, ProviderErrorKind, ProviderInfo};
 pub use registry::{
     DeciderCtor, LlmMiddlewareCtor, MiddlewareRole, ProviderBuilder, ProviderCtor, Registry,
