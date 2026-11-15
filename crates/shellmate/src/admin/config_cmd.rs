@@ -2,22 +2,34 @@
 
 use super::config_path;
 use super::doctor::shell_name;
-use super::templates::template_for;
+use super::templates::{template_commented, template_for};
 use shellmate_api::{Error, Result};
 use shellmate_core::ports::SystemEnv;
 use shellmate_core::present::{Presenter, Tone};
 use shellmate_core::{audit, secrets, Config};
 use std::path::Path;
 
+/// With a `provider` and a `model`, write a config that uses them. Without either, write a config whose
+/// provider examples are comments, so nothing is chosen for the person.
 pub fn config_init(
     explicit: Option<&Path>,
-    provider: &str,
-    model: &str,
+    provider: Option<&str>,
+    model: Option<&str>,
     force: bool,
 ) -> Result<String> {
     // the shell in $SHELL picks a free key for `capture`
     let shell = shell_name(&SystemEnv);
-    let text = template_for(provider, model, None, None, shell.as_deref())?;
+    let text = match (provider, model) {
+        (Some(p), Some(m)) => template_for(p, m, None, None, shell.as_deref())?,
+        (None, None) => template_commented(shell.as_deref()),
+        _ => {
+            return Err(
+                Error::new("config.init_args", "--provider and --model go together").with_hint(
+                    "pass both, or neither for a config with the examples commented out",
+                ),
+            )
+        }
+    };
     write_config(explicit, text, force)
 }
 

@@ -78,9 +78,14 @@ fn config_init_writes_a_valid_template_and_refuses_to_overwrite() {
         &[],
     );
     assert_eq!(forced.code, 0);
-    assert!(std::fs::read_to_string(&path)
-        .unwrap()
-        .contains("preset = \"ollama\""));
+    // with no --provider nothing is chosen: the examples are comments and no provider is active
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.contains("# preset = \"openrouter\""), "{text}");
+    assert!(!text.lines().any(|l| l.starts_with("[providers")), "{text}");
+    assert!(
+        !text.contains("qwen"),
+        "no developer's model in the starting config"
+    );
     let bad = raw(
         &[
             "--config",
@@ -89,6 +94,8 @@ fn config_init_writes_a_valid_template_and_refuses_to_overwrite() {
             "init",
             "--provider",
             "nope",
+            "--model",
+            "m",
         ],
         &home,
         &[],
@@ -684,4 +691,66 @@ fn config_edit_fails_when_there_is_no_file_or_no_editor_to_start() {
     );
     assert_eq!(r.code, 1);
     assert!(r.stderr.contains("exited with"), "{}", r.stderr);
+}
+
+#[test]
+fn a_bare_config_init_is_valid_and_leaves_the_provider_to_you() {
+    let home = Scratch::new("init-bare");
+    let path = home.str("c.toml");
+    assert_eq!(
+        raw(&["--config", &path, "config", "init"], &home, &[]).code,
+        0
+    );
+    // the file loads, and the unconfigured state is explained, not a crash
+    let r = raw(&["--config", &path, "config", "check"], &home, &[]);
+    assert_eq!(r.code, 1, "{}{}", r.stdout, r.stderr);
+    assert!(r.stderr.contains("shellmate setup"), "{}", r.stderr);
+    // --model only makes sense with --provider, and the other way round
+    let r = raw(
+        &[
+            "--config",
+            &home.str("d.toml"),
+            "config",
+            "init",
+            "--model",
+            "m",
+        ],
+        &home,
+        &[],
+    );
+    assert_ne!(r.code, 0);
+    assert!(!home.path("d.toml").exists());
+    // a provider without a model is refused too: the model is never guessed
+    let r = raw(
+        &[
+            "--config",
+            &home.str("e.toml"),
+            "config",
+            "init",
+            "--provider",
+            "openrouter",
+        ],
+        &home,
+        &[],
+    );
+    assert_ne!(r.code, 0);
+    assert!(!home.path("e.toml").exists());
+    let r = raw(
+        &[
+            "--config",
+            &home.str("f.toml"),
+            "config",
+            "init",
+            "--provider",
+            "openrouter",
+            "--model",
+            "my/typed-model",
+        ],
+        &home,
+        &[],
+    );
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert!(std::fs::read_to_string(home.path("f.toml"))
+        .unwrap()
+        .contains("model = \"my/typed-model\""));
 }

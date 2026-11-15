@@ -31,6 +31,73 @@ fn capture_key(shell: Option<&str>) -> &'static str {
     }
 }
 
+/// One backend as `setup` and `config init` describe it: a provider or a checker.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Backend {
+    /// A preset name; the preset says where the server is.
+    pub preset: Option<String>,
+    /// A base URL, instead of the preset's own.
+    pub endpoint: Option<String>,
+    /// Where the key lives, as written in the config (`env:NAME` or `file:PATH`).
+    pub api_key: Option<String>,
+    pub model: String,
+    /// `local` or `remote`.
+    pub trust: &'static str,
+}
+
+impl Backend {
+    /// The `[..settings]` lines of the backend.
+    fn settings(&self) -> String {
+        let mut s = String::new();
+        if let Some(p) = &self.preset {
+            s.push_str(&format!("preset = \"{p}\"\n"));
+        }
+        if let Some(e) = &self.endpoint {
+            s.push_str(&format!("endpoint = \"{e}\"\n"));
+        }
+        s.push_str(&format!("model = \"{}\"\n", self.model));
+        if let Some(k) = &self.api_key {
+            s.push_str(&format!(
+                "api_key = \"{k}\"   # a reference; never paste the key here\n"
+            ));
+        }
+        s
+    }
+
+    /// Refuse anything that could break out of a TOML string, or that is not a reference to a key.
+    fn check(&self) -> Result<()> {
+        let bad = |c: char| c == '"' || c == '\n' || c == '\\' || c.is_control();
+        if self.model.trim().is_empty() || self.model.contains(bad) {
+            return Err(Error::new("setup.bad_model", "invalid model name"));
+        }
+        if let Some(p) = &self.preset {
+            if p.contains(bad) {
+                return Err(Error::new("setup.unknown_provider", "invalid preset name"));
+            }
+        }
+        if let Some(e) = &self.endpoint {
+            if e.trim().is_empty() || e.contains(bad) {
+                return Err(Error::new("setup.bad_base_url", "a base URL is needed")
+                    .with_hint("e.g. http://localhost:8000 or https://api.example.com"));
+            }
+            shellmate_api::check_endpoint(e.trim())?;
+        }
+        if let Some(k) = &self.api_key {
+            // the same rule the prompt applies: a reference to a key, never the key
+            super::keyref::KeyRef::parse(k).map_err(|_| {
+                Error::new(
+                    "setup.bad_key_env",
+                    "the API key must be a reference like env:MY_API_KEY or file:/path/to/key",
+                )
+                .with_hint(
+                    "give the name of an environment variable or a file, never the key itself",
+                )
+            })?;
+        }
+        Ok(())
+    }
+}
+
 /// Like [`template`], and for the `custom` provider: any OpenAI-compatible server at `base_url`, with an
 /// optional environment variable that holds its API key. `shell` picks a free key for `capture`.
 pub fn template_for(
@@ -41,23 +108,25 @@ pub fn template_for(
     shell: Option<&str>,
 ) -> Result<String> {
     let bad = |c: char| c == '"' || c == '\n' || c == '\\' || c.is_control();
-    let (trust, key, settings_head) = match provider {
-        "ollama" | "lmstudio" | "localai" => ("local", None, format!("preset = \"{provider}\"")),
+    let (trust, key, preset, endpoint) = match provider {
+        "ollama" | "lmstudio" | "localai" => ("local", None, Some(provider.to_string()), None),
         "openai" => (
             "remote",
             Some("OPENAI_API_KEY"),
-            "preset = \"openai\"".into(),
+            Some("openai".to_string()),
+            None,
         ),
         "openrouter" => (
             "remote",
             Some("OPENROUTER_API_KEY"),
-            "preset = \"openrouter\"".into(),
+            Some("openrouter".to_string()),
+            None,
         ),
         "custom" => {
             let url = base_url.map(str::trim).unwrap_or("");
             if url.is_empty() || url.contains(bad) {
                 return Err(Error::new("setup.bad_base_url", "a base URL is needed")
-                    .with_hint("e.g. http://localhost:8000/v1 or https://api.example.com/v1"));
+                    .with_hint("e.g. http://localhost:8000 or https://api.example.com"));
             }
             shellmate_api::check_endpoint(url)?;
             let trust = if is_loopback_url(url) {
@@ -65,19 +134,16 @@ pub fn template_for(
             } else {
                 "remote"
             };
-            (trust, key_env, format!("endpoint = \"{url}\""))
+            (trust, key_env, None, Some(url.to_string()))
         }
         other => {
             return Err(Error::new(
                 "setup.unknown_provider",
                 format!("unknown provider `{other}`"),
             )
-            .with_hint("choose one of: ollama, lmstudio, localai, openai, openrouter, custom"))
+            .with_hint("choose one of: openrouter, openai, ollama, lmstudio, localai, custom"))
         }
     };
-    if model.trim().is_empty() || model.contains(bad) {
-        return Err(Error::new("setup.bad_model", "invalid model name"));
-    }
     if let Some(k) = key {
         if k.is_empty() || !k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
             return Err(Error::new(
@@ -87,11 +153,31 @@ pub fn template_for(
             .with_hint("give the name of an environment variable, never the key itself"));
         }
     }
-    let key_line = key
-        .map(|k| format!("api_key = \"env:{k}\"   # a reference; never paste the key here\n"))
-        .unwrap_or_default();
-    let level = if trust == "local" { 2 } else { 1 };
-    let capture_key = capture_key(shell);
+    let main = Backend {
+        preset,
+        endpoint,
+        api_key: key.map(|k| format!("env:{k}")),
+        model: model.to_string(),
+        trust,
+    };
+    template_with(&main, None, shell)
+}
+
+/// An active starting config for `main`, and for a `checker` (a decision model that judges each suggested
+/// command) when there is one.
+pub fn template_with(
+    main: &Backend,
+    checker: Option<&Backend>,
+    shell: Option<&str>,
+) -> Result<String> {
+    main.check()?;
+    if let Some(c) = checker {
+        c.check()?;
+    }
+    let level: u8 = if main.trust == "local" { 2 } else { 1 };
+    let common = common(level, capture_key(shell), checker);
+    let settings = main.settings();
+    let trust = main.trust;
     Ok(format!(
         r#"# shellmate configuration (docs: https://github.com/paulomenin/shellmate)
 version = 1
@@ -102,15 +188,57 @@ plugin = "builtin:openai-compatible"
 # remote: leaves this machine (context capped at level 1, redaction required)
 trust = "{trust}"
 [providers.main.settings]
-{settings_head}
-model = "{model}"
-{key_line}# reasoning_effort = "none"   # much faster with reasoning models (e.g. gemma4)
+{settings}# reasoning_effort = "none"   # much faster with reasoning models
 # timeout_secs = 60
 
 [llm]
 chain = ["main"]          # add fallbacks: ["main", "backup"]
 
-[context]
+{common}"#
+    ))
+}
+
+/// Everything after the provider section, shared by the active and the commented starting config.
+/// The checker example of a config that has none yet.
+const COMMENTED_CHECKER: &str = r#"#
+# [deciders.checker]
+# plugin = "builtin:systemone"      # a decision model: any server that speaks the System One format
+# trust = "remote"
+# [deciders.checker.settings]
+# preset = "openrouter"             # reads OPENROUTER_API_KEY; or: endpoint = "https://..." (and path = "/v1/systemone")
+# model = "~typesafe/jev-latest"    # a "latest" alias: it follows the newest release
+# api_key = "env:CHECKER_API_KEY"   # to use another key variable
+#
+# Or call TypeSafe directly with preset = "typesafe" (reads TYPESAFE_API_KEY) and model = "jev-latest".
+# A decision model on this machine keeps the check local: use preset = "ollama" and trust = "local",
+# with the model name your server lists.
+"#;
+
+fn common(level: u8, capture_key: &str, checker: Option<&Backend>) -> String {
+    let (validator_on, decider_block) = match checker {
+        Some(c) => (
+            concat!(
+                "semantic = true\n",
+                "deciders = [\"checker\"]      # tried in order; with none, the LLM answers the same questions\n"
+            )
+            .to_string(),
+            format!(
+                "\n[deciders.checker]\nplugin = \"builtin:systemone\"\ntrust = \"{}\"\n[deciders.checker.settings]\n{}",
+                c.trust,
+                c.settings()
+            ),
+        ),
+        None => (
+            concat!(
+                "# semantic = true\n",
+                "# deciders = [\"checker\"]      # tried in order; with none, the LLM answers the same questions\n"
+            )
+            .to_string(),
+            COMMENTED_CHECKER.to_string(),
+        ),
+    };
+    format!(
+        r#"[context]
 # 0 = only what you typed, 1 = + shell/OS/cwd, 2 = + last exit status and recent commands
 default_level = {level}
 # project = true             # level 1+: what kind of project this is (file names only)
@@ -132,19 +260,9 @@ idle_timeout = "30m"       # a conversation idle this long is replaced by a new 
 # Every suggested command is checked before it reaches your input line: it must parse in your shell, its
 # programs must exist, and risky commands get a note. The command is always still placed; you decide.
 # To also ask a decision model whether the command matches your request (off by default):
-# semantic = true
-# deciders = ["checker"]      # tried in order; with none, the LLM answers the same questions
-# timeout = "5s"              # raise it if the model loads slowly
+{validator_on}# timeout = "5s"              # raise it if the model loads slowly
 # min_confidence = 0.8        # only findings at least this sure are shown
-#
-# [deciders.checker]
-# plugin = "builtin:systemone"      # any server that speaks POST /v1/systemone (Ollama, Ollaya, hosted)
-# trust = "local"
-# [deciders.checker.settings]
-# preset = "ollama"                 # or: endpoint = "https://..."
-# model = "laya:latest"
-# api_key = "env:CHECKER_API_KEY"   # only for hosted endpoints
-
+{decider_block}
 [tools.exec]
 # With `ask`, the model may ask to run ONE simple command (no pipes, redirects or globs) to look at your
 # machine. Every command asks you first unless a rule below covers it. Commands such as rm, sudo or
@@ -164,7 +282,45 @@ approval = "ask"
 [audit]
 persist = false            # true keeps the audit log across logins (retention applies)
 "#
-    ))
+    )
+}
+
+/// A starting config with no provider chosen: the examples are comments, to be uncommented one at a time.
+/// It is a valid config. Until a provider is set up, `invoke` says so.
+pub fn template_commented(shell: Option<&str>) -> String {
+    let common = common(1, capture_key(shell), None);
+    format!(
+        r#"# shellmate configuration (docs: https://github.com/paulomenin/shellmate)
+version = 1
+
+# Choose where answers come from: uncomment ONE provider below and the [llm] chain, or run `shellmate setup`.
+# Until a provider is set up, shellmate says so and does nothing else.
+
+# A hosted model through OpenRouter. The key is read from OPENROUTER_API_KEY; export it in your shell.
+# A remote provider sees at most context level 1, and redaction must be on (it is by default).
+#
+# [providers.main]
+# plugin = "builtin:openai-compatible"
+# trust = "remote"
+# [providers.main.settings]
+# preset = "openrouter"
+# model = "~openai/gpt-luna-latest"   # a "latest" alias: it follows the newest release, and so does its price
+# api_key = "env:MY_KEY_VARIABLE"     # to use another key variable
+
+# A model on this machine (Ollama, LM Studio or LocalAI): nothing leaves your computer.
+#
+# [providers.local]
+# plugin = "builtin:openai-compatible"
+# trust = "local"
+# [providers.local.settings]
+# preset = "ollama"                   # or lmstudio, localai; or: endpoint = "http://localhost:8000"
+# model = "the-model-your-server-lists"
+
+# [llm]
+# chain = ["main"]          # add fallbacks: ["main", "local"]
+
+{common}"#
+    )
 }
 
 #[cfg(test)]
@@ -183,6 +339,64 @@ mod tests {
         }
         assert!(template("nope", "m").is_err());
         assert!(template("ollama", "bad\"model").is_err());
+    }
+
+    /// Strip the leading `# ` from the lines of the example blocks the commented template offers.
+    fn uncomment(text: &str) -> String {
+        let mut on = false;
+        let mut out = String::new();
+        for line in text.lines() {
+            let start = line.starts_with("# [providers.")
+                || line.starts_with("# [llm]")
+                || line.starts_with("# [deciders.checker]")
+                || line.starts_with("# semantic = true")
+                || line.starts_with("# deciders = [");
+            if start {
+                on = true;
+            }
+            let live = on
+                && line.starts_with("# ")
+                && !line.starts_with("# A ")
+                && !line.starts_with("# Or ");
+            if live {
+                out.push_str(&line[2..]);
+            } else {
+                on = false;
+                out.push_str(line);
+            }
+            out.push('\n');
+        }
+        out
+    }
+
+    #[test]
+    fn the_commented_template_is_valid_and_its_examples_work_once_uncommented() {
+        let plain = template_commented(Some("bash"));
+        let c = Config::parse(&plain).unwrap();
+        assert!(c.providers.is_empty() && c.deciders.is_empty());
+        assert!(
+            !plain.contains("qwen"),
+            "no developer's model in the starting config"
+        );
+        assert!(
+            plain.contains("~openai/gpt-luna-latest") && plain.contains("~typesafe/jev-latest")
+        );
+        assert!(
+            plain.contains("preset = \"typesafe\"") && plain.contains("model = \"jev-latest\"")
+        );
+        assert!(
+            plain.contains("\"alt+e\" = \"capture\""),
+            "the shell picks the capture key"
+        );
+
+        let live = Config::parse(&uncomment(&plain)).unwrap();
+        assert!(live.providers.contains_key("main") && live.providers.contains_key("local"));
+        assert!(live.deciders.contains_key("checker"));
+        assert!(live.validator.semantic);
+        // the examples build the plugins they name, with no key value anywhere in the text
+        let registry = shellmate_builtin::registry();
+        live.validate_with(&registry, &Host::system()).ok(); // env refs may be unset here
+        assert!(!uncomment(&plain).contains("sk-"));
     }
 
     #[test]

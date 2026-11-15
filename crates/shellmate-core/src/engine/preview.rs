@@ -24,7 +24,7 @@ impl Engine {
                 "config.no_provider",
                 "shellmate isn't configured yet (no LLM provider)",
             )
-            .with_hint("run `shellmate setup`, or `shellmate config init`"));
+            .with_hint("run `shellmate setup`, or choose a provider in the config (`shellmate config edit`)"));
         }
         let convo = self.peek(env, action)?;
         self.prefetch(env).await;
@@ -60,7 +60,7 @@ impl Engine {
                 "config.no_provider",
                 "shellmate isn't configured yet (no LLM provider)",
             )
-            .with_hint("run `shellmate setup`, or `shellmate config init`"));
+            .with_hint("run `shellmate setup`, or choose a provider in the config (`shellmate config edit`)"));
         }
         self.prefetch(env).await;
         let ctx = self.context(env);

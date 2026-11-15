@@ -207,12 +207,14 @@ pub(crate) enum ConfigCmd {
     Show,
     /// Open the config file in $VISUAL or $EDITOR, then check that it still loads
     Edit,
-    /// Write a documented starting config
+    /// Write a documented starting config (provider examples are comments unless --provider is given)
     Init {
-        #[arg(long, default_value = "ollama")]
-        provider: String,
-        #[arg(long, default_value = "qwen2.5-coder:7b")]
-        model: String,
+        /// Write an active config for this provider: openrouter, openai, ollama, lmstudio, localai or custom
+        #[arg(long, requires = "model")]
+        provider: Option<String>,
+        /// The model to use with --provider, as the provider lists it. It is never guessed
+        #[arg(long, requires = "provider")]
+        model: Option<String>,
         /// Overwrite an existing file
         #[arg(long)]
         force: bool,

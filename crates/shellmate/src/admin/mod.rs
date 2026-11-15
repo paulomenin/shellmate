@@ -7,6 +7,7 @@ mod config_cmd;
 mod config_edit;
 mod doctor;
 mod install_shell;
+mod keyref;
 mod setup;
 mod templates;
 

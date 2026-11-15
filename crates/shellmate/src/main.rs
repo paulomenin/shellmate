@@ -100,8 +100,8 @@ fn main() {
                 },
         } => finish_text(admin::config_init(
             cli.config.as_deref(),
-            &provider,
-            &model,
+            provider.as_deref(),
+            model.as_deref(),
             force,
         )),
         Cmd::Init { shell } => commands::shell_init::run(cli.config.as_deref(), &shell),
