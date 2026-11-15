@@ -32,7 +32,3 @@ The `man` program must be installed (`man-db` or `mandoc`). `shellmate doctor` w
 ## Why it is safe
 
 The tool is a fixed program with validated arguments, not a shell. Nothing the model writes is passed to a shell, a page name cannot contain a path or an option, and the page text is framed as untrusted data, because a manual page is content from the outside world. See [Security model](../../concepts/security-model/).
-
-:::note
-Running arbitrary commands (`exec`) is **not** available yet. When it arrives it will always ask you first. See [Status and roadmap](../../concepts/roadmap/).
-:::

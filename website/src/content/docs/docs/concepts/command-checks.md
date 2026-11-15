@@ -3,7 +3,7 @@ title: Command checks
 description: How a suggested command is checked before it reaches your input line, how the risk classifier decides, and how a decision model or the LLM can add a second opinion.
 ---
 
-When `ask` or `generate` suggests a command, shellmate checks it before putting it in your input line. The checks are **advisory**: they add notes under the answer, and the command is still placed in the line. You decide. Nothing in this page can approve anything.
+When `ask` or `generate` suggests a command, shellmate checks it before putting it in your input line. The checks are **advisory**: they add notes after the answer, above the input line that holds the command, and the command is still placed in the line. You decide. Nothing in this page can approve anything.
 
 The same parser and classifier also gate the `exec` tool, which is where they can veto. That part is in [Tool calling](../tool-calling/). For the user view of the checks, see [Checking suggested commands](../../guides/validator/).
 
@@ -16,7 +16,7 @@ flowchart TD
     cmd --> sem{"[validator] semantic?"}
     sem -- "yes" --> dec["decision models, in order"]
     dec -- "none answered" --> llm["the LLM, if llm_fallback"]
-    syn --> notes["notes under the answer"]
+    syn --> notes["notes after the answer"]
     prog --> notes
     risk --> notes
     dec --> notes

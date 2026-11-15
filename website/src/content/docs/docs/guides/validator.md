@@ -1,15 +1,15 @@
 ---
 title: Checking suggested commands
-description: Notes under a suggested command, and optional decision models that judge whether it matches your request.
+description: Notes shown after the answer, just above the suggested command, and optional decision models that judge whether it matches your request.
 ---
 
-Before a suggested command reaches your input line, shellmate checks it. The checks only add notes under the answer. **The command is always still placed in your input line**, and you decide.
+Before a suggested command reaches your input line, shellmate checks it. The checks only add notes after the answer, above the input line that now holds the command. **The command is always still placed in your input line**, and you decide.
 
 ```text
 $ list python files bigger than 1MB            ← alt+i
-$ find . -name '*.py' -size +1M -delete█
 check: high risk: `find -delete` removes files
 check: this may not be what you asked for (91% sure)
+$ find . -name '*.py' -size +1M -delete█
 ```
 
 ## Always on: checks that use no model
