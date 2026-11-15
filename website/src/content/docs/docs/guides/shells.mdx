@@ -1,6 +1,6 @@
 ---
 title: Shell integration
-description: How the fish, zsh and bash glue works, what it adds to your shell, and what is tested.
+description: How the bash, zsh and fish glue works, what it adds to your shell, and what is tested.
 ---
 
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
@@ -21,21 +21,21 @@ The shell part of shellmate is a small generated script. It binds your keys, rem
 The easiest way is `shellmate install-shell`, or `shellmate setup`, which maintains a marked block in your rc file (see [Install](../../start/install/)). To do it by hand:
 
 <Tabs>
-	<TabItem label="fish">
-		```fish
-		/path/to/shellmate init fish | source
+	<TabItem label="bash">
+		```bash
+		eval "$(/path/to/shellmate init bash)"
 		```
+		Put this at the **end** of `~/.bashrc`, after prompt tools such as starship, so that it sees the exit status first.
 	</TabItem>
 	<TabItem label="zsh">
 		```zsh
 		source <(/path/to/shellmate init zsh)
 		```
 	</TabItem>
-	<TabItem label="bash">
-		```bash
-		eval "$(/path/to/shellmate init bash)"
+	<TabItem label="fish">
+		```fish
+		/path/to/shellmate init fish | source
 		```
-		Put this at the **end** of `~/.bashrc`, after prompt tools such as starship, so that it sees the exit status first.
 	</TabItem>
 </Tabs>
 
@@ -55,7 +55,7 @@ Messages for you go to the terminal device directly (`/dev/tty`), falling back t
 
 ## What is tested
 
-A conformance suite runs the real shells in a private tmux server against the real binary and a mock provider: 16 checks per shell, with and without starship, for fish, zsh and bash. The checks cover replacing the buffer, explain leaving it alone, tricky quoting and Unicode surviving the round trip, cancellation with typeahead kept, streaming while generating, secrets replaced by placeholders, and the glue never printing errors of its own.
+A conformance suite runs the real shells in a private tmux server against the real binary and a mock provider: 16 checks per shell, with and without starship, for bash, zsh and fish. The checks cover replacing the buffer, explain leaving it alone, tricky quoting and Unicode surviving the round trip, cancellation with typeahead kept, streaming while generating, secrets replaced by placeholders, and the glue never printing errors of its own.
 
 ```sh
 tools/e2e/run-all.sh          # all shells, plain and starship

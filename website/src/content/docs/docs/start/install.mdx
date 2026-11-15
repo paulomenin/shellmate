@@ -6,14 +6,15 @@ description: Build shellmate, run guided setup, and check that everything works.
 import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 <Aside type="caution">
-	There are no published releases yet. For now you build from source. The repository already contains a release workflow that produces static Linux tarballs (x86_64 and aarch64) with checksums once a `v*` tag is pushed.
+	There are no published releases yet. For now you build from source.
 </Aside>
 
 ## Requirements
 
-- A recent stable Rust toolchain.
-- One of: fish, zsh, or bash 4.4 or newer. (macOS ships bash 3.2, which is not supported.)
-- An LLM endpoint that speaks the OpenAI chat API: a hosted one such as [OpenRouter](https://openrouter.ai) or OpenAI, or a server on this machine such as [Ollama](https://ollama.com) or LM Studio.
+- Rust 1.86 or newer to build. The project is tested with Rust 1.99.1.
+- One of: bash 4.4 or newer, zsh, or fish.
+- An LLM endpoint that speaks the OpenAI chat API: a hosted one such as [OpenRouter](https://openrouter.ai) or [OpenAI](https://platform.openai.com), or a server on this machine such as [Ollama](https://ollama.com), [LM Studio](https://lmstudio.ai) or [LocalAI](https://localai.io).
+- Optional: an endpoint for the [command checker](../../guides/validator/), a decision model such as JEV that reviews each suggested command. It can be hosted (OpenRouter, TypeSafe) or served on this machine, for example by Ollama. Setup can configure it, and you can skip it.
 
 ## Build and set up
 
@@ -27,15 +28,24 @@ import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
    cargo build --release
    ```
 
-2. Run guided setup.
+2. Put the binary on your `PATH`, so you can run `shellmate` from anywhere. Do this before setup, because setup writes the binary's absolute path into your rc file.
 
    ```sh
-   target/release/shellmate setup
+   mkdir -p ~/.local/bin
+   ln -sf "$PWD/target/release/shellmate" ~/.local/bin/shellmate
+   ```
+
+   If `~/.local/bin` is not on your `PATH` yet, add it to your rc file.
+
+3. Run guided setup.
+
+   ```sh
+   shellmate setup
    ```
 
    Setup detects your shell, the hosted services whose key variable is set and the model servers answering on this machine. It lists them, asks you to choose, confirms the connection and asks for the model name. It can also set up an optional checker. It then writes `~/.config/shellmate/config.toml`, adds one block to your shell's rc file and finishes with `shellmate doctor`. It never overwrites an existing config. See [`setup`](../../reference/cli/#setup) for each step.
 
-3. Open a new shell (or reload your rc file) and try it.
+4. Open a new shell (or reload your rc file) and try it.
 
    Type `how do I find the biggest files here` and press `alt+m`.
 
@@ -44,7 +54,7 @@ import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 ### Non-interactive setup
 
 ```sh
-shellmate setup --yes --provider openrouter --model "~openai/gpt-luna-latest" --shell fish
+shellmate setup --yes --provider openrouter --model "~openai/gpt-luna-latest" --shell bash
 ```
 
 With `--yes` nothing is asked or contacted, and `--provider` and `--model` are required. Add `--verify` to ask the server for its models first.
@@ -64,7 +74,7 @@ Setup writes two things, and only these two:
    # <<< shellmate <<<
    ```
 
-The rc file is `~/.config/fish/config.fish`, `${ZDOTDIR:-~}/.zshrc` or `~/.bashrc`. A backup is made once as `<rc file>.shellmate-backup`. Re-running is idempotent: the block is updated in place, for example when the binary path changes.
+The rc file is `~/.bashrc`, `${ZDOTDIR:-~}/.zshrc` or `~/.config/fish/config.fish`. A backup is made once as `<rc file>.shellmate-backup`. Re-running is idempotent: the block is updated in place, for example when the binary path changes.
 
 <Tabs>
 	<TabItem label="Preview">
@@ -99,10 +109,10 @@ Each check prints `OK`, `WARN` or `FAIL`, and every non-OK line says how to fix 
 If you prefer to edit your rc file yourself, add one line with the absolute path of the binary:
 
 <Tabs>
-	<TabItem label="fish">
-		```fish
-		# ~/.config/fish/config.fish
-		/path/to/shellmate init fish | source
+	<TabItem label="bash">
+		```bash
+		# ~/.bashrc, at the END (after prompt tools such as starship)
+		eval "$(/path/to/shellmate init bash)"
 		```
 	</TabItem>
 	<TabItem label="zsh">
@@ -111,10 +121,10 @@ If you prefer to edit your rc file yourself, add one line with the absolute path
 		source <(/path/to/shellmate init zsh)
 		```
 	</TabItem>
-	<TabItem label="bash">
-		```bash
-		# ~/.bashrc, at the END (after prompt tools such as starship)
-		eval "$(/path/to/shellmate init bash)"
+	<TabItem label="fish">
+		```fish
+		# ~/.config/fish/config.fish
+		/path/to/shellmate init fish | source
 		```
 	</TabItem>
 </Tabs>
