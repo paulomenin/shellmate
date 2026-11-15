@@ -36,7 +36,7 @@ Required. Unknown versions are rejected with a message.
 | `max_context_level` | 3 (local), 1 (remote) | Ceiling for the context level sent to this provider. |
 | `settings.*` | | Plugin settings, validated strictly. |
 
-Settings of `builtin:openai-compatible`: `preset`, `endpoint`, `model`, `api_key`, `timeout_secs`, `reasoning_effort`. The `openai` and `openrouter` presets read `OPENAI_API_KEY` and `OPENROUTER_API_KEY` when `api_key` is not set. See [Providers](../../guides/providers/).
+Settings of `builtin:openai-compatible`: `preset`, `endpoint`, `model`, `api_key`, `timeout_secs` (default 60), `reasoning_effort`. The `openai` and `openrouter` presets read `OPENAI_API_KEY` and `OPENROUTER_API_KEY` when `api_key` is not set. See [Providers](../../guides/providers/).
 
 ## `[llm]`
 
@@ -71,7 +71,7 @@ Decision-model backends, configured like providers.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `default_level` | `1` | 0 nothing extra, 1 shell/OS/cwd, 2 plus last status and recent commands. Capped by each provider's `max_context_level`. |
+| `default_level` | `1` | 0 nothing extra, 1 shell/OS/cwd, 2 plus last status, recent commands, git and captured output (3 and 4 are accepted and add nothing yet). Capped by each provider's `max_context_level`. |
 | `history_lines` | `5` | Recent commands sent at level 2 and above. |
 | `project` | `true` | Level 1 and up: the kind of project (file names only). |
 | `git` | `true` | Level 2 and up: branch, ahead/behind, change counts. |
@@ -80,7 +80,7 @@ Decision-model backends, configured like providers.
 
 ## `[input.shortcuts]`
 
-A table of `"key" = "action"`. Keys use `ctrl+` and `alt+` with a single letter or digit. Actions: `ask`, `generate`, `explain`, `new-conversation`, `capture`. Default: `"alt+m" = "ask"`.
+A table of `"key" = "action"`. Keys use `ctrl+`, `alt+` or `ctrl+alt+` with a single letter or digit. Chords such as `ctrl+x ctrl+e` are not supported. Actions: `ask`, `generate`, `explain`, `new-conversation`, `capture`. Default: `"alt+m" = "ask"`.
 
 ## `[pipeline]`
 

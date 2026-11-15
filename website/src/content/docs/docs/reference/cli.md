@@ -15,7 +15,7 @@ Guided first-time setup: writes the config, installs the shell integration and r
 
 ```sh
 shellmate setup
-shellmate setup --yes --provider openrouter --model "~openai/gpt-luna-latest" --shell fish
+shellmate setup --yes --provider openrouter --model "~openai/gpt-luna-latest" --shell bash
 ```
 
 Without `--yes`, setup is a conversation. It first looks at the machine: which hosted services have their key variable set (by name only, never the value) and which local servers answer on their default port. It lists the providers and says for each whether it is local or remote and what it found, asks you to choose, and then:
@@ -43,7 +43,7 @@ With `--yes`, nothing is asked and nothing is contacted. `--provider` and `--mod
 | `--checker-url <URL>` | The checker's base URL. Required for `custom`. |
 | `--checker-api-key <REF>` | Where the checker's key is: `env:NAME` or `file:PATH`. |
 | `--verify` | With `--yes`: ask each server for its models first, to confirm the address and the key. This sends the key, and a failure stops setup before anything is written. |
-| `--shell <S>` | `fish`, `zsh` or `bash`. |
+| `--shell <S>` | `bash`, `zsh` or `fish`. |
 
 ## `install-shell [SHELL]`
 
@@ -117,13 +117,26 @@ Shows markdown the way an answer would be shown, to try your terminal and your [
 | `--ascii` | ASCII symbols instead of Unicode ones. |
 | `--no-markdown` | Show the text as written, keeping the colours. |
 
+## `run [--shell SH] <COMMAND>...`
+
+Runs a command as usual and keeps a copy of its output, so your next question can use it. The output is sent only at context level 2 or higher. The exit status is the command's own. See [Asking about a command's output](../../guides/capture/).
+
+| Option | Meaning |
+|---|---|
+| `--shell <SH>` | Run the rest as one line with this shell (`bash`, `zsh`, `fish` or `sh`), for pipes and redirects. |
+
+```sh
+shellmate run -- cargo build
+shellmate run --shell bash -- 'ls | wc -l'
+```
+
 ## `check [--shell SH] [--json] <LINE>`
 
 Checks a command line the way shellmate checks every suggestion, without running it: does it parse in the shell, do its programs exist, how risky does the classifier think it is. Exit status 0 means no findings, 1 means there were; with `--json` it prints one object and always exits 0.
 
 ## `init <SHELL>`
 
-Prints the shell integration for `fish`, `zsh` or `bash`, with your shortcuts bound. This is what the rc-file block runs.
+Prints the shell integration for `bash`, `zsh` or `fish`, with your shortcuts bound. This is what the rc-file block runs.
 
 ## `invoke`
 
