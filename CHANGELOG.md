@@ -4,6 +4,7 @@
 
 First public development version.
 
+- Fix: a `cmd:` secret whose program had already printed the key and exited could be reported as an error when a helper it left behind still held the pipes and `cmd_timeout` was shorter than the 300 ms wait for it. That wait now ends at the timeout at the latest and counts as success, and it follows `SHELLMATE_TIME_SCALE`.
 - Tools are plugins: `man`, `exec` and `read` implement `shellmate_api::Tool` in `shellmate-builtin` (features `tool-man`, `tool-exec`, `tool-read`). Every `[tools.<name>]` table has `enabled`, `approval` and `preapproved`, kept by the core, and the tool's own keys. The core still enforces approval, pre-approval, taint and escaping, so a tool cannot skip them. Small changes: a failed `read` taints the turn, a `man` page is capped at 4 MiB, and `[tools.man] approval = "ask"` is refused when the engine is built.
 - `ask`, `generate` and `explain` from your prompt in fish, zsh and bash, streamed as they are generated.
 - Providers: OpenAI-compatible endpoints (OpenAI, OpenRouter, Ollama, LM Studio), with fallback chains.
@@ -36,5 +37,5 @@ First public development version.
 - Colour and formatting: answers, tool activity, errors, notes, the waiting indicator, `doctor` and the approval prompt are shown in colour, `check`, `config check`, `config show`, `context`, `audit`, `conversation` and `setup` are coloured too, and the markdown in answers (bold, italic, code, lists, headings, quotes, rules, fenced blocks) is formatted, when the terminal can show it. Plain text everywhere else: no terminal, `TERM=dumb`, `[ui] color = "never"`. `NO_COLOR` keeps bold and italic but removes colour; `CLICOLOR`, `CLICOLOR_FORCE` and `[ui] color = "always"` work as expected. The palette is the 16 terminal colours, so it follows your terminal theme. New settings `[ui] color` and `[ui] markdown`, and `shellmate render` to preview. The command placed in your input line is never styled, and model text can never add its own escape sequences.
 - Changed: in a terminal that is not UTF-8, notices use ASCII symbols (`+`, `x`, `->`); they were always Unicode.
 - Fix: a line break arriving right after the first word of an answer was dropped (`Yes.` then a blank line ran into the next paragraph).
-- `SHELLMATE_TIME_SCALE` (1 to 100) stretches the short limits on git, the shell syntax check and `man`, for slow disks and huge repositories.
+- `SHELLMATE_TIME_SCALE` (1 to 100) stretches the short limits on git, the shell syntax check, `man` and the wait for output after a `cmd:` secret program exits, for slow disks and huge repositories.
 - Redaction: a value after `Authorization:` is redacted whatever its length (the bearer-token rule needed 16 characters or more).

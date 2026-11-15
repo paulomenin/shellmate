@@ -1,4 +1,5 @@
-//! Internal time limits on helper programs (git, the shell's syntax check, man).
+//! Internal time limits on helper programs (git, the shell's syntax check, man, and the grace period after a
+//! `cmd:` secret program exits).
 //!
 //! The defaults suit an idle machine. `SHELLMATE_TIME_SCALE` multiplies them (1 to 100) for a slow
 //! disk, a huge repository, or a test run under instrumentation. It never shortens a limit.

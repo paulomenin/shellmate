@@ -276,6 +276,13 @@ fn pump(mut r: impl Read + Send + 'static, tx: mpsc::Sender<Piece>, out: bool) {
     });
 }
 
+/// How long to keep reading after the program has exited, for a helper that still holds the pipes. Like the
+/// other short internal limits it follows `SHELLMATE_TIME_SCALE`, so a slow or instrumented run does not cut
+/// off output that is only late.
+fn grace_period() -> Duration {
+    crate::limits::scaled(Duration::from_millis(300))
+}
+
 /// Run the `cmd:` line and return its single line of output, without the line break.
 pub fn run(key: &str, line: &str, host: &Host, opts: &CmdOptions) -> Result<String> {
     let args = split(key, line, host.env.as_ref())?;
@@ -333,8 +340,9 @@ pub fn run(key: &str, line: &str, host: &Host, opts: &CmdOptions) -> Result<Stri
         if status.is_none() {
             if let Ok(Some(st)) = child.try_wait() {
                 status = Some(st);
-                // a helper the program left behind may keep the pipes open: wait a moment, not forever
-                grace = Some(Instant::now() + Duration::from_millis(300));
+                // a helper the program left behind may keep the pipes open: wait a moment, not forever, and
+                // never past the timeout: the program is done, so what is left is only stragglers
+                grace = Some((Instant::now() + grace_period()).min(deadline));
             }
         }
         if status.is_some() && (done == 2 || grace.is_some_and(|g| Instant::now() > g)) {

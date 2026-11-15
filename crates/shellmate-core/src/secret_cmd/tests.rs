@@ -368,3 +368,41 @@ fn output_that_arrives_after_the_program_exits_is_still_read() {
     let line = "/bin/sh -c '(sleep 0.05; echo sk-late) & exit 0'";
     assert_eq!(run_line(line).unwrap(), "sk-late");
 }
+
+#[test]
+fn output_that_arrives_half_way_through_the_grace_period_is_read_however_far_limits_are_stretched()
+{
+    // The grace period is an internal limit, so it follows `SHELLMATE_TIME_SCALE` like the others (the repo
+    // sets 5 for tests). A helper that prints half-way through it must be read at any scale: a window that
+    // stayed at a fixed 300 ms would be shorter than the helper's delay.
+    let half = grace_period().as_secs_f64() / 2.0;
+    let opts = CmdOptions {
+        timeout: Duration::from_secs(60),
+        ..Default::default()
+    };
+    let line = format!("/bin/sh -c '(sleep {half:.3}; echo sk-late) & exit 0'");
+    assert_eq!(
+        run("k", &line, &real("/usr/bin:/bin"), &opts).unwrap(),
+        "sk-late"
+    );
+}
+
+#[test]
+fn waiting_for_a_helper_never_runs_past_the_timeout_into_an_error() {
+    // The program has printed its key and exited; only a helper still holds the pipes. That wait ends at the
+    // timeout at the latest, and ends well: there is nothing more to get, so it is not a failure. (With the
+    // limits stretched the grace period can be longer than the timeout, which is what this forces.)
+    let opts = CmdOptions {
+        timeout: Duration::from_millis(200),
+        ..Default::default()
+    };
+    assert!(
+        grace_period() > opts.timeout,
+        "the test needs a scale of 1 or more"
+    );
+    let line = "/bin/sh -c 'echo sk-bg; (exec sleep 30) &'";
+    assert_eq!(
+        run("k", line, &real("/usr/bin:/bin"), &opts).unwrap(),
+        "sk-bg"
+    );
+}

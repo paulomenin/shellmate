@@ -11,7 +11,7 @@ Do not add a retry, a longer sleep, or `#[ignore]`. A flaky test means a race, a
 
 | Symptom | Cause | Fix pattern |
 |---|---|---|
-| Passes alone, fails in a full run or under `cargo cov` | A short internal limit (git 600 ms, syntax check 2 s, `man` 5 s) is too tight for a slow or instrumented binary | Limits go through `limits::scaled`. `SHELLMATE_TIME_SCALE` (1 to 100) stretches them. `.cargo/config.toml` sets 5. Do not shorten a limit in a test |
+| Passes alone, fails in a full run or under `cargo cov` | A short internal limit (git 600 ms, syntax check 2 s, `man` 5 s, the 300 ms wait for a `cmd:` secret helper) is too tight for a slow or instrumented binary | Limits go through `limits::scaled`. `SHELLMATE_TIME_SCALE` (1 to 100) stretches them. `.cargo/config.toml` sets 5. Do not shorten a limit in a test |
 | Passes locally, skipped or failing in CI | A needed program (git, fish, zsh, bash) is missing, and the test skipped silently | Gate with `have(...)` (`needs.rs`) or `have_tool(...)` (`tests/common`). With `REQUIRE_TOOLS=1` missing tools fail. CI sets it |
 | `ETXTBSY` ("text file busy") running a script just written | Executing a file another thread still has open for writing | Run it through `sh script` (see `exec_script`, `run_man_with`) instead of executing it directly |
 | pty test: a keystroke ignored | A multi-byte `read` is treated as a paste by design | Send one byte at a time (`type_keys`) |

@@ -50,7 +50,7 @@ Rules for writing tests:
 
 - **Test behavior, not wording.** Assert on what the user or the next step sees. Do not pin incidental text.
 - **Do not touch the machine from a unit test.** The core reads the environment, the clock and files through `Host` (`ports.rs`): pass a `MapEnv`, a `ManualClock` or a `MemFs` instead of calling `std::env::set_var` or writing temp files. A fake provider, mock servers and an in-memory conversation store are in `tools/shellmate-testing`.
-- **No clocks.** Do not rely on wall-clock timing. The short internal limits (git, the syntax check, `man`) stretch with `SHELLMATE_TIME_SCALE`, which `.cargo/config.toml` sets to 5 for you.
+- **No clocks.** Do not rely on wall-clock timing. The short internal limits (git, the syntax check, `man`, the wait after a `cmd:` secret program exits) stretch with `SHELLMATE_TIME_SCALE`, which `.cargo/config.toml` sets to 5 for you.
 - **Never skip silently.** A test that needs `git`, `fish`, `zsh` or `bash` should use the `have` helper (in `needs.rs` for unit tests, `have_tool` in `tests/common`). Set `REQUIRE_TOOLS=1` and a missing tool becomes a failure; CI does this.
 - **Test the refusal.** For anything security-relevant, write the test that shows the dangerous input is rejected, not only that the good input works.
 - Property tests use `proptest`.
