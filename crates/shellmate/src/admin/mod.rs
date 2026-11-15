@@ -1,9 +1,10 @@
-//! Everything around the request path: `config show/init`, `install-shell`, `setup`, `doctor`, `audit`.
+//! Everything around the request path: `config show/init/edit`, `install-shell`, `setup`, `doctor`, `audit`.
 //!
 //! One module per command; this file holds what they share.
 
 mod audit_cmd;
 mod config_cmd;
+mod config_edit;
 mod doctor;
 mod install_shell;
 mod setup;
@@ -11,6 +12,7 @@ mod templates;
 
 pub use audit_cmd::audit_cmd;
 pub use config_cmd::{config_init, config_show};
+pub use config_edit::config_edit;
 pub use doctor::doctor;
 pub use install_shell::install_shell;
 pub use setup::{setup, SetupArgs};

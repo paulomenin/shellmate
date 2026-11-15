@@ -79,6 +79,19 @@ fn main() {
             commands::ui::stdout().as_ref(),
         )),
         Cmd::Config {
+            command: ConfigCmd::Edit,
+        } => match admin::config_edit(cli.config.as_deref(), &shellmate_core::ports::SystemEnv) {
+            // the editor is closed: check what was saved, like `config check`
+            Ok(_) => {
+                let code = commands::config_check::run(cli.config.as_deref());
+                if code != 0 {
+                    eprintln!("  your edit is kept; run `shellmate config edit` to fix it");
+                }
+                code
+            }
+            Err(e) => finish_text(Err(e)),
+        },
+        Cmd::Config {
             command:
                 ConfigCmd::Init {
                     provider,

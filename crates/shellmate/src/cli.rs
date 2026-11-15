@@ -22,12 +22,19 @@ pub(crate) struct Cli {
 /// listed once (a test checks it), so a new command cannot go missing.
 const CATEGORIES: &[(&str, &[&str])] = &[
     (
-        "Ask and inspect",
-        &["context", "check", "render", "run", "conversation"],
+        "Requests and context",
+        &["context", "check", "run", "conversation"],
     ),
     (
         "Set up",
-        &["setup", "install-shell", "init", "config", "doctor"],
+        &[
+            "setup",
+            "install-shell",
+            "init",
+            "config",
+            "render",
+            "doctor",
+        ],
     ),
     ("Privacy", &["audit"]),
     ("Used by the shell integration", &["invoke"]),
@@ -185,7 +192,7 @@ pub(crate) enum Cmd {
         #[command(subcommand)]
         command: convo::ConvoCmd,
     },
-    /// Inspect the configuration
+    /// Inspect, edit or write the configuration
     Config {
         #[command(subcommand)]
         command: ConfigCmd,
@@ -198,6 +205,8 @@ pub(crate) enum ConfigCmd {
     Check,
     /// Print the effective configuration (secrets appear only as references)
     Show,
+    /// Open the config file in $VISUAL or $EDITOR, then check that it still loads
+    Edit,
     /// Write a documented starting config
     Init {
         #[arg(long, default_value = "ollama")]

@@ -565,3 +565,123 @@ fn check_reports_parse_errors_missing_programs_and_risk_without_running_anything
     ]);
     assert!(!marker.exists(), "check must not run the line");
 }
+
+/// An editor for tests: `sh <script>` appends a line to the file it is given and records its arguments.
+fn editor_script(home: &Scratch, appended: &str, exit: i32) -> String {
+    let script = home.path("editor.sh");
+    std::fs::write(
+        &script,
+        format!(
+            "for last; do :; done\nprintf '%s\\n' \"$@\" > '{}'\nprintf '%s\\n' '{appended}' >> \"$last\"\nexit {exit}\n",
+            home.str("args")
+        ),
+    )
+    .unwrap();
+    format!("sh {}", script.display())
+}
+
+fn config_with_provider(home: &Scratch) -> String {
+    let path = home.str("c.toml");
+    let r = raw(
+        &[
+            "--config",
+            &path,
+            "config",
+            "init",
+            "--provider",
+            "ollama",
+            "--model",
+            "m",
+        ],
+        home,
+        &[],
+    );
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    path
+}
+
+#[test]
+fn config_edit_opens_the_file_in_the_editor_and_checks_it_afterwards() {
+    let home = Scratch::new("edit-ok");
+    let path = config_with_provider(&home);
+    let editor = editor_script(&home, "# edited", 0);
+    let r = raw(
+        &["--config", &path, "config", "edit"],
+        &home,
+        &[("EDITOR", &editor), ("VISUAL", "")],
+    );
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert!(std::fs::read_to_string(&path)
+        .unwrap()
+        .ends_with("# edited\n"));
+    assert_eq!(
+        std::fs::read_to_string(home.path("args")).unwrap().trim(),
+        path
+    );
+    assert!(r.stdout.contains("config ok"), "{}", r.stdout);
+}
+
+#[test]
+fn config_edit_prefers_visual_and_keeps_the_editors_own_arguments() {
+    let home = Scratch::new("edit-visual");
+    let path = config_with_provider(&home);
+    let editor = editor_script(&home, "# from visual", 0);
+    let r = raw(
+        &["--config", &path, "config", "edit"],
+        &home,
+        &[("VISUAL", &format!("{editor} --wait")), ("EDITOR", "false")],
+    );
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let args = std::fs::read_to_string(home.path("args")).unwrap();
+    assert_eq!(args.lines().collect::<Vec<_>>(), ["--wait", path.as_str()]);
+}
+
+#[test]
+fn config_edit_runs_the_config_check_and_reports_a_file_that_no_longer_loads() {
+    let home = Scratch::new("edit-bad");
+    let path = config_with_provider(&home);
+    let editor = editor_script(&home, "this is = = not toml", 0);
+    let r = raw(
+        &["--config", &path, "config", "edit"],
+        &home,
+        &[("EDITOR", &editor), ("VISUAL", "")],
+    );
+    assert_eq!(r.code, 1);
+    assert!(r.stderr.contains("config."), "{}", r.stderr);
+    assert!(r.stderr.contains("your edit is kept"), "{}", r.stderr);
+    // the person's edit is kept, not rolled back
+    assert!(std::fs::read_to_string(&path).unwrap().contains("not toml"));
+}
+
+#[test]
+fn config_edit_fails_when_there_is_no_file_or_no_editor_to_start() {
+    let home = Scratch::new("edit-none");
+    let path = home.str("missing.toml");
+    let r = raw(
+        &["--config", &path, "config", "edit"],
+        &home,
+        &[("EDITOR", "true")],
+    );
+    assert_eq!(r.code, 1);
+    assert!(r.stderr.contains("config init"), "{}", r.stderr);
+    assert!(!home.path("missing.toml").exists(), "nothing is created");
+
+    let path = config_with_provider(&home);
+    let r = raw(
+        &["--config", &path, "config", "edit"],
+        &home,
+        &[("EDITOR", "/nonexistent/editor"), ("VISUAL", "")],
+    );
+    assert_eq!(r.code, 1);
+    assert!(r.stderr.contains("could not start"), "{}", r.stderr);
+
+    // an editor that fails is an error, and the config is not judged
+    let failing = editor_script(&home, "# x", 3);
+    let r = raw(
+        &["--config", &path, "config", "edit"],
+        &home,
+        &[("EDITOR", &failing), ("VISUAL", "")],
+    );
+    assert_eq!(r.code, 1);
+    assert!(r.stderr.contains("exited with"), "{}", r.stderr);
+}
