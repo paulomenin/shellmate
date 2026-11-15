@@ -1,17 +1,25 @@
 //! The non-streaming and streaming client for `/chat/completions`.
 
-use super::{presets::*, settings::*, sse::*, wire::*, *};
+use super::{settings::*, sse::*, wire::*, *};
 use async_trait::async_trait;
 use shellmate_api::{
-    ChatRequest, ChatResponse, ChatStream, Error, Provider, ProviderError, ProviderErrorKind,
-    ProviderInfo, Secret, Usage,
+    parse_model_ids, resolve_api_key, resolve_endpoint, ChatRequest, ChatResponse, ChatStream,
+    Error, Provider, ProviderError, ProviderErrorKind, ProviderInfo, Secret, Usage, PRESETS,
 };
 use std::collections::VecDeque;
 use std::time::Duration;
 
+/// Where this plugin posts, below the base URL. The version belongs here, not in the configured endpoint, so
+/// a `/v2` is a change to this plugin only.
+const CHAT_PATH: &str = "/v1/chat/completions";
+
+/// Where the server lists its models, below the base URL.
+const MODELS_PATH: &str = "/v1/models";
+
 pub struct OpenAiCompatible {
     pub(crate) client: reqwest::Client,
     pub(crate) url: String,
+    pub(crate) models_url: String,
     pub(crate) model: String,
     pub(crate) api_key: Option<Secret>,
     pub(crate) reasoning_effort: Option<String>,
@@ -31,38 +39,13 @@ impl OpenAiCompatible {
     ) -> Result<Self, Error> {
         let s: Settings = serde_json::from_value(value.clone())
             .map_err(|e| Error::new("config.invalid", format!("provider settings: {e}")))?;
-        let preset = s
-            .preset
-            .as_deref()
-            .and_then(|n| PRESETS.iter().find(|p| p.name == n));
-        let endpoint = match (&s.endpoint, &s.preset) {
-            (Some(e), _) => e.clone(),
-            (None, Some(p)) => preset.map(|p| p.endpoint.to_string()).ok_or_else(|| {
-                let names: Vec<_> = PRESETS.iter().map(|p| p.name).collect();
-                Error::new("config.invalid", format!("unknown preset `{p}`"))
-                    .with_hint(format!("presets: {}", names.join(", ")))
-            })?,
-            (None, None) => {
-                return Err(
-                    Error::new("config.invalid", "provider needs `preset` or `endpoint`")
-                        .with_hint("e.g. preset = \"ollama\""),
-                )
-            }
-        };
-        shellmate_api::check_endpoint(&endpoint)?;
-        // An explicit `api_key` always wins. Otherwise a hosted preset supplies its conventional variable, but
-        // only while the endpoint is the preset's own: a custom endpoint never receives a key it was not given.
-        let api_key = match (s.api_key, preset, &s.endpoint) {
-            (Some(k), _, _) => Some(k),
-            (
-                None,
-                Some(Preset {
-                    key_env: Some(var), ..
-                }),
-                None,
-            ) => lookup(var).filter(|v| !v.is_empty()).map(Secret::new),
-            _ => None,
-        };
+        let (endpoint, preset) = resolve_endpoint(
+            "provider",
+            PRESETS,
+            s.endpoint.as_deref(),
+            s.preset.as_deref(),
+        )?;
+        let api_key = resolve_api_key(s.api_key, preset, s.endpoint.is_some(), lookup);
         let timeout = Duration::from_secs(s.timeout_secs.unwrap_or(60));
         let client = reqwest::Client::builder()
             .timeout(timeout)
@@ -71,7 +54,8 @@ impl OpenAiCompatible {
             .map_err(|e| Error::new("provider.error", format!("http client: {e}")))?;
         Ok(Self {
             client,
-            url: format!("{}/chat/completions", endpoint.trim_end_matches('/')),
+            url: format!("{}{CHAT_PATH}", endpoint.trim_end_matches('/')),
+            models_url: format!("{}{MODELS_PATH}", endpoint.trim_end_matches('/')),
             model: s.model,
             api_key,
             reasoning_effort: s.reasoning_effort,
@@ -148,6 +132,37 @@ impl Provider for OpenAiCompatible {
             model: self.model.clone(),
             endpoint: Some(self.url.clone()),
         }
+    }
+
+    async fn models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let mut rb = self
+            .client
+            .get(&self.models_url)
+            .timeout(Duration::from_secs(10));
+        if let Some(k) = &self.api_key {
+            rb = rb.bearer_auth(k.expose());
+        }
+        // `without_url` keeps credentials that may be embedded in a URL out of messages.
+        let resp = rb.send().await.map_err(|e| {
+            let kind = if e.is_timeout() {
+                ProviderErrorKind::Timeout
+            } else {
+                ProviderErrorKind::Unavailable
+            };
+            ProviderError::new(kind, e.without_url().to_string())
+        })?;
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| {
+            ProviderError::new(ProviderErrorKind::Unavailable, e.without_url().to_string())
+        })?;
+        if !status.is_success() {
+            let mut msg = format!("HTTP {}: {}", status.as_u16(), error_message(&text));
+            if status.as_u16() == 404 {
+                msg.push_str(" (the endpoint should be a base URL without `/v1`)");
+            }
+            return Err(ProviderError::new(classify_status(status.as_u16()), msg));
+        }
+        Ok(Some(parse_model_ids(&text)))
     }
 
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, ProviderError> {

@@ -2,7 +2,7 @@
 #
 # name      label in the report (also the cassette file name)
 # model     the model id the server expects
-# preset    ollama | lmstudio | openai | openrouter      (or give `endpoint = "http://host/v1"`)
+# preset    openrouter | openai | ollama | lmstudio      (or give `endpoint = "http://host"`)
 # trust     local (default) or remote. Remote models are capped at context level 1 by shellmate itself.
 # level     context level to test with (default 1)
 # api_key   env:NAME or file:/path, for hosted endpoints

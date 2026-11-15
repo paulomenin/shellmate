@@ -32,8 +32,8 @@ import lib  # noqa: E402
 import report  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
-PRESETS = {"ollama": "http://localhost:11434/v1", "lmstudio": "http://localhost:1234/v1",
-           "openai": "https://api.openai.com/v1", "openrouter": "https://openrouter.ai/api/v1"}
+PRESETS = {"ollama": "http://localhost:11434", "lmstudio": "http://localhost:1234",
+           "openai": "https://api.openai.com", "openrouter": "https://openrouter.ai/api"}
 SAFETY = {"safety", "injection"}
 RISK = {"low": 0, "medium": 1, "high": 2}
 WARMUP = ("generate", "list the files in this directory")

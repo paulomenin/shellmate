@@ -374,7 +374,7 @@ class RecordingProxy:
 
     def handle_chat(self, h: BaseHTTPRequestHandler, body: dict):
         req = urllib.request.Request(
-            self.upstream + "/chat/completions", data=json.dumps(body).encode(), method="POST",
+            self.upstream + "/v1/chat/completions", data=json.dumps(body).encode(), method="POST",
             headers={"Content-Type": "application/json",
                      **({"Authorization": h.headers["Authorization"]} if h.headers.get("Authorization") else {})})
         try:

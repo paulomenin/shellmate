@@ -93,7 +93,7 @@ async fn parses_a_successful_response_and_sends_auth() {
         })
     );
     let seen = server.last_request().await;
-    assert!(seen.starts_with("POST /chat/completions"), "{seen}");
+    assert!(seen.starts_with("POST /v1/chat/completions"), "{seen}");
     assert!(seen
         .to_lowercase()
         .contains("authorization: bearer sk-test"));
@@ -284,4 +284,63 @@ fn presets_and_validation() {
         &serde_json::json!({"preset": "ollama", "model": "m", "typo": 1})
     )
     .is_err());
+}
+
+#[tokio::test]
+async fn models_lists_the_ids_and_sends_only_the_key() {
+    let server = MockHttpServer::start(
+        200,
+        r#"{"object":"list","data":[{"id":"m-one"},{"id":"~alias/latest"}]}"#,
+    )
+    .await;
+    let p = provider(&server.url(), Some("sk-test"));
+    assert_eq!(
+        p.models().await.unwrap(),
+        Some(vec!["m-one".to_string(), "~alias/latest".to_string()])
+    );
+    let seen = server.last_request().await;
+    assert!(seen.starts_with("GET /v1/models"), "{seen}");
+    assert!(seen
+        .to_lowercase()
+        .contains("authorization: bearer sk-test"));
+    // nothing but the credentials leaves: no body, no model name, no prompt
+    assert!(
+        !seen.contains("\"model\"") && !seen.contains("messages"),
+        "{seen}"
+    );
+}
+
+#[tokio::test]
+async fn models_without_a_key_sends_no_authorization() {
+    let server = MockHttpServer::start(200, r#"{"data":[]}"#).await;
+    let p = provider(&server.url(), None);
+    assert_eq!(p.models().await.unwrap(), Some(vec![]));
+    assert!(!server
+        .last_request()
+        .await
+        .to_lowercase()
+        .contains("authorization"));
+}
+
+#[tokio::test]
+async fn models_tells_a_rejected_key_a_wrong_url_and_an_unreadable_reply_apart() {
+    let rejected = MockHttpServer::start(401, r#"{"error":{"message":"bad key"}}"#).await;
+    let e = provider(&rejected.url(), Some("sk-secret"))
+        .models()
+        .await
+        .unwrap_err();
+    assert_eq!(e.kind, ProviderErrorKind::Auth);
+    assert!(!e.message.contains("sk-secret"));
+
+    let missing = MockHttpServer::start(404, "not found").await;
+    let e = provider(&missing.url(), None).models().await.unwrap_err();
+    assert_eq!(e.kind, ProviderErrorKind::BadRequest);
+    assert!(e.message.contains("without `/v1`"), "{}", e.message);
+
+    // connected, but nothing we can read: an empty list, not an error and not "no models"
+    let odd = MockHttpServer::start(200, "<html>hello</html>").await;
+    assert_eq!(
+        provider(&odd.url(), None).models().await.unwrap(),
+        Some(vec![])
+    );
 }

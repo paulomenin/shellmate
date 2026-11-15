@@ -1,10 +1,9 @@
 //! Provider plugin for OpenAI-compatible `/chat/completions` APIs.
 //!
-//! `settings` and `presets` say where to connect, `client` makes the requests, `wire` reads the replies and
+//! `settings` says where to connect (the presets are shared, in `shellmate-api`), `client` makes the requests, `wire` reads the replies and
 //! classifies errors, and `sse` reads a streamed answer.
 
 mod client;
-mod presets;
 mod settings;
 mod sse;
 #[cfg(test)]
