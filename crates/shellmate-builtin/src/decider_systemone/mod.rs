@@ -1,27 +1,94 @@
-//! Decider plugin for decision models over the System One wire format: `POST {endpoint}/v1/systemone`
-//! with a `state` and typed `questions`, answered with labels and probabilities. Served by Ollama
-//! (decision models such as `laya`), by Ollaya, and by hosted APIs that use the same format.
+//! Decider plugin for decision models over the System One wire format: a `POST` with a `state` and typed
+//! `questions`, answered with labels and probabilities. The path is `/v1/systemone` below the endpoint unless
+//! a preset or the `path` setting says otherwise. Served by Ollama (decision models such as `laya`), by
+//! Ollaya, and by hosted APIs that use the same format.
 
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use shellmate_api::{
-    Answer, Decider, DecisionRequest, DecisionResponse, Error, ProviderError, ProviderErrorKind,
-    ProviderInfo, Question, Registry, Secret,
+    parse_model_ids, resolve_api_key, resolve_endpoint, Answer, Decider, DecisionRequest,
+    DecisionResponse, Error, Preset, ProviderError, ProviderErrorKind, ProviderInfo, Question,
+    Registry, Secret, PRESETS,
 };
 use std::sync::Arc;
 use std::time::Duration;
 
 pub const PLUGIN_ID: &str = "systemone";
 
-const PRESETS: &[(&str, &str)] = &[("ollama", "http://localhost:11434")];
+/// TypeSafe serves its decision models itself, at the default path. It is a decider preset only: a provider
+/// would reach `/v1/chat/completions` there, which it does not serve.
+const TYPESAFE: Preset = Preset::new(
+    "typesafe",
+    "https://api.typesafe.ai",
+    Some("TYPESAFE_API_KEY"),
+);
 
+const SHARED_LEN: usize = PRESETS.len();
+
+/// The presets of a decider: the ones every LLM server shares (so a name means the same server in a provider
+/// and in a decider), and the hosts that only serve decision models.
+static DECIDER_PRESETS: [Preset; SHARED_LEN + 1] = {
+    let mut all = [TYPESAFE; SHARED_LEN + 1];
+    let mut i = 0;
+    while i < SHARED_LEN {
+        all[i] = PRESETS[i];
+        i += 1;
+    }
+    all
+};
+
+/// The presets known to serve the decision format, for `setup` to offer as checkers. The rest of the table
+/// are LLM hosts that a provider can use but that do not serve it.
+pub fn checker_presets() -> Vec<&'static Preset> {
+    DECIDER_PRESETS
+        .iter()
+        .filter(|p| matches!(p.name, "openrouter" | "ollama" | "typesafe"))
+        .collect()
+}
+
+/// Where the server lists its models, below the base URL. TypeSafe, OpenRouter and Ollama answer here.
+const MODELS_PATH: &str = "/v1/models";
+
+/// Where the format is served below the endpoint, unless a preset or the `path` setting says otherwise.
+const DEFAULT_PATH: &str = "/v1/systemone";
+
+/// The path a preset's own endpoint serves the format at, where it is not [`DEFAULT_PATH`]. The path is the
+/// plugin's knowledge, not part of the shared preset: a provider does not need it.
+fn preset_path(preset: &str) -> Option<&'static str> {
+    match preset {
+        // OpenRouter serves decision models on its alpha Decisions API
+        "openrouter" => Some("/alpha/decisions"),
+        _ => None,
+    }
+}
+
+/// A `path` setting must be a plain path below the endpoint, so it cannot change the host or add a query.
+fn check_path(path: &str) -> Result<(), Error> {
+    let bad = !path.starts_with('/')
+        || path.contains("//")
+        || path.contains("..")
+        || path.contains("://")
+        || path
+            .chars()
+            .any(|c| matches!(c, '?' | '#' | '\\') || c.is_whitespace() || c.is_control());
+    if bad {
+        return Err(Error::new(
+            "config.invalid",
+            format!("decider `path` `{path}` is not a plain path"),
+        )
+        .with_hint("start it with `/` and leave out `..`, `?`, `#` and spaces, e.g. path = \"/v1/systemone\""));
+    }
+    Ok(())
+}
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {
     pub preset: Option<String>,
-    /// Base URL without `/v1/systemone`.
+    /// Base URL without the path.
     pub endpoint: Option<String>,
+    /// Where the decision API lives below the endpoint. Default `/v1/systemone`, or the preset's own.
+    pub path: Option<String>,
     pub model: String,
     pub api_key: Option<Secret>,
     pub timeout_secs: Option<u64>,
@@ -37,33 +104,41 @@ pub fn register(registry: &mut Registry) {
 pub struct SystemOne {
     client: reqwest::Client,
     url: String,
+    models_url: String,
     model: String,
     api_key: Option<Secret>,
 }
 
 impl SystemOne {
+    /// Build from the settings table. A hosted preset's conventional key variable is read from the process
+    /// environment.
     pub fn from_settings(value: &Value) -> Result<Self, Error> {
+        Self::from_settings_with(value, &|name| std::env::var(name).ok())
+    }
+
+    /// Like [`SystemOne::from_settings`], reading environment variables through `lookup`.
+    pub fn from_settings_with(
+        value: &Value,
+        lookup: &dyn Fn(&str) -> Option<String>,
+    ) -> Result<Self, Error> {
         let s: Settings = serde_json::from_value(value.clone())
             .map_err(|e| Error::new("config.invalid", format!("decider settings: {e}")))?;
-        let endpoint = match (&s.endpoint, &s.preset) {
-            (Some(e), _) => e.clone(),
-            (None, Some(p)) => PRESETS
-                .iter()
-                .find(|(n, _)| n == p)
-                .map(|(_, e)| e.to_string())
-                .ok_or_else(|| {
-                    let names: Vec<_> = PRESETS.iter().map(|(n, _)| *n).collect();
-                    Error::new("config.invalid", format!("unknown preset `{p}`"))
-                        .with_hint(format!("presets: {}", names.join(", ")))
-                })?,
-            (None, None) => {
-                return Err(
-                    Error::new("config.invalid", "decider needs `preset` or `endpoint`")
-                        .with_hint("e.g. preset = \"ollama\""),
-                )
+        let (endpoint, preset) = resolve_endpoint(
+            "decider",
+            &DECIDER_PRESETS,
+            s.endpoint.as_deref(),
+            s.preset.as_deref(),
+        )?;
+        let api_key = resolve_api_key(s.api_key, preset, s.endpoint.is_some(), lookup);
+        // an explicit `path` wins; a preset's path applies only while the endpoint is the preset's own
+        let path = match (&s.path, preset, &s.endpoint) {
+            (Some(p), _, _) => {
+                check_path(p)?;
+                p.as_str()
             }
+            (None, Some(p), None) => preset_path(p.name).unwrap_or(DEFAULT_PATH),
+            _ => DEFAULT_PATH,
         };
-        shellmate_api::check_endpoint(&endpoint)?;
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(s.timeout_secs.unwrap_or(10)))
             .user_agent(concat!("shellmate/", env!("CARGO_PKG_VERSION")))
@@ -71,9 +146,10 @@ impl SystemOne {
             .map_err(|e| Error::new("provider.error", format!("http client: {e}")))?;
         Ok(Self {
             client,
-            url: format!("{}/v1/systemone", endpoint.trim_end_matches('/')),
+            url: format!("{}{path}", endpoint.trim_end_matches('/')),
+            models_url: format!("{}{MODELS_PATH}", endpoint.trim_end_matches('/')),
             model: s.model,
-            api_key: s.api_key,
+            api_key,
         })
     }
 }
@@ -184,6 +260,40 @@ impl Decider for SystemOne {
         }
     }
 
+    async fn models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let mut rb = self
+            .client
+            .get(&self.models_url)
+            .timeout(Duration::from_secs(10));
+        if let Some(k) = &self.api_key {
+            rb = rb.bearer_auth(k.expose());
+        }
+        let resp = rb.send().await.map_err(|e| {
+            let kind = if e.is_timeout() {
+                ProviderErrorKind::Timeout
+            } else {
+                ProviderErrorKind::Unavailable
+            };
+            ProviderError::new(kind, e.without_url().to_string())
+        })?;
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| {
+            ProviderError::new(ProviderErrorKind::Unavailable, e.without_url().to_string())
+        })?;
+        if !status.is_success() {
+            let mut msg = format!(
+                "HTTP {}: {}",
+                status.as_u16(),
+                text.trim().chars().take(300).collect::<String>()
+            );
+            if status.as_u16() == 404 {
+                msg.push_str(" (the endpoint should be a base URL without `/v1`)");
+            }
+            return Err(ProviderError::new(classify_status(status.as_u16()), msg));
+        }
+        Ok(Some(parse_model_ids(&text)))
+    }
+
     async fn decide(&self, request: &DecisionRequest) -> Result<DecisionResponse, ProviderError> {
         let mut rb = self
             .client
@@ -273,6 +383,136 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn models_lists_ids_with_the_key_only_and_names_a_wrong_url() {
+        let server = MockHttpServer::start(200, r#"{"data":[{"id":"jev-latest"}]}"#).await;
+        let d = SystemOne::from_settings(
+            &json!({"model": "m", "endpoint": server.url(), "api_key": "sk-test"}),
+        )
+        .unwrap();
+        assert_eq!(
+            d.models().await.unwrap(),
+            Some(vec!["jev-latest".to_string()])
+        );
+        let seen = server.last_request().await;
+        assert!(seen.starts_with("GET /v1/models"), "{seen}");
+        assert!(seen
+            .to_lowercase()
+            .contains("authorization: bearer sk-test"));
+        assert!(
+            !seen.contains("questions") && !seen.contains("state"),
+            "{seen}"
+        );
+
+        let rejected = MockHttpServer::start(401, "no").await;
+        let d =
+            SystemOne::from_settings(&json!({"model": "m", "endpoint": rejected.url()})).unwrap();
+        assert_eq!(d.models().await.unwrap_err().kind, ProviderErrorKind::Auth);
+
+        let missing = MockHttpServer::start(404, "nope").await;
+        let d =
+            SystemOne::from_settings(&json!({"model": "m", "endpoint": missing.url()})).unwrap();
+        assert!(d
+            .models()
+            .await
+            .unwrap_err()
+            .message
+            .contains("without `/v1`"));
+    }
+
+    #[test]
+    fn only_hosts_known_to_serve_the_format_are_offered_as_checkers() {
+        let names: Vec<_> = checker_presets().iter().map(|p| p.name).collect();
+        assert_eq!(names, ["openrouter", "ollama", "typesafe"]);
+    }
+
+    #[test]
+    fn the_typesafe_preset_is_for_deciders_and_reads_its_own_key_variable() {
+        let env = |n: &str| (n == "TYPESAFE_API_KEY").then(|| "ts-env".to_string());
+        let d = SystemOne::from_settings_with(
+            &json!({"model": "jev-latest", "preset": "typesafe"}),
+            &env,
+        )
+        .unwrap();
+        assert_eq!(d.url, "https://api.typesafe.ai/v1/systemone");
+        assert_eq!(
+            d.api_key.map(|k| k.expose().to_string()).as_deref(),
+            Some("ts-env")
+        );
+        // a provider does not know it: it would not serve chat completions there
+        assert!(!PRESETS.iter().any(|p| p.name == "typesafe"));
+    }
+
+    #[test]
+    fn the_path_comes_from_the_setting_then_the_preset_then_the_default() {
+        let url = |v: Value| SystemOne::from_settings(&v).unwrap().url;
+        assert_eq!(
+            url(json!({"model": "m", "preset": "openrouter"})),
+            "https://openrouter.ai/api/alpha/decisions"
+        );
+        assert_eq!(
+            url(json!({"model": "m", "preset": "ollama"})),
+            "http://localhost:11434/v1/systemone"
+        );
+        assert_eq!(
+            url(json!({"model": "m", "preset": "openrouter", "path": "/v2/decide"})),
+            "https://openrouter.ai/api/v2/decide"
+        );
+        // a custom endpoint does not inherit the preset's path
+        assert_eq!(
+            url(json!({"model": "m", "preset": "openrouter", "endpoint": "https://proxy.example"})),
+            "https://proxy.example/v1/systemone"
+        );
+        assert_eq!(
+            url(json!({"model": "m", "endpoint": "https://proxy.example/", "path": "/x"})),
+            "https://proxy.example/x"
+        );
+    }
+
+    #[test]
+    fn a_path_that_could_change_the_host_or_the_query_is_refused() {
+        for bad in [
+            "v1/systemone",
+            "//evil.example/x",
+            "/a/../b",
+            "/x?key=1",
+            "/x#frag",
+            "http://evil.example",
+            "/a b",
+            "/a\\b",
+            "",
+        ] {
+            let r = SystemOne::from_settings(
+                &json!({"model": "m", "endpoint": "https://ok.example", "path": bad}),
+            );
+            assert!(r.is_err(), "{bad:?} should be refused");
+        }
+    }
+
+    #[test]
+    fn a_hosted_preset_supplies_its_key_variable_and_a_custom_endpoint_never_gets_it() {
+        let env = |n: &str| (n == "OPENAI_API_KEY").then(|| "sk-env".to_string());
+        let key = |v: Value| {
+            SystemOne::from_settings_with(&v, &env)
+                .unwrap()
+                .api_key
+                .map(|k| k.expose().to_string())
+        };
+        assert_eq!(
+            key(json!({"model": "m", "preset": "openai"})).as_deref(),
+            Some("sk-env")
+        );
+        assert_eq!(
+            key(json!({"model": "m", "preset": "openai", "api_key": "own"})).as_deref(),
+            Some("own")
+        );
+        assert_eq!(
+            key(json!({"model": "m", "preset": "openai", "endpoint": "https://proxy.example"})),
+            None
+        );
+        assert_eq!(key(json!({"model": "m", "preset": "ollama"})), None);
+    }
+
+    #[tokio::test]
     async fn answers_are_parsed_and_the_endpoint_path_is_added() {
         let body = json!({"model":"laya:en","answers":{
             "match":{"type":"noul","noul":0.12},
@@ -318,7 +558,13 @@ mod tests {
     fn settings_are_validated() {
         assert!(SystemOne::from_settings(&json!({"model": "m"})).is_err());
         assert!(SystemOne::from_settings(&json!({"model": "m", "preset": "nope"})).is_err());
-        assert!(SystemOne::from_settings(&json!({"model": "m", "preset": "ollama"})).is_ok());
+        // the presets are the ones providers use, and the hosts that only serve decision models
+        assert!(PRESETS.iter().all(|p| DECIDER_PRESETS.contains(p)));
+        for p in &DECIDER_PRESETS {
+            let d = SystemOne::from_settings(&json!({"model": "m", "preset": p.name})).unwrap();
+            let path = preset_path(p.name).unwrap_or(DEFAULT_PATH);
+            assert_eq!(d.url, format!("{}{path}", p.endpoint), "{}", p.name);
+        }
         assert!(
             SystemOne::from_settings(&json!({"model": "m", "endpoint": "http://10.1.1.1:1"}))
                 .is_err()
