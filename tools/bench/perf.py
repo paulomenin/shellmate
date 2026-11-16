@@ -33,8 +33,9 @@ STAGES = ["startup_ms", "context_ms", "llm_ms", "validate_ms", "overhead_ms", "p
 def write_config(path: Path, url: str, level: int = 2) -> None:
     path.write_text(
         f'version = 1\n[context]\ndefault_level = {level}\n'
-        '[providers.fake]\nplugin = "builtin:openai-compatible"\ntrust = "local"\n'
-        f'[providers.fake.settings]\nendpoint = "{url}"\nmodel = "bench"\n'
+        '[providers.fake]\ntrust = "local"\n'
+        f'endpoint = "{url}"\n'
+        '[models.fake]\nprovider = "fake"\nplugin = "builtin:openai-compatible"\nmodel = "bench"\n'
         '[llm]\nchain = ["fake"]\n[audit]\nenabled = false\n[conversation]\nstore = "none"\n'
     )
 

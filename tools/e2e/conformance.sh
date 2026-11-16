@@ -18,11 +18,12 @@ version = 1
 [context]
 default_level = 2
 [providers.mock]
-plugin = "builtin:openai-compatible"
 trust = "remote"
 max_context_level = 2
-[providers.mock.settings]
 endpoint = "http://127.0.0.1:$PORT"
+[models.mock]
+provider = "mock"
+plugin = "builtin:openai-compatible"
 model = "mock"
 [llm]
 chain = ["mock"]

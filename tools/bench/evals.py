@@ -157,17 +157,21 @@ def toml_str(s: str) -> str:
 
 
 def model_config(m: dict, endpoint: str, tools: str) -> str:
-    s = [f"model = {toml_str(m['model'])}", f"endpoint = {toml_str(endpoint)}"]
+    conn = [f"endpoint = {toml_str(endpoint)}"]
     if m.get("api_key"):
-        s.append(f"api_key = {toml_str(m['api_key'])}")
+        conn.append(f"api_key = {toml_str(m['api_key'])}")
+    s = [f"model = {toml_str(m['model'])}"]
     for k, v in m.get("settings", {}).items():
         s.append(f"{k} = {json.dumps(v)}")
     level = m.get("level", 1)
     return (
         f'version = 1\n[context]\ndefault_level = {level}\n'
-        f'[providers.m]\nplugin = "builtin:openai-compatible"\ntrust = {toml_str(m.get("trust", "local"))}\n'
+        f'[providers.m]\ntrust = {toml_str(m.get("trust", "local"))}\n'
         f'max_context_level = {max(level, 1)}\n'
-        f'[providers.m.settings]\n' + "\n".join(s) + '\n[llm]\nchain = ["m"]\n'
+        + "\n".join(conn)
+        + '\n[models.m]\nprovider = "m"\nplugin = "builtin:openai-compatible"\n'
+        + "\n".join(s)
+        + '\n[llm]\nchain = ["m"]\n'
         '[audit]\nenabled = false\n[conversation]\nstore = "none"\n[validator]\nenabled = false\n'
         + ('[tools.man]\nenabled = false\n' if tools == "none" else "")
         + m.get("extra_config", "")
