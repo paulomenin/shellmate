@@ -25,6 +25,16 @@ pub type LlmMiddlewareCtor = Box<
 /// Builds a conversation store from its settings table.
 pub type StoreCtor = Box<dyn Fn(&serde_json::Value) -> Result<Arc<dyn Store>, Error> + Send + Sync>;
 
+/// What a model plugin answers with. The plugin id says which: `openai-compatible` is chat, `systemone` is
+/// decision. A config table never repeats it, so the two cannot disagree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModelKind {
+    /// Chat or completion: a [`Provider`].
+    Chat,
+    /// A decision model: a [`Decider`].
+    Decision,
+}
+
 /// What a middleware plugin is for. The core uses roles to enforce invariants: a `Redactor` must be
 /// active before anything is sent to a remote provider (INV-2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,6 +127,10 @@ impl Registry {
 
     /// `id` is the plugin id without the `builtin:` prefix, e.g. `openai-compatible`.
     pub fn register_provider(&mut self, id: &str, ctor: ProviderCtor) {
+        assert!(
+            self.deciders.meta(id).is_none(),
+            "plugin id `{id}` is already a decision model"
+        );
         self.providers.insert(id, (), ctor.into());
     }
 
@@ -139,7 +153,26 @@ impl Registry {
     }
 
     pub fn register_decider(&mut self, id: &str, ctor: DeciderCtor) {
+        assert!(
+            self.providers.meta(id).is_none(),
+            "plugin id `{id}` is already a chat model"
+        );
         self.deciders.insert(id, (), ctor.into());
+    }
+
+    /// Which kind of model the plugin `id` is, or an error that lists every model plugin there is.
+    pub fn model_kind(&self, id: &str) -> Result<ModelKind, Error> {
+        if self.providers.meta(id).is_some() {
+            return Ok(ModelKind::Chat);
+        }
+        if self.deciders.meta(id).is_some() {
+            return Ok(ModelKind::Decision);
+        }
+        let known: Vec<_> = self.providers.ids().chain(self.deciders.ids()).collect();
+        Err(
+            Error::new("config.unknown_plugin", format!("no model plugin `{id}`"))
+                .with_hint(format!("available model plugins: {}", known.join(", "))),
+        )
     }
 
     pub fn decider_ids(&self) -> impl Iterator<Item = &str> {
@@ -258,6 +291,43 @@ mod tests {
             .build_provider("echo", &serde_json::json!({"model": "x"}))
             .unwrap();
         assert_eq!(p.info().plugin, "echo");
+    }
+
+    #[test]
+    fn the_plugin_id_says_which_kind_of_model_it_is() {
+        struct D;
+        #[async_trait::async_trait]
+        impl Decider for D {
+            fn info(&self) -> crate::ProviderInfo {
+                crate::ProviderInfo {
+                    plugin: "d".into(),
+                    model: "m".into(),
+                    endpoint: None,
+                }
+            }
+            async fn decide(
+                &self,
+                _: &crate::DecisionRequest,
+            ) -> Result<crate::DecisionResponse, crate::ProviderError> {
+                Ok(Default::default())
+            }
+        }
+        let mut r = Registry::new();
+        r.register_provider("chat", provider("chat"));
+        r.register_decider("decide", Box::new(|_| Ok(Arc::new(D))));
+        assert_eq!(r.model_kind("chat").unwrap(), ModelKind::Chat);
+        assert_eq!(r.model_kind("decide").unwrap(), ModelKind::Decision);
+        let e = r.model_kind("nope").unwrap_err();
+        assert_eq!(e.code, "config.unknown_plugin");
+        assert!(e.hint.unwrap().contains("chat, decide"));
+    }
+
+    #[test]
+    #[should_panic(expected = "already a chat model")]
+    fn one_id_cannot_be_both_kinds() {
+        let mut r = Registry::new();
+        r.register_provider("x", provider("x"));
+        r.register_decider("x", Box::new(|_| unreachable!()));
     }
 
     #[test]

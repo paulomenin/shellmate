@@ -27,8 +27,8 @@ pub use models::parse_model_ids;
 pub use preset::{resolve_api_key, resolve_endpoint, Preset, PRESETS};
 pub use provider::{Provider, ProviderError, ProviderErrorKind, ProviderInfo};
 pub use registry::{
-    DeciderCtor, LlmMiddlewareCtor, MiddlewareRole, ProviderBuilder, ProviderCtor, Registry,
-    StoreCtor,
+    DeciderCtor, LlmMiddlewareCtor, MiddlewareRole, ModelKind, ProviderBuilder, ProviderCtor,
+    Registry, StoreCtor,
 };
 pub use secret::Secret;
 pub use store::{busy, ConversationInfo, ConversationLock, Current, Store};
