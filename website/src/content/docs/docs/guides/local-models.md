@@ -61,18 +61,23 @@ ollama pull qwen2.5-coder:7b
 
 ```toml
 [providers.local]
-plugin = "builtin:openai-compatible"
 trust = "local"
-[providers.local.settings]
 preset = "ollama"
-model = "qwen2.5-coder:7b"
 timeout_secs = 180
+
+[models.qwen]
+provider = "local"
+plugin = "builtin:openai-compatible"
+model = "qwen2.5-coder:7b"
 # for thinking models (gemma4, qwen3, qwen3.5):
 # reasoning_effort = "none"
+
+[llm]
+chain = ["qwen"]
 ```
 
 Check it with `shellmate config check`, then use `alt+i` on a few requests you actually make. `shellmate invoke --explain` prints the time to the first word, so you can compare models with your own numbers.
 
 ## Using a local model and a cloud model together
 
-A small local model is a good first provider, with a larger remote one as the fallback when the local server is down. List them in order in [`[llm] chain`](../providers/#fallback-chains). Remember that a remote provider only receives the level of context you allow for it.
+A small local model is a good first choice, with a larger remote one as the fallback when the local server is down. List them in order in [`[llm] chain`](../providers/#fallback-chains). Remember that a remote provider only receives the level of context you allow for it.

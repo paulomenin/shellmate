@@ -23,11 +23,12 @@ cargo build --release
 mkdir -p ~/.config/shellmate
 cat > ~/.config/shellmate/config.toml <<'EOF2'
 version = 1
-[providers.main]
-plugin = "builtin:openai-compatible"
+[providers.openrouter]
 trust = "remote"             # "local" for a server on this machine (Ollama, LM Studio, LocalAI)
-[providers.main.settings]
 preset = "openrouter"        # reads OPENROUTER_API_KEY; or: endpoint = "https://..." + api_key = "env:MY_API_KEY"
+[models.main]
+provider = "openrouter"
+plugin = "builtin:openai-compatible"
 model = "~openai/gpt-luna-latest"
 # reasoning_effort = "none"  # much faster with reasoning models
 [llm]

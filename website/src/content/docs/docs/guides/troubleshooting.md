@@ -55,7 +55,7 @@ The loader is strict. Unknown keys, inline secrets and a `file:` secret that is 
 
 ### A `cmd:` secret fails
 
-The error names the key and the program, for example ``providers.work.settings.api_key`: `pass` failed (exit 1)``. Run `shellmate doctor` to run the program once and see the result, and `shellmate config check` to check the line without running it.
+The error names the key and the program, for example ``providers.work.api_key`: `pass` failed (exit 1)``. Run `shellmate doctor` to run the program once and see the result, and `shellmate config check` to check the line without running it.
 
 - `config.invalid_cmd`: the line has shell syntax (a pipe, `;`, `$VAR`, a glob, a backslash) or a relative program path. Put the pipeline in a script and call the script.
 - `config.secret_cmd_missing`: the program is not in `PATH` or is not executable. `PATH` here is the one your shell exports.

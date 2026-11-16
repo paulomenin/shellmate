@@ -19,7 +19,7 @@ default_level = 1
 history_lines = 5
 ```
 
-Each provider has a ceiling (`max_context_level`) that comes from its `trust`: 3 for `local`, 1 for `remote`. The level used is the smaller of the two. Raising a remote provider above 1 is an explicit decision you make in the config.
+Each provider has a ceiling (`max_context_level`) that comes from its `trust`: 3 for `local`, 1 for `remote`. Its models share it. The level used is the smaller of the two. Raising a remote provider above 1 is an explicit decision you make in the config.
 
 ## Reversible redaction
 
@@ -28,7 +28,7 @@ The built-in redaction layer sits closest to the provider. Before a request leav
 It looks at what is about to be sent: your text, the working directory, and the recent commands. It recognizes common key and token formats, `Authorization` headers, `KEY=value` assignments for names like `*TOKEN*` or `*PASSWORD*`, and similar patterns. Add your own rules with a regular expression; if the pattern has a group named `secret`, only that part is replaced.
 
 ```toml
-[plugins."builtin:redact".settings]
+[plugins."builtin:redact"]
 extra_patterns = [
   { name = "internal-hosts", regex = '[a-z0-9-]+\.corp\.example\.com' },
 ]

@@ -12,11 +12,13 @@ If you ran `shellmate setup` you already have a config. This page shows the smal
 ```toml title="~/.config/shellmate/config.toml"
 version = 1
 
-[providers.main]
-plugin = "builtin:openai-compatible"
-trust = "remote"             # use "local" for a server on this machine (Ollama, LM Studio, LocalAI)
-[providers.main.settings]
+[providers.openrouter]        # the connection: where the data goes
+trust = "remote"              # use "local" for a server on this machine (Ollama, LM Studio, LocalAI)
 preset = "openrouter"         # reads OPENROUTER_API_KEY; or: endpoint = "https://..." and api_key = "env:MY_API_KEY"
+
+[models.main]                 # what you use from it
+provider = "openrouter"
+plugin = "builtin:openai-compatible"
 model = "~openai/gpt-luna-latest"
 # reasoning_effort = "none"   # much faster with reasoning models
 

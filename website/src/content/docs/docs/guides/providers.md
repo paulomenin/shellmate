@@ -3,33 +3,61 @@ title: Providers
 description: Configure local and remote LLM providers, API keys, trust levels, and fallbacks.
 ---
 
-A **provider** is a named instance of a provider plugin plus its settings. The only plugin today is `builtin:openai-compatible`, which talks to any server that implements the OpenAI chat-completions API (with streaming).
+A **provider** is a connection: where your data goes, and how far it is trusted. A **model** is what you use from it. One provider can offer several models, of different kinds. For example, OpenRouter serves a chat model and a decision model, and LocalAI can serve both on your machine.
+
+```toml
+[providers.openrouter]          # the connection
+trust = "remote"
+preset = "openrouter"
+
+[models.gpt]                    # a chat model on it
+provider = "openrouter"
+plugin = "builtin:openai-compatible"
+model = "~openai/gpt-luna-latest"
+
+[models.jev]                    # a decision model on the same connection
+provider = "openrouter"
+plugin = "builtin:systemone"
+model = "~typesafe/jev-latest"
+```
+
+The plugin of a model says what kind it is. `builtin:openai-compatible` is a chat model: it talks to any server that implements the OpenAI chat-completions API (with streaming), and it answers your questions. `builtin:systemone` is a decision model, used to [check suggested commands](../validator/). Trust, the endpoint and the key are set once, on the provider, and every model on it shares them.
 
 ## Hosted: OpenRouter, OpenAI and others
 
 ```toml
 [providers.cloud]
-plugin = "builtin:openai-compatible"
 trust = "remote"          # this is the default when omitted
-[providers.cloud.settings]
 preset = "openrouter"
-model = "~openai/gpt-luna-latest"    # as listed by the provider
 # No api_key needed: the openrouter preset reads OPENROUTER_API_KEY from your environment.
 # To use another variable or a file, set it explicitly:
 # api_key = "env:MY_KEY_VARIABLE"      (or "file:/path/to/key", mode 0600)
+
+[models.gpt]
+provider = "cloud"
+plugin = "builtin:openai-compatible"
+model = "~openai/gpt-luna-latest"    # as listed by the provider
+
+[llm]
+chain = ["gpt"]
 ```
 
 ## On this machine: Ollama, LM Studio and LocalAI
 
 ```toml
 [providers.local]
-plugin = "builtin:openai-compatible"
 trust = "local"
-[providers.local.settings]
 preset = "ollama"
-model = "your-model"      # as listed by `ollama list`
 timeout_secs = 180        # the first request may have to load the model
+
+[models.qwen]
+provider = "local"
+plugin = "builtin:openai-compatible"
+model = "your-model"      # as listed by `ollama list`
 reasoning_effort = "none" # see the note below
+
+[llm]
+chain = ["qwen"]
 ```
 
 ## Presets and endpoints
@@ -47,8 +75,13 @@ A preset supplies a default endpoint and, for hosted services, the environment v
 For anything else, set the endpoint yourself:
 
 ```toml
-[providers.vllm.settings]
+[providers.vllm]
+trust = "local"
 endpoint = "http://localhost:8000"
+
+[models.mine]
+provider = "vllm"
+plugin = "builtin:openai-compatible"
 model = "my-model"
 ```
 
@@ -56,15 +89,26 @@ Cleartext `http://` is accepted **only for loopback hosts**. Any other server mu
 
 ## Settings
 
+On the **provider**:
+
 | Key | Meaning |
 |---|---|
+| `trust` | `local` or `remote` (default). See [Trust and context levels](#trust-and-context-levels). |
+| `max_context_level` | Ceiling for the context sent to every model on it. |
 | `preset` / `endpoint` | One of them is required. |
-| `model` | Required. The model name the server knows. |
 | `api_key` | A secret reference (below). Optional: the `openai` and `openrouter` presets read `OPENAI_API_KEY` and `OPENROUTER_API_KEY` when it is absent. |
 | `timeout_secs` | Request timeout. |
-| `reasoning_effort` | Sent as `reasoning_effort` (`none`, `low`, ...). Reasoning models spend most of their time thinking silently; for short shell answers `none` is typically 2 to 3 times faster. |
 
-Unknown keys are errors, so typos fail loudly.
+On the **model**:
+
+| Key | Meaning |
+|---|---|
+| `provider` | The provider it is reached through. Required. |
+| `plugin` | `builtin:openai-compatible` (chat) or `builtin:systemone` (decision). Required. |
+| `model` | Required. The model name the server knows. |
+| `reasoning_effort` | Chat models. Sent as `reasoning_effort` (`none`, `low`, ...). Reasoning models spend most of their time thinking silently; for short shell answers `none` is typically 2 to 3 times faster. |
+
+A key goes in one of the two tables, never both. Unknown keys are errors, so typos fail loudly.
 
 ## API keys are references, never values
 
@@ -80,10 +124,14 @@ An environment variable is the simplest form, but it means the key sits in a she
 ### Ask a program for the key
 
 ```toml
-[providers.work.settings]
+[providers.work]
 preset  = "openai"
-model   = "gpt-5"
 api_key = "cmd:pass show api/openai"
+
+[models.gpt]
+provider = "work"
+plugin   = "builtin:openai-compatible"
+model    = "gpt-5"
 ```
 
 Other examples:
@@ -99,16 +147,16 @@ For the system keyring, see the next section, which is shorter.
 
 How it works:
 
-- **It runs when the provider is first used**, not when shellmate starts. A fallback provider that is never called never runs its program, and `config check` and `--dry-run` do not run it. A key is fetched once per request, because every request is a new process, so a slow program makes every request slower. `doctor` shows how long it took.
+- **It runs when a chat model is first used**, not when shellmate starts. A fallback model that is never called never runs its program, and `config check` and `--dry-run` do not run it. A key is fetched once per request, because every request is a new process, so a slow program makes every request slower. `doctor` shows how long it took.
 - **The program prints the key and nothing else**: one line of text, at most 4096 bytes. Empty output, several lines, a non-zero exit, or too much output is an error. `pass show` prints every line of an entry, so keep the key alone in the entry, or point `cmd:` at a script that prints the first line.
 - **No shell is involved.** The line is split into words, with `'single'` and `"double"` quotes, and `~/` at the start of a word means your home directory. Pipes, `;`, `&&`, redirects, `$VARIABLES`, `` `backticks` ``, globs and backslashes are refused, so a line never does something other than what it says. For a pipeline, put it in a script, or write it out yourself with `cmd:sh -c 'pass show x | head -n1'`: you are then asking for a shell on purpose.
 - **The program** is an absolute path, or a bare name found in `PATH`. A relative path such as `./get-key` is refused. Empty and relative `PATH` entries are skipped.
 - **It gets a small environment**: `PATH`, `HOME`, `USER`, `LANG`, the locale, `TMPDIR`, and what a keyring or GnuPG agent needs to be found (`XDG_RUNTIME_DIR`, `DBUS_SESSION_BUS_ADDRESS`, `GNUPGHOME`, `GPG_TTY`). Your other variables, including `OPENAI_API_KEY`, are not passed. List more in `[secrets] pass_env`, for example `["PASSWORD_STORE_DIR"]`.
 - **It has no input**, and it is stopped after `[secrets] cmd_timeout` (5 seconds by default). It stays in the terminal's foreground process group, so a passphrase prompt on the terminal should be answerable within the timeout. This has not been tried with a real `pinentry` yet; a graphical pinentry or a running agent is the safer choice. Raise `cmd_timeout` if you need time to type.
-- **A failure is a configuration error.** It names the key (`providers.work.settings.api_key`) and the program, and shows the program's error output, shortened. shellmate does **not** fall back to the next provider, because a broken key is something to fix, not to route around.
+- **A failure is a configuration error.** It names the key (`providers.work.api_key`) and the program, and shows the program's error output, shortened. shellmate does **not** fall back to the next provider, because a broken key is something to fix, not to route around.
 - **The key is never shown.** Messages name the program and never print its arguments or output, and `config show` prints the line you wrote. If an argument looks like a key written in place (`cmd:echo sk-...`), `config check` warns and `config show` hides the arguments. Put the key in a password manager, and let `cmd:` name where it is.
 
-The `cmd:` line comes from your own config file only. It runs with your permissions, like a shell alias, so protect the file as you protect `~/.ssh`. `cmd:` works in provider and decision-model settings. For a decision model, and for plugin settings, the program runs when shellmate starts and not on first use.
+The `cmd:` line comes from your own config file only. It runs with your permissions, like a shell alias, so protect the file as you protect `~/.ssh`. `cmd:` works in provider settings. For a decision model, and for plugin settings, the program runs when shellmate starts and not on first use.
 
 ### Use the system keyring
 
@@ -142,23 +190,23 @@ An inline key in the config is rejected by the loader. `shellmate config show` p
 
 ## Trust and context levels
 
-`trust` decides how much context the provider may receive and which conversation turns may be replayed to it.
+`trust`, set on the provider, decides how much context its models may receive and which conversation turns may be replayed to it.
 
 | `trust` | Default `max_context_level` |
 |---|---|
 | `local` | 3 |
 | `remote` | 1 |
 
-Override it per provider with `max_context_level`. The level actually used is the smaller of `[context] default_level` and the provider's maximum. A `remote` provider is **refused** unless the redaction layer is active, which it is by default.
+Override it per provider with `max_context_level`. The level actually used is the smaller of `[context] default_level` and the provider's maximum. A model on a `remote` provider is **refused** unless the redaction layer is active, which it is by default.
 
 ## Fallback chains
 
 ```toml
 [llm]
-chain = ["cloud", "local"]   # the first is primary, the rest are fallbacks in order
+chain = ["gpt", "qwen"]   # chat models: the first is primary, the rest are fallbacks in order
 ```
 
-If a provider fails before anything has been shown (offline, timeout, error status), the next one is tried. For each provider shellmate rebuilds the whole request: the context level is capped to that provider's maximum, the conversation history is assembled for that provider's trust, and redaction is applied. Nothing prepared for one provider ever reaches another. Once text has been shown to you, there is no fallback.
+If a model fails before anything has been shown (offline, timeout, error status), the next one is tried. For each model shellmate rebuilds the whole request: the context level is capped to its provider's maximum, the conversation history is assembled for its provider's trust, and redaction is applied. Nothing prepared for one model ever reaches another. Once text has been shown to you, there is no fallback.
 
 ## Tip: gemma and other reasoning models
 

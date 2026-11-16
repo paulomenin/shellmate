@@ -7,7 +7,7 @@ The "pipeline" is everything between a finished prompt and a stream of text comi
 
 ```mermaid
 flowchart TB
-    subgraph per["for each provider in [llm] chain"]
+    subgraph per["for each model in [llm] chain"]
         build["build_request<br/>level, history, tool offers, system prompt"]
         subgraph chain["llm middleware chain (outermost first)"]
             m1["layer 1<br/>builtin:redact"] --> m2["layer 2 ..."]
@@ -55,10 +55,10 @@ The chain runs **on every provider call**: each round of the tool loop (so tool 
 |---|---|
 | A provider call for the answer | Yes |
 | The next round after a tool result | Yes |
-| A fallback provider | Yes |
-| The LLM answering the semantic check questions | Yes |
-| A `remote` decider | Yes, its record passes through the chain first |
-| A `local` decider | No |
+| A fallback model | Yes |
+| A chat model answering the semantic check questions | Yes |
+| A decision model on a `remote` provider | Yes, its record passes through the chain first |
+| A decision model on a `local` provider | No |
 | A tool running a program | No (nothing leaves the machine) |
 
 ### `builtin:redact`
@@ -76,7 +76,7 @@ What it looks for:
 | Auth headers | `Authorization: Bearer ...`, `Basic ...`, `token ...` |
 | Command-line credentials | `curl -u user:pass`, `--password x`, `--token x`, `--api-key x` |
 | Assignments | `API_KEY=...`, `set -x TOKEN ...` for secret-looking names |
-| Your own rules | `[plugins."builtin:redact".settings] extra_patterns` |
+| Your own rules | `[plugins."builtin:redact"] extra_patterns` |
 
 Values that are never secrets are left alone: shell variables (`$TOKEN`), `env:` and `file:` references, existing placeholders, and `true`, `false`, `yes`, `no`, `null`, `0`, `1`.
 
@@ -97,7 +97,7 @@ The error is `privacy.no_redaction`, and the hint says to enable `builtin:redact
 
 ## 4. The provider chain and fallback
 
-`[llm] chain` lists providers, primary first. The engine tries them in order and **only falls back before anything has been shown or run**.
+`[llm] chain` lists chat models, primary first. The engine tries them in order and **only falls back before anything has been shown or run**.
 
 ```mermaid
 flowchart TD

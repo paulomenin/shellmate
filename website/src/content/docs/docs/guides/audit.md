@@ -22,7 +22,7 @@ Every event has a version, a timestamp, the event name, the shell session, the c
 | `request_started` | The action, the provider chain and how many earlier turns the conversation holds. |
 | `llm_call` | Provider, status (`ok` or an error code), latency, time to first token, token counts, and whether the next provider was tried as a fallback. |
 | `tool_call` | The tool name, the size of the request in bytes and the decision: `allow` (a `man` page), `preapproved` (one of your rules), `approved` (you said yes), `denied_by_user`, `denied_no_terminal` (nobody could be asked), `to_buffer` (you took the command to your own prompt) or `deny` (refused without asking). Never the request text or the result. |
-| `validation` | How many notes the command check produced and who answered the semantic check (`off`, `decider:<name>`, `llm`, `failed` or `timeout`). Never the notes themselves. |
+| `validation` | How many notes the command check produced and who answered the semantic check (`off`, `model:<name>`, `failed` or `timeout`). Never the notes themselves. |
 | `turn_finished` | The outcome, the audience (local-only or not), the context level, the duration and whether a command was placed in the buffer. |
 
 ### Where it lives

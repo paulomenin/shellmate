@@ -92,9 +92,9 @@ Strict: unknown keys are errors.
 
 | File | Responsibility |
 |---|---|
-| `mod.rs` | The `Config` struct, the provider chain, the middleware list |
+| `mod.rs` | The `Config` struct, the model chain, the middleware list |
 | `sections.rs` | `[runtime]`, `[context]`, `[validator]`, `[pipeline]`, `[ui]`, `[audit]`, `[conversation]`, `[actions]`, `[input]`, `[secrets]` |
-| `providers.rs` | `[providers]`, `[deciders]`, `[plugins]` and `Trust` |
+| `providers.rs` | `[providers]`, `[models]`, `[plugins]` and `Trust` |
 | `tools.rs` | `[tools.<name>]`: `enabled`, `approval`, `preapproved`, and the rest passed to the tool |
 | `load.rs` | Finding, reading and parsing the file; durations such as `30s` |
 | `validate.rs` | Static checks on a parsed config, with no secrets read and nothing built |

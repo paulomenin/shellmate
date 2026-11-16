@@ -39,7 +39,7 @@ shellmate is in **early development**. There is no release yet.
 | Command execution | Pipelines in `exec`, a fish-aware grammar, and `deny_patterns`. |
 | Quality | Execution-based eval cases (run the command in a sandbox), a larger case set, and prompt-change gating on the eval diff. Fuzzing the parsers, mutation testing of the remaining modules, and a scheduled mutation run in CI. |
 | Config | Per-directory profiles, for example a stricter provider chain under a client's directory. |
-| Secrets | A keyring plugin kind (Vault, KWallet over D-Bus, TPM) for when external plugins exist; `keyring:` today only runs `secret-tool` or `security`. |
+| Secrets | A keyring plugin kind (Vault, KWallet over D-Bus, TPM) for when external plugins exist; `keyring:` today only runs `secret-tool` or `security`. A `cmd:` secret of a decision model or a plugin is fetched at start-up, not on first use. |
 | Providers | More native providers, a built-in local model via candle, and sign-in with an existing subscription instead of an API key. The last one needs an OAuth login and a check that the provider's terms allow it, so it is only an idea. |
 | Tools | A web search tool and an MCP client, both behind the same approval model. |
 | Conversations | Summaries for long histories, interrupted turns, a file-backed store. |

@@ -29,20 +29,38 @@ Required. Unknown versions are rejected with a message.
 
 ## `[providers.<name>]`
 
+A provider is a **connection**: where the data goes. Models are reached through it (see below).
+
 | Key | Default | Meaning |
 |---|---|---|
-| `plugin` | none | The provider plugin. Today: `builtin:openai-compatible`. |
 | `trust` | `remote` | `local` or `remote`. Sets the default context ceiling and decides whether conversation turns may be replayed. |
-| `max_context_level` | 3 (local), 1 (remote) | Ceiling for the context level sent to this provider. |
-| `settings.*` | | Plugin settings, validated strictly. |
+| `max_context_level` | 3 (local), 1 (remote) | Ceiling for the context level sent to every model on this provider. |
+| `preset` | | A well-known service: `openrouter`, `openai`, `ollama`, `lmstudio` or `localai` (and `typesafe` for a decision model). It says where the server is. |
+| `endpoint` | | A base URL, instead of the preset's own. |
+| `api_key` | | A secret reference. The `openai` and `openrouter` presets read `OPENAI_API_KEY` and `OPENROUTER_API_KEY` when it is not set. |
+| `timeout_secs` | 60 for a chat model, 10 for a decision model | How long a request may take. |
 
-Settings of `builtin:openai-compatible`: `preset`, `endpoint`, `model`, `api_key`, `timeout_secs` (default 60), `reasoning_effort`. The `openai` and `openrouter` presets read `OPENAI_API_KEY` and `OPENROUTER_API_KEY` when `api_key` is not set. See [Providers](../../guides/providers/).
+The core keeps `trust` and `max_context_level`. The other keys are read by the plugins of the models on the provider, which refuse a key they do not know. See [Providers](../../guides/providers/).
+
+## `[models.<name>]`
+
+A model is **what you use from a connection**. One provider can offer several, of different kinds.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `provider` | none | The `[providers.<name>]` the model is reached through. |
+| `plugin` | none | `builtin:openai-compatible` for a chat model, `builtin:systemone` for a decision model. The plugin says which kind the model is. |
+| `model` | none | The model's name, as the server lists it. |
+| `reasoning_effort` | | Chat models: `none` is much faster with reasoning models. |
+| `path` | `/v1/systemone` | Decision models: where the format is served below the endpoint. `openrouter` has its own default, `/alpha/decisions`. |
+
+The core keeps `provider` and `plugin`. A key is set on the provider or on the model, never both.
 
 ## `[llm]`
 
 | Key | Default | Meaning |
 |---|---|---|
-| `chain` | `[]` | Provider names, primary first, then fallbacks in order. |
+| `chain` | `[]` | Names of chat models, primary first, then fallbacks in order. A decision model is refused here. |
 
 ## `[validator]`
 
@@ -51,21 +69,9 @@ See [Checking suggested commands](../../guides/validator/).
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | `true` | Deterministic checks: the line parses in your shell, programs exist, risk notes. |
-| `semantic` | `false` | Also ask a decision model (or the LLM) whether the command matches your request and how risky it is. |
-| `deciders` | `[]` | Names from `[deciders.<name>]`, tried in order. Empty means the LLM answers. |
-| `llm_fallback` | `true` | When no decider answers, let the LLM provider chain answer the same questions. |
+| `chain` | `[]` | Names of models that judge whether the command matches your request and how risky it is, tried in order. A decision model or a chat model. Empty means there is no semantic check. |
 | `timeout` | `5s` | Longest wait for the semantic check. On timeout it is skipped with a note. |
 | `min_confidence` | `0.8` | A semantic finding is shown only when the model is at least this sure (0.5 to 1). |
-
-## `[deciders.<name>]`
-
-Decision-model backends, configured like providers.
-
-| Key | Default | Meaning |
-|---|---|---|
-| `plugin` | none | Today: `builtin:systemone` (a `POST` to `path` below the endpoint). |
-| `trust` | `remote` | `local` or `remote`. A remote decider needs an active redaction layer. |
-| `settings.*` | | `preset` (the same names as providers: `openai`, `openrouter`, `ollama`, `lmstudio`, `localai`; and `typesafe`) or `endpoint`, `path` (default `/v1/systemone`, or the preset's own: `/alpha/decisions` for `openrouter`), `model`, `api_key` (`env:`, `file:`, `keyring:` or `cmd:` reference), `timeout_secs` (default 10). |
 
 ## `[context]`
 
@@ -186,15 +192,14 @@ pass_env    = ["PASSWORD_STORE_DIR"]
 
 ## `[plugins."<id>"]`
 
-Per-plugin switch and settings, for example the redaction layer:
+A switch and the settings of a middleware or store plugin, next to each other. The core reads `enabled`; the plugin reads the rest.
 
 ```toml
 [plugins."builtin:redact"]
 enabled = true
-[plugins."builtin:redact".settings]
 extra_patterns = [{ name = "internal-hosts", regex = '[a-z0-9-]+\.corp\.example\.com' }]
 
-[plugins."builtin:store-tmpfs".settings]
+[plugins."builtin:store-tmpfs"]
 dir = "/run/user/1000/shellmate-conversations"
 ```
 
@@ -203,24 +208,36 @@ dir = "/run/user/1000/shellmate-conversations"
 ```toml
 version = 1
 
-[providers.cloud]
-plugin = "builtin:openai-compatible"
+[providers.openrouter]
 trust = "remote"
-[providers.cloud.settings]
 preset = "openrouter"
-model = "~openai/gpt-luna-latest"
 api_key = "env:OPENROUTER_API_KEY"
 
-[providers.local]
-plugin = "builtin:openai-compatible"
+[providers.localai]
 trust = "local"
-[providers.local.settings]
-preset = "ollama"
-model = "your-model"       # as listed by `ollama list`
+preset = "localai"
+
+[models.gpt]
+provider = "openrouter"
+plugin = "builtin:openai-compatible"
+model = "~openai/gpt-luna-latest"
+
+[models.jev]
+provider = "openrouter"
+plugin = "builtin:systemone"
+model = "~typesafe/jev-latest"
+
+[models.qwen]
+provider = "localai"
+plugin = "builtin:openai-compatible"
+model = "your-model"       # as the server lists it
 timeout_secs = 180
 
 [llm]
-chain = ["cloud", "local"]
+chain = ["gpt", "qwen"]
+
+[validator]
+chain = ["jev", "qwen"]    # a decision model, then a chat model
 
 [context]
 default_level = 1

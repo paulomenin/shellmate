@@ -66,13 +66,13 @@ The `capture` action stops here. It wraps or unwraps the input line in `shellmat
 
 | Part | Built from | Notes |
 |---|---|---|
-| Providers | `[llm] chain`, each `[providers.<name>]` | Only the providers in the chain are built. |
-| Deciders | `[validator] deciders` | Only when `[validator] semantic = true`. |
+| Chat models | `[llm] chain`, each `[models.<name>]` and the `[providers.<name>]` it is reached through | Only the models in the chain are built. |
+| Models of the check | `[validator] chain` | A decision model, or a chat model that answers as JSON. Nothing is built when the chain is empty. |
 | `llm` middleware | `[pipeline] llm` | Minus plugins with `enabled = false`. |
 | Store | `[conversation] store` | An unusable store turns conversations off, with a note. |
 | Audit sink | `[audit]` | Absent when `enabled = false`. |
 
-Secret references (`env:`, `file:`, `cmd:`) in plugin settings are resolved here. A `cmd:` secret is not run yet: the provider is built twice, once with a placeholder to check the settings, and again on first use with the real value. A fallback provider that is never called never runs its program.
+Secret references (`env:`, `file:`, `cmd:`) in plugin settings are resolved here. A `cmd:` secret is not run yet: a chat model is built twice, once with a placeholder to check the settings, and again on first use with the real value. A fallback model that is never called never runs its program.
 
 Then `check_privacy` runs (INV-2): a provider or decider with `trust = "remote"` is refused unless a plugin with the `Redactor` role is active. See [The LLM pipeline](../llm-pipeline/).
 

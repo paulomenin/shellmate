@@ -11,9 +11,9 @@ Plugins depend only on `shellmate-api`. If you need something from `shellmate-co
 
 | Kind | Trait (in `crates/shellmate-api/src/`) | Register with | Configured under |
 |---|---|---|---|
-| Provider | `Provider` (`provider.rs`): `info`, `chat`, optional `chat_stream` | `register_provider` | `[providers.<name>]` with `plugin = "builtin:<id>"` and `[providers.<name>.settings]` |
-| Decider | `Decider` (`decider.rs`): `info`, `decide` | `register_decider` | `[deciders.<name>]`, same shape as providers |
-| `llm` middleware | `Middleware<ChatRequest, ChatStream>` (`middleware.rs`): `id`, `call(request, next)` | `register_llm_middleware(id, role, ctor)` | `[llm] middleware` list and `[plugins."builtin:<id>"]` (`enabled`, `settings`) |
+| Provider | `Provider` (`provider.rs`): `info`, `chat`, optional `chat_stream` | `register_provider` | `[models.<name>]` with `provider = "<name>"` and `plugin = "builtin:<id>"`. The provider (`[providers.<name>]`) is the connection: trust, endpoint, key. A model's settings and its provider's reach the plugin as one JSON object, and the plugin's own keys sit next to the core's (flat) |
+| Decider | `Decider` (`decider.rs`): `info`, `decide` | `register_decider` | `[models.<name>]`, the same shape as a chat model; the plugin id says it is a decision model. Listed in `[validator] chain` |
+| `llm` middleware | `Middleware<ChatRequest, ChatStream>` (`middleware.rs`): `id`, `call(request, next)` | `register_llm_middleware(id, role, ctor)` | `[llm] middleware` list and `[plugins."builtin:<id>"]` (`enabled`, then the plugin's own keys) |
 | Store | `Store` (`store.rs`) | `register_store` | the store section of the config |
 | Tool | `Tool` (`tool.rs`) | `register_tool` | `[tools.<name>]`. **Security-sensitive: follow `.agents/skills/add-tool/SKILL.md` instead.** |
 

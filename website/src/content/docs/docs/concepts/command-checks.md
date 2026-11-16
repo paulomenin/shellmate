@@ -1,6 +1,6 @@
 ---
 title: Command checks
-description: How a suggested command is checked before it reaches your input line, how the risk classifier decides, and how a decision model or the LLM can add a second opinion.
+description: How a suggested command is checked before it reaches your input line, how the risk classifier decides, and how a decision model or a chat model can add a second opinion.
 ---
 
 When `ask` or `generate` suggests a command, shellmate checks it before putting it in your input line. The checks are **advisory**: they add notes after the answer, above the input line that holds the command, and the command is still placed in the line. You decide. Nothing in this page can approve anything.
@@ -13,14 +13,12 @@ flowchart TD
     det --> syn["parses in your shell?"]
     det --> prog["programs exist in PATH?"]
     det --> risk["classifier risk"]
-    cmd --> sem{"[validator] semantic?"}
-    sem -- "yes" --> dec["decision models, in order"]
-    dec -- "none answered" --> llm["the LLM, if llm_fallback"]
+    cmd --> sem{"[validator] chain empty?"}
+    sem -- "no" --> dec["models of the chain, in order"]
     syn --> notes["notes after the answer"]
     prog --> notes
     risk --> notes
     dec --> notes
-    llm --> notes
 ```
 
 ## Deterministic checks
@@ -73,30 +71,26 @@ shellmate check --json 'ls -la'
 
 ## The semantic check
 
-Off by default. With `[validator] semantic = true`, a model also answers two typed questions about the command:
+Off by default. With a non-empty `[validator] chain`, a model also answers two typed questions about the command:
 
 | Question | Type | Asks |
 |---|---|---|
 | `match` | yes or no | Does the proposed command do exactly what the request asks, and nothing beyond it? |
 | `risk` | one of `read_only`, `changes`, `destructive` | How dangerous is running it on your machine? |
 
-The record sent holds three fields: your request, the proposed command, and your shell. The labels are fixed, so any decider can be pointed at them.
+The record sent holds three fields: your request, the proposed command, and your shell. The labels are fixed, so any decision model can be pointed at them.
 
 ```mermaid
 flowchart TD
-    ask["questions about the command"] --> d1{"decider 1"}
-    d1 -- "answers" --> use["use the answer"]
-    d1 -- "fails" --> d2{"decider 2 ..."}
-    d2 -- "answers" --> use
-    d2 -- "all fail or none set" --> fb{"llm_fallback?"}
-    fb -- "yes" --> llm["ask the LLM, provider by provider"]
-    fb -- "no" --> skipped["skipped, with a note"]
-    llm -- "answers" --> use
-    llm -- "none can" --> skipped
+    ask["questions about the command"] --> m1{"model 1"}
+    m1 -- "answers" --> use["use the answer"]
+    m1 -- "fails" --> m2{"model 2 ..."}
+    m2 -- "answers" --> use
+    m2 -- "all fail" --> skipped["skipped, with a note"]
 ```
 
-1. The deciders in `[validator] deciders` are tried **in order**. A `local` decider gets the record as is. A `remote` decider gets it only after it has passed through the `llm` middleware chain, so it is redacted like any other outbound text. If the chain changes the record's shape, the call is refused.
-2. If no decider answers, and `llm_fallback` is on (the default), the provider chain answers the same questions as a chat request. The record is delimited and labeled as data, the reply must be a single JSON object, and anything unreadable counts as no answer, never a guess. This too goes through the middleware chain.
+1. The models in `[validator] chain` are tried **in order**. A decision model on a `local` provider gets the record as is. One on a `remote` provider gets it only after it has passed through the `llm` middleware chain, so it is redacted like any other outbound text. If the chain changes the record's shape, the call is refused.
+2. A chat model in the chain answers the same questions as a chat request. The record is delimited and labeled as data, the reply must be a single JSON object, and anything unreadable counts as no answer, never a guess. This too goes through the middleware chain.
 3. The whole check has a limit (`[validator] timeout`, default 5 s). A failure or a timeout adds the note "the semantic check was skipped: ..." and never blocks the answer.
 
 Only confident findings are shown (`[validator] min_confidence`, default 0.8, range 0.5 to 1):
@@ -106,4 +100,4 @@ Only confident findings are shown (`[validator] min_confidence`, default 0.8, ra
 
 ## What is recorded
 
-One `validation` audit event per request, with the number of notes and who answered (`off`, `decider:<name>`, `llm`, `failed` or `timeout`). Never the notes or the command. See [Audit log and --explain](../../guides/audit/).
+One `validation` audit event per request, with the number of notes and who answered (`off`, `model:<name>`, `failed` or `timeout`). Never the notes or the command. See [Audit log and --explain](../../guides/audit/).

@@ -1,6 +1,6 @@
 ---
 title: Checking suggested commands
-description: Notes shown after the answer, just above the suggested command, and optional decision models that judge whether it matches your request.
+description: Notes shown after the answer, just above the suggested command, and optional models that judge whether it matches your request.
 ---
 
 Before a suggested command reaches your input line, shellmate checks it. The checks only add notes after the answer, above the input line that now holds the command. **The command is always still placed in your input line**, and you decide.
@@ -22,7 +22,7 @@ $ find . -name '*.py' -size +1M -delete█
 
 Turn them off with `[validator] enabled = false`.
 
-## Optional: a decision model
+## Optional: a model that judges the command
 
 A **decision model** is a small classifier, not a chat model. You give it a record and a typed question and it answers with a label and probabilities in one forward pass, in milliseconds, with no text generation. shellmate asks two questions about every suggestion:
 
@@ -31,52 +31,63 @@ A **decision model** is a small classifier, not a chat model. You give it a reco
 
 A finding is shown only when the model is at least `min_confidence` sure (default 80%). Unsure answers stay silent.
 
-It is **off by default**. To turn it on, configure a decider the way you configure a provider:
+It is **off by default**. To turn it on, define a decision model and put it in `[validator] chain`. A decision model is a `[models.<name>]` with `plugin = "builtin:systemone"`, reached through a [provider](../providers/), like a chat model:
 
 ```toml
-[validator]
-semantic = true
-deciders = ["checker"]        # tried in order
-
-[deciders.checker]
-plugin = "builtin:systemone"
+[providers.openrouter]
 trust = "remote"
-[deciders.checker.settings]
 preset = "openrouter"         # reads OPENROUTER_API_KEY
+
+[models.checker]
+provider = "openrouter"
+plugin = "builtin:systemone"
 model = "~typesafe/jev-latest" # a "latest" alias: it follows the newest release
+
+[validator]
+chain = ["checker"]           # tried in order
 ```
 
-The `openrouter` preset calls OpenRouter's Decisions API, which is in alpha, so its path may change. To call TypeSafe directly instead, use `preset = "typesafe"` and `model = "jev-latest"`. To keep the check on your machine, use a decision model served locally (`preset = "ollama"`, `trust = "local"`).
+The provider can be the same one your chat model uses. A model on a provider shares its trust, endpoint and key.
+
+The `openrouter` preset calls OpenRouter's Decisions API, which is in alpha, so its path may change. To call TypeSafe directly instead, use a provider with `preset = "typesafe"` and a model `jev-latest`. To keep the check on your machine, use a decision model served locally (a provider with `preset = "ollama"` and `trust = "local"`).
 
 `builtin:systemone` speaks the System One wire format: a `state` and typed `questions`, answered with labels and probabilities. Hosted APIs such as TypeSafe's, Ollama's decision models and [Ollaya](https://github.com/ollaya-dev/ollaya) serve it. Point it at any of them, and change the model by changing `model`.
 
-The format is served at `/v1/systemone` below the endpoint, except where a preset knows better: `openrouter` uses `/alpha/decisions`. Set `path` to use another one. A preset's path applies only while the endpoint is the preset's own, so a custom `endpoint` gets `/v1/systemone` unless you set `path`. `preset` takes the same names as [providers](../providers/#presets-and-endpoints) (`openai`, `openrouter`, `ollama`, `lmstudio`, `localai`) with the same default key variables, and one more, `typesafe` (`https://api.typesafe.ai`, key from `TYPESAFE_API_KEY`, model `jev-latest`). Only a server that serves the format can be a decider. Use `endpoint` for any other:
+The format is served at `/v1/systemone` below the endpoint, except where a preset knows better: `openrouter` uses `/alpha/decisions`. Set `path` on the model to use another one. A preset's path applies only while the endpoint is the preset's own, so a custom `endpoint` gets `/v1/systemone` unless you set `path`. `preset` takes the same names as [providers](../providers/#presets-and-endpoints) (`openai`, `openrouter`, `ollama`, `lmstudio`, `localai`) with the same default key variables, and one more, `typesafe` (`https://api.typesafe.ai`, key from `TYPESAFE_API_KEY`, model `jev-latest`). Only a server that serves the format can host a decision model. Use `endpoint` on the provider for any other:
 
 ```toml
-[deciders.hosted]
-plugin = "builtin:systemone"
+[providers.hosted]
 trust = "remote"
-[deciders.hosted.settings]
 endpoint = "https://decisions.example.com"
-model = "some-decision-model"
 api_key = "env:DECISIONS_API_KEY"
+
+[models.hosted]
+provider = "hosted"
+plugin = "builtin:systemone"
+model = "some-decision-model"
 ```
 
-### No decision model? The LLM answers
+### A chat model can judge too
 
-With `semantic = true` and no `deciders` (or none reachable), your normal [LLM provider](../providers/) answers the same two questions as a short JSON reply. This costs a second, small request. Turn it off with `llm_fallback = false`; then the check is skipped, visibly.
+A chat model in `[validator] chain` answers the same two questions as a short JSON reply. This costs a small extra request. It is how you get a check without a decision model, and it works as a fallback after one:
+
+```toml
+[validator]
+chain = ["checker", "qwen"]   # the decision model first, then a chat model
+```
+
+Nothing asks a chat model unless you list it. With an empty chain there is no semantic check.
 
 ### Order of attempts
 
-1. Each decider in `validator.deciders`, in order. A decider that is down or answers in an unreadable way is skipped.
-2. The LLM, if `llm_fallback` is on.
-3. Otherwise a note says the semantic check was skipped, and why.
+1. Each model in `[validator] chain`, in order. One that is down or answers in an unreadable way is skipped.
+2. If none answers, a note says the semantic check was skipped, and why.
 
 ## Privacy
 
-- A decider gets only your request, the proposed command and the name of your shell. Nothing else from your context.
-- Deciders have a `trust` like providers. A **remote** decider is refused unless a redaction layer is active, and the text sent to it goes through the redaction chain first. A cleartext `http://` endpoint is accepted only for loopback hosts. API keys are `env:` or `file:` references, never inline.
-- `config check` validates the deciders without contacting them. `config show` lists them.
+- A model in the chain gets only your request, the proposed command and the name of your shell. Nothing else from your context.
+- A model takes its `trust` from its provider. A model on a **remote** provider is refused unless a redaction layer is active, and the text sent to it goes through the redaction chain first. A cleartext `http://` endpoint is accepted only for loopback hosts. API keys are `env:` or `file:` references, never inline.
+- `config check` validates the models without contacting them. `config show` lists them.
 - The audit log records that a validation happened and how many notes it produced, never the text.
 
 ## Setting expectations
@@ -92,8 +103,8 @@ Ollama unloads a model when it is idle, and by default keeps only one model load
 - Give the check time to load the model: `[validator] timeout = "20s"`.
 - Keep both models in memory (if they fit): start Ollama with `OLLAMA_KEEP_ALIVE=1h OLLAMA_MAX_LOADED_MODELS=2`.
 
-`shellmate doctor` checks that each decider's endpoint accepts a connection (a TCP connect; nothing is sent, and the model is not loaded by the check) and warns when a decision model is configured with a `timeout` under 15 seconds.
+`shellmate doctor` checks that each decision model's endpoint accepts a connection (a TCP connect; nothing is sent, and the model is not loaded by the check) and warns when a decision model is configured with a `timeout` under 15 seconds.
 
 ## Settings
 
-See [`[validator]` and `[deciders.<name>]`](../../reference/configuration/#validator).
+See [`[validator]`](../../reference/configuration/#validator) and [`[models.<name>]`](../../reference/configuration/#modelsname).
