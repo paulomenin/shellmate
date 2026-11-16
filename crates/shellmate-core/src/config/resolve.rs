@@ -4,38 +4,27 @@ use super::Config;
 use crate::ports::Host;
 use crate::secret_cmd::CmdOptions;
 use crate::secrets;
-use shellmate_api::{Error, Registry, Result};
+use shellmate_api::{Error, ModelKind, Registry, Result};
 
 impl Config {
-    /// Settings of a provider as JSON with secret references resolved.
-    pub fn resolved_settings(&self, provider: &str, host: &Host) -> Result<serde_json::Value> {
-        let p = self.providers.get(provider).ok_or_else(|| {
-            Error::new("config.invalid", format!("unknown provider `{provider}`"))
-        })?;
-        resolve_table(
-            &format!("providers.{provider}.settings"),
-            &p.settings,
+    /// What a model's plugin is given as JSON with secret references resolved: the settings of the provider it is
+    /// reached through and its own, in one table. A key is never in both (`check_static`).
+    pub fn resolved_model_settings(&self, model: &str, host: &Host) -> Result<serde_json::Value> {
+        let m = self.model(model)?;
+        let mut out = resolve_table(
+            &format!("providers.{}", m.model.provider),
+            &m.provider.settings,
             host,
             &self.cmd_options(),
-        )
-    }
-
-    /// Settings of a decider as JSON with secret references resolved.
-    pub fn resolved_decider_settings(
-        &self,
-        decider: &str,
-        host: &Host,
-    ) -> Result<serde_json::Value> {
-        let d = self
-            .deciders
-            .get(decider)
-            .ok_or_else(|| Error::new("config.invalid", format!("unknown decider `{decider}`")))?;
-        resolve_table(
-            &format!("deciders.{decider}.settings"),
-            &d.settings,
+        )?;
+        let own = resolve_table(
+            &format!("models.{model}"),
+            &m.model.settings,
             host,
             &self.cmd_options(),
-        )
+        )?;
+        merge(&mut out, own);
+        Ok(out)
     }
 
     /// The tool's own settings (everything under `[tools.<name>]` but the keys the core keeps) as JSON with
@@ -57,7 +46,7 @@ impl Config {
     pub fn plugin_settings(&self, id: &str, host: &Host) -> Result<serde_json::Value> {
         match self.plugins.get(id) {
             Some(p) => resolve_table(
-                &format!("plugins.\"{id}\".settings"),
+                &format!("plugins.\"{id}\""),
                 &p.settings,
                 host,
                 &self.cmd_options(),
@@ -66,29 +55,69 @@ impl Config {
         }
     }
 
-    /// Full check used by `config check`: instantiate every provider (no network).
+    /// Full check used by `config check`: instantiate every model (no network), and see that the `llm` chain
+    /// holds only chat models.
     pub fn validate_with(&self, registry: &Registry, host: &Host) -> Result<()> {
-        for name in self.providers.keys() {
-            let id = builtin_id(&self.providers[name].plugin)?;
-            let settings = self.lazy_settings(name, host)?;
-            registry
-                .build_provider(id, settings.probe())
-                .map_err(|mut e| {
-                    e.message = format!("providers.{name}: {}", e.message);
-                    e
-                })?;
+        for (name, m) in &self.models {
+            let id = builtin_id(&m.plugin)?;
+            let kind = registry
+                .model_kind(id)
+                .map_err(|e| Error::new(e.code, format!("models.{name}: {}", e.message)))?;
+            let settings = self.lazy_model_settings(name, host)?;
+            let named = |mut e: Error| {
+                e.message = format!("models.{name}: {}", e.message);
+                e
+            };
+            match kind {
+                ModelKind::Chat => registry
+                    .build_provider(id, settings.probe())
+                    .map(|_| ())
+                    .map_err(named)?,
+                ModelKind::Decision => registry
+                    .build_decider(id, settings.probe())
+                    .map(|_| ())
+                    .map_err(named)?,
+            }
         }
-        for name in self.deciders.keys() {
-            let id = builtin_id(&self.deciders[name].plugin)?;
-            let settings = self.lazy_decider_settings(name, host)?;
-            registry
-                .build_decider(id, settings.probe())
-                .map_err(|mut e| {
-                    e.message = format!("deciders.{name}: {}", e.message);
-                    e
-                })?;
+        for name in &self.llm.chain {
+            let id = builtin_id(&self.model(name)?.model.plugin)?;
+            if registry.model_kind(id)? != ModelKind::Chat {
+                let chat: Vec<&str> = self
+                    .models
+                    .iter()
+                    .filter(|(_, m)| {
+                        builtin_id(&m.plugin)
+                            .ok()
+                            .and_then(|id| registry.model_kind(id).ok())
+                            == Some(ModelKind::Chat)
+                    })
+                    .map(|(n, _)| n.as_str())
+                    .collect();
+                return Err(Error::new(
+                    "config.wrong_kind",
+                    format!(
+                        "llm.chain: `{name}` is a decision model, and only a chat model can answer"
+                    ),
+                )
+                .with_hint(if chat.is_empty() {
+                    "add a chat model, for example plugin = \"builtin:openai-compatible\""
+                        .to_string()
+                } else {
+                    format!(
+                        "chat models: {} (decision models belong in [validator] chain)",
+                        chat.join(", ")
+                    )
+                }));
+            }
         }
         Ok(())
+    }
+}
+
+/// Add the keys of `from` to `into`. Both are JSON objects built from tables that share no key.
+fn merge(into: &mut serde_json::Value, from: serde_json::Value) {
+    if let (Some(into), serde_json::Value::Object(from)) = (into.as_object_mut(), from) {
+        into.extend(from);
     }
 }
 
@@ -145,7 +174,7 @@ const PENDING: &str = "<fetched on first use>";
 struct Pending {
     /// The setting name, for the plugin's table.
     name: String,
-    /// The config path, for messages: `providers.work.settings.api_key`.
+    /// The config path, for messages: `providers.work.api_key`.
     path: String,
     line: String,
 }
@@ -199,43 +228,36 @@ impl Config {
             }
         };
         for (n, p) in &self.providers {
-            scan(format!("providers.{n}.settings"), &p.settings);
+            scan(format!("providers.{n}"), &p.settings);
         }
-        for (n, d) in &self.deciders {
-            scan(format!("deciders.{n}.settings"), &d.settings);
+        for (n, m) in &self.models {
+            scan(format!("models.{n}"), &m.settings);
         }
         for (n, p) in &self.plugins {
-            scan(format!("plugins.\"{n}\".settings"), &p.settings);
+            scan(format!("plugins.\"{n}\""), &p.settings);
         }
         out
     }
 
-    /// Like [`Config::resolved_settings`], but a `cmd:` secret is only checked (the line splits and the
+    /// Like [`Config::resolved_model_settings`], but a `cmd:` secret is only checked (the line splits and the
     /// program exists), not run.
-    pub fn lazy_settings(&self, provider: &str, host: &Host) -> Result<LazySettings> {
-        let p = self.providers.get(provider).ok_or_else(|| {
-            Error::new("config.invalid", format!("unknown provider `{provider}`"))
-        })?;
-        lazy_table(
-            &format!("providers.{provider}.settings"),
-            &p.settings,
+    pub fn lazy_model_settings(&self, model: &str, host: &Host) -> Result<LazySettings> {
+        let m = self.model(model)?;
+        let mut out = lazy_table(
+            &format!("providers.{}", m.model.provider),
+            &m.provider.settings,
             host,
             self.cmd_options(),
-        )
-    }
-
-    /// Like [`Config::resolved_decider_settings`], without running `cmd:` secrets.
-    pub fn lazy_decider_settings(&self, decider: &str, host: &Host) -> Result<LazySettings> {
-        let d = self
-            .deciders
-            .get(decider)
-            .ok_or_else(|| Error::new("config.invalid", format!("unknown decider `{decider}`")))?;
-        lazy_table(
-            &format!("deciders.{decider}.settings"),
-            &d.settings,
+        )?;
+        let own = lazy_table(
+            &format!("models.{model}"),
+            &m.model.settings,
             host,
             self.cmd_options(),
-        )
+        )?;
+        merge(&mut out.probe, own.probe);
+        out.pending.extend(own.pending);
+        Ok(out)
     }
 }
 

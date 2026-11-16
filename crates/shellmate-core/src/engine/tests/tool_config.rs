@@ -104,8 +104,8 @@ fn registry_seen(
 fn config(tools: &str) -> Config {
     Config::parse(&format!(
         "version = 1\n[llm]\nchain = [\"p\"]\n[conversation]\nstore = \"none\"\n[audit]\nenabled = false\n\
-         [pipeline]\nllm = []\n[providers.p]\nplugin = \"builtin:fake\"\ntrust = \"local\"\n\
-         [providers.p.settings]\nmodel = \"m\"\n{tools}"
+         [pipeline]\nllm = []\n[providers.p]\ntrust = \"local\"\n\
+         [models.p]\nprovider = \"p\"\nplugin = \"builtin:fake\"\nmodel = \"m\"\n{tools}"
     ))
     .unwrap()
 }

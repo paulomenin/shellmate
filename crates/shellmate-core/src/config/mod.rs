@@ -40,9 +40,9 @@ pub struct Config {
     pub providers: BTreeMap<String, ProviderConfig>,
     #[serde(default)]
     pub llm: Llm,
-    /// Decision-model backends, configured like providers (`[deciders.<name>]`).
+    /// Models, each reached through a provider (`[models.<name>]`).
     #[serde(default)]
-    pub deciders: BTreeMap<String, ProviderConfig>,
+    pub models: BTreeMap<String, ModelConfig>,
     #[serde(default)]
     pub validator: Validator,
     #[serde(default)]
@@ -64,9 +64,17 @@ pub struct Config {
     pub audit: AuditConfig,
     #[serde(default)]
     pub secrets: SecretsConfig,
-    /// Plugin instances by id (`builtin:redact`): `enabled` and `settings`.
+    /// Plugin instances by id (`builtin:redact`): `enabled`, then the plugin's own settings.
     #[serde(default)]
     pub plugins: BTreeMap<String, PluginConfig>,
+}
+
+/// A model with the provider it is reached through.
+#[derive(Debug, Clone, Copy)]
+pub struct ModelRef<'a> {
+    pub name: &'a str,
+    pub model: &'a ModelConfig,
+    pub provider: &'a ProviderConfig,
 }
 
 /// The `serde` default for switches that are on unless turned off.
@@ -101,21 +109,39 @@ impl Config {
         parse_duration(text).unwrap_or(std::time::Duration::from_secs(30 * 60))
     }
 
-    /// Provider names in fallback order. Errors when nothing is configured.
-    pub fn provider_chain(&self) -> Result<Vec<&str>> {
-        let chain: Vec<&str> = if self.llm.chain.is_empty() {
-            self.providers.keys().take(1).map(String::as_str).collect()
-        } else {
-            self.llm.chain.iter().map(String::as_str).collect()
-        };
-        if chain.is_empty() {
+    /// The models of the `llm` chain in fallback order. Errors when the chain is empty.
+    pub fn model_chain(&self) -> Result<Vec<&str>> {
+        if self.llm.chain.is_empty() {
             return Err(Error::new(
                 "config.no_provider",
-                "shellmate isn't configured yet (no LLM provider)",
+                "shellmate isn't configured yet (no LLM model)",
             )
-            .with_hint("run `shellmate setup`, or choose a provider in the config (`shellmate config edit`)"));
+            .with_hint("run `shellmate setup`, or set `[llm] chain` to a model of `[models.<name>]` (`shellmate config edit`)"));
         }
-        Ok(chain)
+        Ok(self.llm.chain.iter().map(String::as_str).collect())
+    }
+
+    /// The model and the provider it is reached through. Names in the config are checked by `check_static`,
+    /// so an unknown one here is a programming error reported as a config error.
+    pub fn model<'a>(&'a self, name: &'a str) -> Result<ModelRef<'a>> {
+        let model = self
+            .models
+            .get(name)
+            .ok_or_else(|| Error::new("config.invalid", format!("unknown model `{name}`")))?;
+        let provider = self.providers.get(&model.provider).ok_or_else(|| {
+            Error::new(
+                "config.invalid",
+                format!(
+                    "models.{name} refers to unknown provider `{}`",
+                    model.provider
+                ),
+            )
+        })?;
+        Ok(ModelRef {
+            name,
+            model,
+            provider,
+        })
     }
 
     /// The `llm` middleware ids to run, outermost first, `"..."` expanded to the defaults and

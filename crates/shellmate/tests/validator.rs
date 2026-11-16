@@ -16,9 +16,9 @@ fn systemone(match_p: f32, risk: &str) -> String {
 
 fn cfg(llm_url: &str, decider_url: &str, extra: &str) -> String {
     format!(
-        "{}\n[validator]\nsemantic = true\ndeciders = [\"laya\"]\nllm_fallback = false\n\
-         [deciders.laya]\nplugin = \"builtin:systemone\"\ntrust = \"local\"\n\
-         [deciders.laya.settings]\nendpoint = \"{decider_url}\"\nmodel = \"laya\"\n{extra}",
+        "{}\n[validator]\nchain = [\"laya\"]\n\
+         [providers.laya]\ntrust = \"local\"\nendpoint = \"{decider_url}\"\n\
+         [models.laya]\nprovider = \"laya\"\nplugin = \"builtin:systemone\"\nmodel = \"laya\"\n{extra}",
         config(llm_url)
     )
 }
@@ -78,9 +78,9 @@ async fn a_remote_decider_only_sees_redacted_text() {
     let c = remote_config(
         &llm.url(),
         &format!(
-            "[validator]\nsemantic = true\ndeciders = [\"hosted\"]\nllm_fallback = false\n\
-             [deciders.hosted]\nplugin = \"builtin:systemone\"\ntrust = \"remote\"\n\
-             [deciders.hosted.settings]\nendpoint = \"{}\"\nmodel = \"m\"\n",
+            "[validator]\nchain = [\"hosted\"]\n\
+             [providers.hosted]\ntrust = \"remote\"\nendpoint = \"{}\"\n\
+             [models.hosted]\nprovider = \"hosted\"\nplugin = \"builtin:systemone\"\nmodel = \"m\"\n",
             decider.url()
         ),
     );
@@ -109,9 +109,9 @@ async fn a_remote_decider_is_refused_when_redaction_is_off() {
     let llm = MockHttpServer::start(200, &completion(REPLY)).await;
     let decider = MockHttpServer::start(200, &systemone(0.9, "read_only")).await;
     let c = format!(
-        "{}\n[pipeline]\nllm = []\n[validator]\nsemantic = true\ndeciders = [\"hosted\"]\n\
-         [deciders.hosted]\nplugin = \"builtin:systemone\"\ntrust = \"remote\"\n\
-         [deciders.hosted.settings]\nendpoint = \"{}\"\nmodel = \"m\"\n",
+        "{}\n[pipeline]\nllm = []\n[validator]\nchain = [\"hosted\"]\n\
+         [providers.hosted]\ntrust = \"remote\"\nendpoint = \"{}\"\n\
+         [models.hosted]\nprovider = \"hosted\"\nplugin = \"builtin:systemone\"\nmodel = \"m\"\n",
         config(&llm.url()),
         decider.url()
     );
@@ -130,13 +130,13 @@ async fn a_remote_decider_is_refused_when_redaction_is_off() {
 }
 
 #[test]
-fn config_check_rejects_unknown_deciders_and_bad_thresholds() {
+fn config_check_rejects_unknown_models_and_bad_thresholds() {
     for (extra, want) in [
-        ("[validator]\ndeciders = [\"ghost\"]\n", "unknown decider `ghost`"),
+        ("[validator]\nchain = [\"ghost\"]\n", "unknown model `ghost`"),
         ("[validator]\nmin_confidence = 0.2\n", "min_confidence"),
         ("[validator]\ntimeout = \"soon\"\n", "validator.timeout"),
-        ("[deciders.x]\nplugin = \"builtin:nope\"\n[deciders.x.settings]\nmodel = \"m\"\nendpoint = \"http://127.0.0.1:1\"\n", "no decider plugin `nope`"),
-        ("[deciders.x]\nplugin = \"builtin:systemone\"\n[deciders.x.settings]\nmodel = \"m\"\nendpoint = \"http://10.0.0.1:1\"\n", "non-loopback"),
+        ("[providers.x]\nendpoint = \"http://127.0.0.1:1\"\n[models.x]\nprovider = \"x\"\nplugin = \"builtin:nope\"\nmodel = \"m\"\n", "no model plugin `nope`"),
+        ("[providers.x]\nendpoint = \"http://10.0.0.1:1\"\n[models.x]\nprovider = \"x\"\nplugin = \"builtin:systemone\"\nmodel = \"m\"\n", "non-loopback"),
     ] {
         let c = format!("{}\n{extra}", config("http://127.0.0.1:1"));
         let r = run(&["config", "check"], &c, b"");

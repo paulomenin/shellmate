@@ -46,20 +46,51 @@ pub struct Backend {
 }
 
 impl Backend {
-    /// The `[..settings]` lines of the backend.
-    fn settings(&self) -> String {
-        let mut s = String::new();
+    /// The name of the `[providers.<name>]` for this backend: the preset, or `custom` for a base URL.
+    fn provider_name(&self) -> String {
+        self.preset.clone().unwrap_or_else(|| "custom".to_string())
+    }
+
+    /// Whether two backends are reached the same way, so one `[providers.<name>]` serves both.
+    fn same_connection(&self, other: &Backend) -> bool {
+        self.preset == other.preset
+            && self.endpoint == other.endpoint
+            && self.api_key == other.api_key
+            && self.trust == other.trust
+    }
+
+    /// The `[providers.<name>]` table: where the data goes.
+    fn provider_block(&self, name: &str) -> String {
+        let mut s = format!(
+            "[providers.{name}]\n\
+             # local: runs on this machine (may see more context, redaction optional)\n\
+             # remote: leaves this machine (context capped at level 1, redaction required)\n\
+             trust = \"{}\"\n",
+            self.trust
+        );
         if let Some(p) = &self.preset {
             s.push_str(&format!("preset = \"{p}\"\n"));
         }
         if let Some(e) = &self.endpoint {
             s.push_str(&format!("endpoint = \"{e}\"\n"));
         }
-        s.push_str(&format!("model = \"{}\"\n", self.model));
         if let Some(k) = &self.api_key {
             s.push_str(&format!(
                 "api_key = \"{k}\"   # a reference; never paste the key here\n"
             ));
+        }
+        s.push_str("# timeout_secs = 60\n");
+        s
+    }
+
+    /// The `[models.<name>]` table: what is used from the provider.
+    fn model_block(&self, name: &str, provider: &str, plugin: &str) -> String {
+        let mut s = format!(
+            "[models.{name}]\nprovider = \"{provider}\"\nplugin = \"{plugin}\"\nmodel = \"{}\"\n",
+            self.model
+        );
+        if plugin == "builtin:openai-compatible" {
+            s.push_str("# reasoning_effort = \"none\"   # much faster with reasoning models\n");
         }
         s
     }
@@ -164,7 +195,7 @@ pub fn template_for(
 }
 
 /// An active starting config for `main`, and for a `checker` (a decision model that judges each suggested
-/// command) when there is one.
+/// command) when there is one. A checker reached the same way as `main` shares its provider.
 pub fn template_with(
     main: &Backend,
     checker: Option<&Backend>,
@@ -175,24 +206,38 @@ pub fn template_with(
         c.check()?;
     }
     let level: u8 = if main.trust == "local" { 2 } else { 1 };
-    let common = common(level, capture_key(shell), checker);
-    let settings = main.settings();
-    let trust = main.trust;
+    let common = common(level, capture_key(shell), checker.is_some());
+    let main_provider = main.provider_name();
+    let mut tables = format!(
+        "{}\n{}",
+        main.provider_block(&main_provider),
+        main.model_block("main", &main_provider, "builtin:openai-compatible")
+    );
+    if let Some(c) = checker {
+        let provider = if c.same_connection(main) {
+            main_provider.clone()
+        } else {
+            let own = c.provider_name();
+            let own = if own == main_provider {
+                "checker".to_string()
+            } else {
+                own
+            };
+            tables.push('\n');
+            tables.push_str(&c.provider_block(&own));
+            own
+        };
+        tables.push('\n');
+        tables.push_str(&c.model_block("checker", &provider, "builtin:systemone"));
+    }
     Ok(format!(
         r#"# shellmate configuration (docs: https://github.com/paulomenin/shellmate)
 version = 1
 
-[providers.main]
-plugin = "builtin:openai-compatible"
-# local: runs on this machine (may see more context, redaction optional)
-# remote: leaves this machine (context capped at level 1, redaction required)
-trust = "{trust}"
-[providers.main.settings]
-{settings}# reasoning_effort = "none"   # much faster with reasoning models
-# timeout_secs = 60
-
+# A provider is a connection (where the data goes). A model is what you use from it.
+{tables}
 [llm]
-chain = ["main"]          # add fallbacks: ["main", "backup"]
+chain = ["main"]          # chat models, primary first; add fallbacks: ["main", "backup"]
 
 {common}"#
     ))
@@ -201,41 +246,28 @@ chain = ["main"]          # add fallbacks: ["main", "backup"]
 /// Everything after the provider section, shared by the active and the commented starting config.
 /// The checker example of a config that has none yet.
 const COMMENTED_CHECKER: &str = r#"#
-# [deciders.checker]
+# [models.checker]
+# provider = "openrouter"           # a provider of its own, or the one the chat model uses
 # plugin = "builtin:systemone"      # a decision model: any server that speaks the System One format
-# trust = "remote"
-# [deciders.checker.settings]
-# preset = "openrouter"             # reads OPENROUTER_API_KEY; or: endpoint = "https://..." (and path = "/v1/systemone")
 # model = "~typesafe/jev-latest"    # a "latest" alias: it follows the newest release
-# api_key = "env:CHECKER_API_KEY"   # to use another key variable
+# # path = "/v1/systemone"          # where the format is served below the endpoint
 #
-# Or call TypeSafe directly with preset = "typesafe" (reads TYPESAFE_API_KEY) and model = "jev-latest".
-# A decision model on this machine keeps the check local: use preset = "ollama" and trust = "local",
+# Or call TypeSafe directly: a provider with preset = "typesafe" (reads TYPESAFE_API_KEY) and model = "jev-latest".
+# A decision model on this machine keeps the check local: a provider with preset = "ollama" and trust = "local",
 # with the model name your server lists.
 "#;
 
-fn common(level: u8, capture_key: &str, checker: Option<&Backend>) -> String {
-    let (validator_on, decider_block) = match checker {
-        Some(c) => (
-            concat!(
-                "semantic = true\n",
-                "deciders = [\"checker\"]      # tried in order; with none, the LLM answers the same questions\n"
-            )
-            .to_string(),
-            format!(
-                "\n[deciders.checker]\nplugin = \"builtin:systemone\"\ntrust = \"{}\"\n[deciders.checker.settings]\n{}",
-                c.trust,
-                c.settings()
-            ),
-        ),
-        None => (
-            concat!(
-                "# semantic = true\n",
-                "# deciders = [\"checker\"]      # tried in order; with none, the LLM answers the same questions\n"
-            )
-            .to_string(),
-            COMMENTED_CHECKER.to_string(),
-        ),
+fn common(level: u8, capture_key: &str, checker: bool) -> String {
+    let (validator_on, decider_block) = if checker {
+        (
+            "chain = [\"checker\"]          # models that judge the command, tried in order; a chat model works too\n",
+            "",
+        )
+    } else {
+        (
+            "# chain = [\"checker\"]          # models that judge the command, tried in order; a chat model works too\n",
+            COMMENTED_CHECKER,
+        )
     };
     format!(
         r#"[context]
@@ -259,7 +291,7 @@ idle_timeout = "30m"       # a conversation idle this long is replaced by a new 
 [validator]
 # Every suggested command is checked before it reaches your input line: it must parse in your shell, its
 # programs must exist, and risky commands get a note. The command is always still placed; you decide.
-# To also ask a decision model whether the command matches your request (off by default):
+# To also ask a model whether the command matches your request (off by default, so the chain is empty):
 {validator_on}# timeout = "5s"              # raise it if the model loads slowly
 # min_confidence = 0.8        # only findings at least this sure are shown
 {decider_block}
@@ -288,36 +320,41 @@ persist = false            # true keeps the audit log across logins (retention a
 /// A starting config with no provider chosen: the examples are comments, to be uncommented one at a time.
 /// It is a valid config. Until a provider is set up, `invoke` says so.
 pub fn template_commented(shell: Option<&str>) -> String {
-    let common = common(1, capture_key(shell), None);
+    let common = common(1, capture_key(shell), false);
     format!(
         r#"# shellmate configuration (docs: https://github.com/paulomenin/shellmate)
 version = 1
 
-# Choose where answers come from: uncomment ONE provider below and the [llm] chain, or run `shellmate setup`.
+# Choose where answers come from: uncomment ONE provider and its model below, and the [llm] chain, or run
+# `shellmate setup`. A provider is a connection (where the data goes). A model is what you use from it.
 # Until a provider is set up, shellmate says so and does nothing else.
 
 # A hosted model through OpenRouter. The key is read from OPENROUTER_API_KEY; export it in your shell.
 # A remote provider sees at most context level 1, and redaction must be on (it is by default).
 #
-# [providers.main]
-# plugin = "builtin:openai-compatible"
+# [providers.openrouter]
 # trust = "remote"
-# [providers.main.settings]
 # preset = "openrouter"
-# model = "~openai/gpt-luna-latest"   # a "latest" alias: it follows the newest release, and so does its price
 # api_key = "env:MY_KEY_VARIABLE"     # to use another key variable
+#
+# [models.main]
+# provider = "openrouter"
+# plugin = "builtin:openai-compatible"
+# model = "~openai/gpt-luna-latest"   # a "latest" alias: it follows the newest release, and so does its price
 
 # A model on this machine (Ollama, LM Studio or LocalAI): nothing leaves your computer.
 #
 # [providers.local]
-# plugin = "builtin:openai-compatible"
 # trust = "local"
-# [providers.local.settings]
 # preset = "ollama"                   # or lmstudio, localai; or: endpoint = "http://localhost:8000"
+#
+# [models.local]
+# provider = "local"
+# plugin = "builtin:openai-compatible"
 # model = "the-model-your-server-lists"
 
 # [llm]
-# chain = ["main"]          # add fallbacks: ["main", "local"]
+# chain = ["main"]          # chat models, primary first; add fallbacks: ["main", "local"]
 
 {common}"#
     )
@@ -347,10 +384,9 @@ mod tests {
         let mut out = String::new();
         for line in text.lines() {
             let start = line.starts_with("# [providers.")
+                || line.starts_with("# [models.")
                 || line.starts_with("# [llm]")
-                || line.starts_with("# [deciders.checker]")
-                || line.starts_with("# semantic = true")
-                || line.starts_with("# deciders = [");
+                || line.starts_with("# chain = [\"checker\"]");
             if start {
                 on = true;
             }
@@ -373,7 +409,7 @@ mod tests {
     fn the_commented_template_is_valid_and_its_examples_work_once_uncommented() {
         let plain = template_commented(Some("bash"));
         let c = Config::parse(&plain).unwrap();
-        assert!(c.providers.is_empty() && c.deciders.is_empty());
+        assert!(c.providers.is_empty() && c.models.is_empty());
         assert!(
             !plain.contains("qwen"),
             "no developer's model in the starting config"
@@ -390,9 +426,10 @@ mod tests {
         );
 
         let live = Config::parse(&uncomment(&plain)).unwrap();
-        assert!(live.providers.contains_key("main") && live.providers.contains_key("local"));
-        assert!(live.deciders.contains_key("checker"));
-        assert!(live.validator.semantic);
+        assert!(live.providers.contains_key("openrouter") && live.providers.contains_key("local"));
+        assert!(live.models.contains_key("main") && live.models.contains_key("local"));
+        assert!(live.models.contains_key("checker"));
+        assert_eq!(live.validator.chain, ["checker"]);
         // the examples build the plugins they name, with no key value anywhere in the text
         let registry = shellmate_builtin::registry();
         live.validate_with(&registry, &Host::system()).ok(); // env refs may be unset here

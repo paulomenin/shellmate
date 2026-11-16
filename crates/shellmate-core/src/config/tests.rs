@@ -5,13 +5,14 @@ use std::path::{Path, PathBuf};
 const GOOD: &str = r#"
 version = 1
 [providers.local]
-plugin = "builtin:openai-compatible"
 trust = "local"
-[providers.local.settings]
 preset = "ollama"
+[models.qwen]
+provider = "local"
+plugin = "builtin:openai-compatible"
 model = "qwen2.5-coder:7b"
 [llm]
-chain = ["local"]
+chain = ["qwen"]
 "#;
 
 #[test]
@@ -62,8 +63,9 @@ fn bad_conversation_settings_are_errors() {
 #[test]
 fn parses_a_good_config() {
     let c = Config::parse(GOOD).unwrap();
-    assert_eq!(c.provider_chain().unwrap(), ["local"]);
+    assert_eq!(c.model_chain().unwrap(), ["qwen"]);
     assert_eq!(c.providers["local"].effective_max_level(), 3);
+    assert_eq!(c.model("qwen").unwrap().provider.trust, Trust::Local);
     assert_eq!(c.input.shortcuts["alt+m"], "ask");
 }
 
@@ -72,7 +74,6 @@ fn unknown_keys_are_errors() {
     let e = Config::parse("version = 1\n[runtim]\nmode='x'").unwrap_err();
     assert_eq!(e.code, "config.invalid");
     assert!(e.message.contains("runtim"), "{}", e.message);
-    assert!(Config::parse("version = 1\n[providers.a]\nplugin='builtin:x'\ntypo=1").is_err());
 }
 
 #[test]
@@ -96,7 +97,7 @@ fn cross_references_are_checked() {
 #[test]
 fn empty_config_has_no_provider() {
     assert_eq!(
-        Config::defaults().provider_chain().unwrap_err().code,
+        Config::defaults().model_chain().unwrap_err().code,
         "config.no_provider"
     );
 }
@@ -105,7 +106,7 @@ fn empty_config_has_no_provider() {
 fn inline_secrets_in_provider_settings_are_refused() {
     let c = Config::parse(&GOOD.replace("model =", "api_key = \"sk-inline\"\nmodel =")).unwrap();
     assert_eq!(
-        c.resolved_settings("local", &Host::system())
+        c.resolved_model_settings("qwen", &Host::system())
             .unwrap_err()
             .code,
         "config.inline_secret"
@@ -194,7 +195,7 @@ fn marker(name: &str) -> PathBuf {
 
 fn cmd_config(line: &str) -> Config {
     Config::parse(&format!(
-        "version = 1\n[providers.p]\nplugin = \"builtin:openai-compatible\"\ntrust = \"local\"\n[providers.p.settings]\npreset = \"ollama\"\nmodel = \"m\"\napi_key = \"{line}\"\n"
+        "version = 1\n[providers.p]\ntrust = \"local\"\npreset = \"ollama\"\napi_key = \"{line}\"\n[models.p]\nprovider = \"p\"\nplugin = \"builtin:openai-compatible\"\nmodel = \"m\"\n"
     ))
     .unwrap()
 }
@@ -234,7 +235,7 @@ fn a_cmd_secret_is_not_run_when_the_settings_are_read_lazily() {
         "cmd:/bin/sh -c 'echo sk-real; touch {}'",
         m.display()
     ));
-    let lazy = c.lazy_settings("p", &Host::system()).unwrap();
+    let lazy = c.lazy_model_settings("p", &Host::system()).unwrap();
     assert!(lazy.is_lazy());
     assert!(!m.exists(), "reading the settings must not run the program");
     let probe = lazy.probe().to_string();
@@ -259,7 +260,7 @@ fn the_eager_read_runs_a_cmd_secret() {
         m.display()
     ));
     assert_eq!(
-        c.resolved_settings("p", &Host::system()).unwrap()["api_key"],
+        c.resolved_model_settings("p", &Host::system()).unwrap()["api_key"],
         "sk-eager"
     );
     assert!(m.exists());
@@ -282,14 +283,10 @@ fn a_bad_cmd_line_is_found_without_running_anything() {
         ("cmd:".to_string(), "config.invalid_cmd"),
     ] {
         let e = cmd_config(&line)
-            .lazy_settings("p", &Host::system())
+            .lazy_model_settings("p", &Host::system())
             .unwrap_err();
         assert_eq!(e.code, code, "{line}");
-        assert!(
-            e.message.contains("providers.p.settings.api_key"),
-            "{}",
-            e.message
-        );
+        assert!(e.message.contains("providers.p.api_key"), "{}", e.message);
     }
     assert!(!m.exists());
 }
@@ -297,17 +294,13 @@ fn a_bad_cmd_line_is_found_without_running_anything() {
 #[test]
 fn a_keyring_reference_is_checked_without_asking_the_keyring() {
     let e = cmd_config("keyring:no-account")
-        .lazy_settings("p", &Host::system())
+        .lazy_model_settings("p", &Host::system())
         .unwrap_err();
     assert_eq!(e.code, "config.invalid_keyring");
-    assert!(
-        e.message.contains("providers.p.settings.api_key"),
-        "{}",
-        e.message
-    );
+    assert!(e.message.contains("providers.p.api_key"), "{}", e.message);
     // a well-formed one is never a syntax error; it is lazy when the tool exists and "tool missing"
     // when it does not, and in neither case has anything been fetched
-    match cmd_config("keyring:shellmate/openai").lazy_settings("p", &Host::system()) {
+    match cmd_config("keyring:shellmate/openai").lazy_model_settings("p", &Host::system()) {
         Ok(lazy) => assert!(lazy.is_lazy()),
         Err(e) => assert!(
             ["config.secret_cmd_missing", "config.unsupported"].contains(&e.code),
@@ -320,7 +313,7 @@ fn a_keyring_reference_is_checked_without_asking_the_keyring() {
 #[test]
 fn the_secrets_settings_reach_the_program() {
     let c = Config::parse(
-        "version = 1\n[secrets]\npass_env = [\"SM_PASS_ME\"]\n[providers.p]\nplugin = \"builtin:openai-compatible\"\n[providers.p.settings]\npreset = \"ollama\"\nmodel = \"m\"\napi_key = \"cmd:/bin/sh -c 'echo $SM_PASS_ME'\"\n",
+        "version = 1\n[secrets]\npass_env = [\"SM_PASS_ME\"]\n[providers.p]\npreset = \"ollama\"\napi_key = \"cmd:/bin/sh -c 'echo $SM_PASS_ME'\"\n[models.p]\nprovider = \"p\"\nplugin = \"builtin:openai-compatible\"\nmodel = \"m\"\n",
     )
     .unwrap();
     let host = Host::system().with_env(
@@ -329,7 +322,7 @@ fn the_secrets_settings_reach_the_program() {
             .with("SM_PASS_ME", "passed"),
     );
     assert_eq!(
-        c.resolved_settings("p", &host).unwrap()["api_key"],
+        c.resolved_model_settings("p", &host).unwrap()["api_key"],
         "passed"
     );
 }
@@ -338,10 +331,123 @@ fn the_secrets_settings_reach_the_program() {
 fn only_secret_settings_run_programs() {
     // `model` is not a secret key: a `cmd:` value there is just text
     let c = Config::parse(
-        "version = 1\n[providers.p]\nplugin = \"builtin:openai-compatible\"\n[providers.p.settings]\npreset = \"ollama\"\nmodel = \"cmd:/bin/false\"\n",
+        "version = 1\n[providers.p]\npreset = \"ollama\"\n[models.p]\nprovider = \"p\"\nplugin = \"builtin:openai-compatible\"\nmodel = \"cmd:/bin/false\"\n",
     )
     .unwrap();
-    let lazy = c.lazy_settings("p", &Host::system()).unwrap();
+    let lazy = c.lazy_model_settings("p", &Host::system()).unwrap();
     assert!(!lazy.is_lazy());
     assert_eq!(lazy.probe()["model"], "cmd:/bin/false");
+}
+
+#[test]
+fn a_model_and_its_provider_share_one_settings_object() {
+    let c = Config::parse(
+        "version = 1\n[providers.p]\npreset = \"openrouter\"\ntimeout_secs = 30\n\
+         [models.chat]\nprovider = \"p\"\nplugin = \"builtin:openai-compatible\"\nmodel = \"a\"\n\
+         [models.judge]\nprovider = \"p\"\nplugin = \"builtin:systemone\"\nmodel = \"b\"\n",
+    )
+    .unwrap();
+    for (name, model) in [("chat", "a"), ("judge", "b")] {
+        let s = c.resolved_model_settings(name, &Host::system()).unwrap();
+        assert_eq!(s["preset"], "openrouter", "{name}");
+        assert_eq!(s["timeout_secs"], 30, "{name}");
+        assert_eq!(s["model"], model, "{name}");
+        // the core's own keys are not handed to the plugin
+        assert!(
+            s.get("provider").is_none() && s.get("plugin").is_none(),
+            "{s}"
+        );
+    }
+    assert_eq!(c.model("chat").unwrap().provider.trust, Trust::Remote);
+}
+
+#[test]
+fn a_table_that_points_nowhere_is_an_error() {
+    let model = "[models.m]\nprovider = \"p\"\nplugin = \"builtin:x\"\nmodel = \"a\"\n";
+    let e = Config::parse(&format!("version = 1\n{model}")).unwrap_err();
+    assert!(e.message.contains("unknown provider `p`"), "{}", e.message);
+    let e = Config::parse(&format!(
+        "version = 1\n[providers.p]\npreset = \"ollama\"\n{model}[validator]\nchain = [\"nope\"]"
+    ))
+    .unwrap_err();
+    assert!(e.message.contains("validator.chain") && e.message.contains("nope"));
+    assert!(e.hint.unwrap().contains("m"));
+}
+
+#[test]
+fn a_key_is_set_on_the_provider_or_on_the_model_not_both() {
+    let e = Config::parse(
+        "version = 1\n[providers.p]\npreset = \"ollama\"\n[models.m]\nprovider = \"p\"\nplugin = \"builtin:x\"\n\
+         preset = \"openai\"\n",
+    )
+    .unwrap_err();
+    assert!(e.message.contains("`preset`"), "{}", e.message);
+}
+
+#[test]
+fn the_context_ceiling_is_the_providers_and_the_models_have_none() {
+    let c = Config::parse(
+        "version = 1\n[providers.p]\nmax_context_level = 2\npreset = \"ollama\"\n\
+         [models.m]\nprovider = \"p\"\nplugin = \"builtin:x\"\n",
+    )
+    .unwrap();
+    assert_eq!(c.model("m").unwrap().provider.effective_max_level(), 2);
+    // a model's `max_context_level` is not a core key: it goes to the plugin, which refuses it
+    let c = Config::parse(
+        "version = 1\n[providers.p]\npreset = \"ollama\"\n[models.m]\nprovider = \"p\"\n\
+         plugin = \"builtin:x\"\nmax_context_level = 4\n",
+    )
+    .unwrap();
+    let s = c.resolved_model_settings("m", &Host::system()).unwrap();
+    assert_eq!(s["max_context_level"], 4);
+    assert!(Config::parse("version = 1\n[providers.p]\nmax_context_level = 5").is_err());
+}
+
+#[test]
+fn plugin_settings_sit_next_to_enabled() {
+    let c = Config::parse(
+        "version = 1\n[plugins.\"builtin:store-tmpfs\"]\ndir = \"/x\"\n\
+         [plugins.\"builtin:redact\"]\nenabled = false\nextra_patterns = []\n",
+    )
+    .unwrap();
+    let s = c
+        .plugin_settings("builtin:store-tmpfs", &Host::system())
+        .unwrap();
+    assert_eq!(s["dir"], "/x");
+    assert!(s.get("enabled").is_none());
+    assert!(c.llm_layers().is_empty());
+    assert!(c
+        .plugin_settings("builtin:redact", &Host::system())
+        .unwrap()
+        .get("extra_patterns")
+        .is_some());
+}
+
+#[test]
+fn keys_of_the_older_shape_say_where_they_went() {
+    for (text, hint) in [
+        (
+            "[deciders.x]\nplugin = \"builtin:systemone\"",
+            "[models.<name>]",
+        ),
+        (
+            "[providers.x]\nplugin = \"builtin:openai-compatible\"",
+            "[models.<name>]",
+        ),
+        (
+            "[providers.x.settings]\nmodel = \"m\"",
+            "[providers.<name>]",
+        ),
+        ("[validator]\nsemantic = true", "[validator] chain"),
+        ("[validator]\ndeciders = [\"x\"]", "[validator] chain"),
+        ("[validator]\nllm_fallback = false", "[validator] chain"),
+        (
+            "[plugins.\"builtin:redact\".settings]\nextra_patterns = []",
+            "next to `enabled`",
+        ),
+    ] {
+        let e = Config::parse(&format!("version = 1\n{text}")).unwrap_err();
+        assert_eq!(e.code, "config.moved", "{text}: {}", e.message);
+        assert!(e.hint.unwrap().contains(hint), "{text}");
+    }
 }

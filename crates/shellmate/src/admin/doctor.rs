@@ -8,7 +8,7 @@
 use super::config_path;
 use super::install_shell::{rc_path, BEGIN};
 use serde_json::{json, Value};
-use shellmate_api::Registry;
+use shellmate_api::{ModelKind, Registry};
 use shellmate_core::config::{builtin_id, parse_duration};
 use shellmate_core::ports::{Env, Host};
 use shellmate_core::present::{Presenter, Tone};
@@ -165,17 +165,21 @@ fn config_is_valid(ctx: &Ctx<'_>) -> Vec<Check> {
 /// Endpoint reachability (a TCP connect; nothing is sent).
 fn providers(ctx: &Ctx<'_>) -> Vec<Check> {
     let mut v = Vec::new();
-    let Ok(chain) = ctx.cfg.provider_chain() else {
+    let Ok(chain) = ctx.cfg.model_chain() else {
         return v;
     };
     for name in chain {
-        let info = ctx.cfg.lazy_settings(name, ctx.host).ok().and_then(|s| {
-            let id = builtin_id(&ctx.cfg.providers[name].plugin).ok()?;
-            ctx.registry
-                .build_provider(id, s.probe())
-                .ok()
-                .map(|p| p.info())
-        });
+        let info = ctx
+            .cfg
+            .lazy_model_settings(name, ctx.host)
+            .ok()
+            .and_then(|s| {
+                let id = builtin_id(&ctx.cfg.models.get(name)?.plugin).ok()?;
+                ctx.registry
+                    .build_provider(id, s.probe())
+                    .ok()
+                    .map(|p| p.info())
+            });
         let Some((model, endpoint)) = info.and_then(|i| i.endpoint.map(|e| (i.model, e))) else {
             continue;
         };
@@ -191,12 +195,12 @@ fn providers(ctx: &Ctx<'_>) -> Vec<Check> {
 /// `cmd:` secrets of the providers in the chain: run each program once and say whether it worked. This is
 /// the one place besides a request that runs them. Nothing about the value is shown, not even its length.
 fn secrets(ctx: &Ctx<'_>) -> Vec<Check> {
-    let Ok(chain) = ctx.cfg.provider_chain() else {
+    let Ok(chain) = ctx.cfg.model_chain() else {
         return Vec::new();
     };
     let mut v = Vec::new();
     for name in chain {
-        let Ok(lazy) = ctx.cfg.lazy_settings(name, ctx.host) else {
+        let Ok(lazy) = ctx.cfg.lazy_model_settings(name, ctx.host) else {
             continue; // `config` already reported it
         };
         if !lazy.is_lazy() {
@@ -224,39 +228,33 @@ fn secrets(ctx: &Ctx<'_>) -> Vec<Check> {
     v
 }
 
-/// Decision models for the semantic command check: the same reachability test, nothing is sent.
+/// The models of the semantic command check: the same reachability test, nothing is sent. A chat model that
+/// is also in the `llm` chain is checked there.
 fn deciders(ctx: &Ctx<'_>) -> Vec<Check> {
     let cfg = ctx.cfg;
     let mut v = Vec::new();
-    if !(cfg.validator.enabled && cfg.validator.semantic) {
+    if !(cfg.validator.enabled && !cfg.validator.chain.is_empty()) {
         return v;
     }
-    if cfg.validator.deciders.is_empty() {
-        v.push(check(
-            "decider",
-            Status::Ok,
-            format!(
-                "no decision model configured; the {} answers the semantic check",
-                if cfg.validator.llm_fallback {
-                    "LLM"
-                } else {
-                    "nobody (llm_fallback = false)"
-                }
-            ),
-            None,
-        ));
-    }
-    for name in &cfg.validator.deciders {
-        let info = cfg
-            .lazy_decider_settings(name, ctx.host)
-            .ok()
-            .and_then(|s| {
-                let id = builtin_id(&cfg.deciders.get(name)?.plugin).ok()?;
-                ctx.registry
-                    .build_decider(id, s.probe())
-                    .ok()
-                    .map(|d| d.info())
-            });
+    let mut decision = false;
+    for name in &cfg.validator.chain {
+        let Some(id) = cfg
+            .models
+            .get(name)
+            .and_then(|m| builtin_id(&m.plugin).ok())
+        else {
+            continue;
+        };
+        if ctx.registry.model_kind(id).ok() != Some(ModelKind::Decision) {
+            continue;
+        }
+        decision = true;
+        let info = cfg.lazy_model_settings(name, ctx.host).ok().and_then(|s| {
+            ctx.registry
+                .build_decider(id, s.probe())
+                .ok()
+                .map(|d| d.info())
+        });
         v.push(match info.and_then(|i| i.endpoint.map(|e| (i.model, e))) {
             Some((model, endpoint)) => match host_port(&endpoint) {
                 Some(hp) if reachable(&hp) => check(
@@ -269,7 +267,7 @@ fn deciders(ctx: &Ctx<'_>) -> Vec<Check> {
                     "decider",
                     Status::Warn,
                     format!("{name}: cannot connect to {hp}"),
-                    Some("start the server or fix the endpoint; until then the LLM answers the semantic check (if llm_fallback is on)"),
+                    Some("start the server or fix the endpoint; the next model of [validator] chain is used until then"),
                 ),
                 None => check("decider", Status::Warn, format!("{name}: unrecognised endpoint"), None),
             },
@@ -283,7 +281,7 @@ fn deciders(ctx: &Ctx<'_>) -> Vec<Check> {
     }
     // a decision model that is not kept in memory takes seconds to load: the first check would time out
     if let Ok(t) = parse_duration(&cfg.validator.timeout) {
-        if t < Duration::from_secs(15) && !cfg.validator.deciders.is_empty() {
+        if t < Duration::from_secs(15) && decision {
             v.push(check(
                 "decider",
                 Status::Warn,
@@ -690,11 +688,20 @@ mod tests {
     }
 
     #[test]
-    fn deciders_are_only_checked_when_the_semantic_check_is_on() {
+    fn decision_models_are_only_checked_when_they_are_in_the_validator_chain() {
         assert!(ctx_with("version = 1", MapEnv::new(), MemFs::new(), deciders).is_empty());
-        let on = "version = 1\n[validator]\nsemantic = true\n";
-        let c = one(ctx_with(on, MapEnv::new(), MemFs::new(), deciders));
-        assert!(c.detail.contains("no decision model configured"));
+        let models =
+            "version = 1\n[providers.p]\ntrust = \"local\"\nendpoint = \"http://127.0.0.1:9\"\n\
+             [models.judge]\nprovider = \"p\"\nplugin = \"builtin:systemone\"\nmodel = \"m\"\n";
+        // defined but not in the chain: nothing to check
+        assert!(ctx_with(models, MapEnv::new(), MemFs::new(), deciders).is_empty());
+        let on = format!("{models}[validator]\nchain = [\"judge\"]\n");
+        let c = ctx_with(&on, MapEnv::new(), MemFs::new(), deciders);
+        assert!(
+            c.iter()
+                .any(|c| c.name == "decider" && c.detail.contains("judge")),
+            "{c:?}"
+        );
     }
 
     #[test]

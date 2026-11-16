@@ -2,7 +2,7 @@
 //! model or, when allowed, the LLM.
 
 use super::terminals::{ProviderTerminal, Recorder};
-use super::Engine;
+use super::{Check, Engine, ProviderSpec};
 use crate::config::Trust;
 use crate::sanitize;
 use crate::validate;
@@ -31,7 +31,8 @@ impl Engine {
             .await;
         }
         let mut semantic = "off".to_string();
-        if v.semantic {
+        let asking = !self.checks.is_empty();
+        if asking {
             let limit = crate::config::parse_duration(&v.timeout)
                 .unwrap_or(std::time::Duration::from_secs(5));
             let asked = validate::questions(request, command, shell);
@@ -54,7 +55,7 @@ impl Engine {
                 }
             }
         }
-        if v.enabled || v.semantic {
+        if v.enabled || asking {
             self.audit(
                 "validation",
                 ctx,
@@ -64,38 +65,36 @@ impl Engine {
         notes
     }
 
-    /// Ask the configured decision models in order; if none answers (or none is configured) and it is
-    /// allowed, let the LLM answer the same questions. Returns who answered.
+    /// Ask the models of the validator chain in order: a decision model with `decide`, a chat model with the
+    /// same questions as a JSON reply. Returns who answered.
     pub(super) async fn decide(
         &self,
         asked: &DecisionRequest,
     ) -> std::result::Result<(DecisionResponse, String), String> {
-        let mut last = None;
-        for d in &self.deciders {
-            let sent = match d.trust {
-                Trust::Local => asked.clone(),
-                Trust::Remote => self.redacted(asked).await.map_err(|e| e.message)?,
+        let mut last: Option<String> = None;
+        for check in &self.checks {
+            let answered = match check {
+                Check::Decision(d) => {
+                    let sent = match d.trust {
+                        Trust::Local => asked.clone(),
+                        Trust::Remote => self.redacted(asked).await.map_err(|e| e.message)?,
+                    };
+                    d.decider
+                        .decide(&sent)
+                        .await
+                        .map_err(|e| sanitize::escape(&e.message))
+                }
+                Check::Chat(p) => self.llm_decide(p, asked).await,
             };
-            match d.decider.decide(&sent).await {
-                Ok(r) => return Ok((r, format!("decider:{}", d.name))),
-                Err(e) => {
-                    last = Some(format!(
-                        "decider `{}`: {}",
-                        d.name,
-                        sanitize::escape(&e.message)
-                    ))
+            match answered {
+                Ok(r) => return Ok((r, format!("model:{}", check.name()))),
+                Err(why) => {
+                    let why = format!("`{}`: {why}", check.name());
+                    last = Some(last.map_or(why.clone(), |l| format!("{l}; {why}")));
                 }
             }
         }
-        if self.cfg.validator.llm_fallback && !self.providers.is_empty() {
-            match self.llm_decide(asked).await {
-                Ok(r) => return Ok((r, "llm".into())),
-                Err(e) => last = Some(last.map_or(e.clone(), |l| format!("{l}; llm: {e}"))),
-            }
-        }
-        Err(last.unwrap_or_else(|| {
-            "no decision model is configured and the LLM fallback is off".to_string()
-        }))
+        Err(last.unwrap_or_else(|| "no model is configured for it".to_string()))
     }
 
     /// The record with each value passed through the `llm` middleware (redaction), for a remote decider.
@@ -137,41 +136,33 @@ impl Engine {
         Ok(out)
     }
 
-    /// The same questions, answered by the first provider of the chain that can (through the `llm` chain,
-    /// so redaction applies as for any request).
+    /// The same questions, answered by a chat model through the `llm` chain, so redaction applies as for any
+    /// request.
     pub(super) async fn llm_decide(
         &self,
+        spec: &ProviderSpec,
         asked: &DecisionRequest,
     ) -> std::result::Result<DecisionResponse, String> {
-        let mut last = "no provider".to_string();
-        for spec in &self.providers {
-            let request = ChatRequest {
-                request_id: self.request_id(),
-                messages: validate::llm_messages(asked),
-                max_tokens: Some(200),
-                temperature: Some(0.0),
-                redaction_key: None,
-            };
-            if let Err(e) = spec.provider.prepare().await {
-                last = e.message;
-                continue;
-            }
-            let terminal = ProviderTerminal(spec.provider.as_ref());
-            let stream = match Next::new(&self.layers, &terminal).run(request).await {
-                Ok(s) => s,
-                Err(e) => {
-                    last = e.message;
-                    continue;
-                }
-            };
-            match shellmate_api::collect(stream).await {
-                Ok(r) => match validate::parse_llm_reply(&r.text, asked) {
-                    Some(resp) => return Ok(resp),
-                    None => last = format!("`{}` did not answer in the expected format", spec.name),
-                },
-                Err(e) => last = e.message,
-            }
-        }
-        Err(sanitize::escape(&last))
+        let request = ChatRequest {
+            request_id: self.request_id(),
+            messages: validate::llm_messages(asked),
+            max_tokens: Some(200),
+            temperature: Some(0.0),
+            redaction_key: None,
+        };
+        spec.provider
+            .prepare()
+            .await
+            .map_err(|e| sanitize::escape(&e.message))?;
+        let terminal = ProviderTerminal(spec.provider.as_ref());
+        let stream = Next::new(&self.layers, &terminal)
+            .run(request)
+            .await
+            .map_err(|e| sanitize::escape(&e.message))?;
+        let reply = shellmate_api::collect(stream)
+            .await
+            .map_err(|e| sanitize::escape(&e.message))?;
+        validate::parse_llm_reply(&reply.text, asked)
+            .ok_or_else(|| "did not answer in the expected format".to_string())
     }
 }

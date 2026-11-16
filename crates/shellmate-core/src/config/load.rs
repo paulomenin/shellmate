@@ -52,6 +52,11 @@ impl Config {
     }
 
     pub fn parse(text: &str) -> Result<Self> {
+        if let Ok(raw) = text.parse::<toml::Table>() {
+            if let Some(moved) = moved_key(&raw) {
+                return Err(moved);
+            }
+        }
         let cfg: Config =
             toml::from_str(text).map_err(|e| Error::new("config.invalid", e.to_string()))?;
         cfg.check_static()?;
@@ -60,3 +65,53 @@ impl Config {
 }
 
 pub use shellmate_api::parse_duration;
+
+/// A key of the older config shape, with where it lives now. Without this the loader would only say "unknown
+/// field" or hand the key to a plugin that has never heard of it.
+fn moved_key(raw: &toml::Table) -> Option<Error> {
+    let moved = |what: &str, now: &str| {
+        Some(
+            Error::new("config.moved", format!("{what} has moved"))
+                .with_hint(format!("{now} (see the Configuration page)")),
+        )
+    };
+    let table = |v: Option<&toml::Value>| v.and_then(toml::Value::as_table).cloned();
+    if raw.contains_key("deciders") {
+        return moved(
+            "`[deciders.<name>]`",
+            "a decision model is a `[models.<name>]` with `plugin = \"builtin:systemone\"`, reached through a `[providers.<name>]`",
+        );
+    }
+    for (name, p) in table(raw.get("providers")).unwrap_or_default() {
+        let p = p.as_table()?;
+        if p.contains_key("plugin") {
+            return moved(
+                &format!("`plugin` of `[providers.{name}]`"),
+                "set `plugin`, `model` and `provider` in a `[models.<name>]`; a provider is only the connection",
+            );
+        }
+        if p.contains_key("settings") {
+            return moved(
+                &format!("`[providers.{name}.settings]`"),
+                "write `preset`, `endpoint`, `api_key` and `timeout_secs` directly in `[providers.<name>]`",
+            );
+        }
+    }
+    for key in ["semantic", "deciders", "llm_fallback"] {
+        if table(raw.get("validator")).is_some_and(|v| v.contains_key(key)) {
+            return moved(
+                &format!("`[validator] {key}`"),
+                "`[validator] chain = [\"model\", ...]` lists decision and chat models in order; an empty chain means no semantic check",
+            );
+        }
+    }
+    for (id, p) in table(raw.get("plugins")).unwrap_or_default() {
+        if p.as_table()?.contains_key("settings") {
+            return moved(
+                &format!("`[plugins.\"{id}\".settings]`"),
+                "write the settings directly in `[plugins.\"<id>\"]`, next to `enabled`",
+            );
+        }
+    }
+    None
+}

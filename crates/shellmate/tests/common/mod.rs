@@ -13,7 +13,7 @@ pub struct Run {
 
 pub fn config(url: &str) -> String {
     format!(
-        "version = 1\n[providers.mock]\nplugin = \"builtin:openai-compatible\"\ntrust = \"local\"\n[providers.mock.settings]\nendpoint = \"{url}\"\nmodel = \"test-model\"\n[llm]\nchain = [\"mock\"]\n"
+        "version = 1\n[providers.mock]\ntrust = \"local\"\nendpoint = \"{url}\"\n[models.mock]\nprovider = \"mock\"\nplugin = \"builtin:openai-compatible\"\nmodel = \"test-model\"\n[llm]\nchain = [\"mock\"]\n"
     )
 }
 
@@ -72,7 +72,7 @@ pub fn completion(content: &str) -> String {
 /// A config with one *remote* provider at the mock URL, allowed context level 2.
 pub fn remote_config(url: &str, extra: &str) -> String {
     format!(
-        "version = 1\n[context]\ndefault_level = 2\n[providers.cloud]\nplugin = \"builtin:openai-compatible\"\ntrust = \"remote\"\nmax_context_level = 2\n[providers.cloud.settings]\nendpoint = \"{url}\"\nmodel = \"m\"\n[llm]\nchain = [\"cloud\"]\n{extra}"
+        "version = 1\n[context]\ndefault_level = 2\n[providers.cloud]\ntrust = \"remote\"\nmax_context_level = 2\nendpoint = \"{url}\"\n[models.cloud]\nprovider = \"cloud\"\nplugin = \"builtin:openai-compatible\"\nmodel = \"m\"\n[llm]\nchain = [\"cloud\"]\n{extra}"
     )
 }
 
@@ -118,7 +118,7 @@ impl Drop for Scratch {
 /// `config(url)` plus a store directory and any extra TOML.
 pub fn conv_config(url: &str, store_dir: &str, extra: &str) -> String {
     format!(
-        "{}[plugins.\"builtin:store-tmpfs\".settings]\ndir = \"{store_dir}\"\n{extra}\n",
+        "{}[plugins.\"builtin:store-tmpfs\"]\ndir = \"{store_dir}\"\n{extra}\n",
         config(url)
     )
 }

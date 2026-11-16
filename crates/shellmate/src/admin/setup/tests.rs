@@ -451,12 +451,59 @@ fn the_written_config_parses_and_carries_the_checker() {
     };
     let text = template_with(&main, Some(&checker), Some("bash")).unwrap();
     let c = Config::parse(&text).unwrap();
-    assert!(c.validator.semantic);
-    assert_eq!(c.validator.deciders, ["checker"]);
-    assert!(c.deciders.contains_key("checker") && c.providers.contains_key("main"));
+    assert_eq!(c.validator.chain, ["checker"]);
+    assert!(c.models.contains_key("checker") && c.models.contains_key("main"));
+    // a different service gets a provider of its own
+    assert!(c.providers.contains_key("openrouter") && c.providers.contains_key("typesafe"));
+    assert_eq!(c.models["checker"].provider, "typesafe");
     assert!(text.contains("preset = \"typesafe\"") && !text.contains(SECRET));
     // without a checker the validator keeps its commented example and stays off
     let plain = template_with(&main, None, Some("bash")).unwrap();
     let c = Config::parse(&plain).unwrap();
-    assert!(!c.validator.semantic && c.deciders.is_empty());
+    assert!(c.validator.chain.is_empty() && !c.models.contains_key("checker"));
+}
+
+#[test]
+fn a_checker_reached_the_same_way_shares_the_provider() {
+    let main = Backend {
+        preset: Some("openrouter".into()),
+        endpoint: None,
+        api_key: Some("env:OPENROUTER_API_KEY".into()),
+        model: "~openai/gpt-luna-latest".into(),
+        trust: "remote",
+    };
+    let checker = Backend {
+        model: "~typesafe/jev-latest".into(),
+        ..main.clone()
+    };
+    let text = template_with(&main, Some(&checker), Some("bash")).unwrap();
+    let c = Config::parse(&text).unwrap();
+    assert_eq!(c.providers.len(), 1, "{text}");
+    assert_eq!(c.models["main"].provider, c.models["checker"].provider);
+    assert_eq!(c.validator.chain, ["checker"]);
+    // the written config builds, and a decision model is told apart from a chat model by its plugin
+    c.validate_with(
+        &shellmate_builtin::registry(),
+        &shellmate_core::ports::Host::system(),
+    )
+    .ok();
+}
+
+#[test]
+fn a_checker_on_another_connection_with_the_same_name_gets_its_own_provider() {
+    let main = Backend {
+        preset: Some("ollama".into()),
+        endpoint: None,
+        api_key: None,
+        model: "a".into(),
+        trust: "local",
+    };
+    let checker = Backend {
+        trust: "remote",
+        model: "b".into(),
+        ..main.clone()
+    };
+    let c = Config::parse(&template_with(&main, Some(&checker), None).unwrap()).unwrap();
+    assert_eq!(c.providers.len(), 2);
+    assert_ne!(c.models["main"].provider, c.models["checker"].provider);
 }

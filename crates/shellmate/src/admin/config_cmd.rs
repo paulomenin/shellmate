@@ -66,7 +66,7 @@ pub fn config_show(explicit: Option<&Path>, p: &dyn Presenter) -> Result<String>
     o.push_str(&format!("config:        {found}\n"));
     o.push_str(&format!(
         "chain:         {}\n",
-        cfg.provider_chain()
+        cfg.model_chain()
             .map(|c| c.join(" -> "))
             .unwrap_or_else(|_| "(none)".into())
     ));
@@ -77,33 +77,34 @@ pub fn config_show(explicit: Option<&Path>, p: &dyn Presenter) -> Result<String>
             .map(|(k, v)| secrets::show_setting(k, v, &SystemEnv))
             .collect();
         o.push_str(&format!(
-            "provider {name}: {} trust={:?} max_level={} {}\n",
-            p.plugin,
+            "provider {name}: trust={:?} max_level={} {}\n",
             p.trust,
             p.effective_max_level(),
             settings.join(" ")
         ));
     }
-    for (name, d) in &cfg.deciders {
-        let settings: Vec<String> = d
+    for (name, m) in &cfg.models {
+        let settings: Vec<String> = m
             .settings
             .iter()
             .map(|(k, v)| secrets::show_setting(k, v, &SystemEnv))
             .collect();
         o.push_str(&format!(
-            "decider {name}:  {} trust={:?} {}\n",
-            d.plugin,
-            d.trust,
+            "model {name}:  {} via {} {}\n",
+            m.plugin,
+            m.provider,
             settings.join(" ")
         ));
     }
     let v = &cfg.validator;
     o.push_str(&format!(
-        "validator:     checks={} semantic={} deciders={} llm_fallback={} min_confidence={} timeout={}\n",
+        "validator:     checks={} chain={} min_confidence={} timeout={}\n",
         v.enabled,
-        v.semantic,
-        if v.deciders.is_empty() { "(none)".to_string() } else { v.deciders.join(" -> ") },
-        v.llm_fallback,
+        if v.chain.is_empty() {
+            "(none: no semantic check)".to_string()
+        } else {
+            v.chain.join(" -> ")
+        },
         v.min_confidence,
         v.timeout
     ));

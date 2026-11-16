@@ -95,6 +95,29 @@ pub struct DeciderSpec {
     pub trust: Trust,
 }
 
+/// One entry of the validator chain: a decision model, or a chat model that answers the same questions as JSON.
+#[derive(Clone)]
+pub enum Check {
+    Decision(DeciderSpec),
+    Chat(ProviderSpec),
+}
+
+impl Check {
+    pub fn name(&self) -> &str {
+        match self {
+            Check::Decision(d) => &d.name,
+            Check::Chat(p) => &p.name,
+        }
+    }
+
+    pub fn trust(&self) -> Trust {
+        match self {
+            Check::Decision(d) => d.trust,
+            Check::Chat(p) => p.trust,
+        }
+    }
+}
+
 /// The payload one provider would receive (after the whole `llm` chain), for `--dry-run`.
 #[derive(Debug, Clone)]
 pub struct Preview {

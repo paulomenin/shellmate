@@ -105,36 +105,51 @@ impl Config {
                 "validator.min_confidence must be between 0.5 and 1",
             ));
         }
-        for name in &self.validator.deciders {
-            if !self.deciders.contains_key(name) {
-                let known: Vec<_> = self.deciders.keys().map(String::as_str).collect();
-                return Err(Error::new(
-                    "config.invalid",
-                    format!("validator.deciders refers to unknown decider `{name}`"),
-                )
-                .with_hint(if known.is_empty() {
-                    "no deciders are defined (add a [deciders.<name>] table)".to_string()
-                } else {
-                    format!("defined deciders: {}", known.join(", "))
-                }));
+        for (list, names) in [
+            ("llm.chain", &self.llm.chain),
+            ("validator.chain", &self.validator.chain),
+        ] {
+            for name in names {
+                if !self.models.contains_key(name) {
+                    let known: Vec<_> = self.models.keys().map(String::as_str).collect();
+                    return Err(Error::new(
+                        "config.invalid",
+                        format!("{list} refers to unknown model `{name}`"),
+                    )
+                    .with_hint(if known.is_empty() {
+                        "no models are defined (add a [models.<name>] table)".to_string()
+                    } else {
+                        format!("defined models: {}", known.join(", "))
+                    }));
+                }
             }
         }
-        for (name, d) in &self.deciders {
-            builtin_id(&d.plugin)
-                .map_err(|e| Error::new(e.code, format!("deciders.{name}: {}", e.message)))?;
-        }
-        for name in &self.llm.chain {
-            if !self.providers.contains_key(name) {
+        for (name, m) in &self.models {
+            builtin_id(&m.plugin)
+                .map_err(|e| Error::new(e.code, format!("models.{name}: {}", e.message)))?;
+            let p = self.providers.get(&m.provider).ok_or_else(|| {
                 let known: Vec<_> = self.providers.keys().map(String::as_str).collect();
-                return Err(Error::new(
+                Error::new(
                     "config.invalid",
-                    format!("llm.chain refers to unknown provider `{name}`"),
+                    format!("models.{name} refers to unknown provider `{}`", m.provider),
                 )
                 .with_hint(if known.is_empty() {
-                    "no providers are defined".to_string()
+                    "no providers are defined (add a [providers.<name>] table)".to_string()
                 } else {
                     format!("defined providers: {}", known.join(", "))
-                }));
+                })
+            })?;
+            for key in m.settings.keys() {
+                if p.settings.contains_key(key) {
+                    return Err(Error::new(
+                        "config.invalid",
+                        format!(
+                            "`{key}` is set in models.{name} and in providers.{}",
+                            m.provider
+                        ),
+                    )
+                    .with_hint("set it in one place: the provider for the connection, the model for the model"));
+                }
             }
         }
         for id in self
@@ -147,8 +162,6 @@ impl Config {
             builtin_id(id)?;
         }
         for (name, p) in &self.providers {
-            builtin_id(&p.plugin)
-                .map_err(|e| Error::new(e.code, format!("providers.{name}: {}", e.message)))?;
             if p.max_context_level.is_some_and(|l| l > 4) {
                 return Err(Error::new(
                     "config.invalid",

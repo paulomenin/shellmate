@@ -26,7 +26,7 @@ fn registry(built: Arc<Mutex<Vec<serde_json::Value>>>, reply: &'static str) -> R
 
 fn provider(name: &str, line: &str) -> String {
     format!(
-        "[providers.{name}]\nplugin = \"builtin:fake\"\ntrust = \"local\"\n[providers.{name}.settings]\napi_key = \"{line}\"\nmodel = \"{name}\"\n"
+        "[providers.{name}]\ntrust = \"local\"\napi_key = \"{line}\"\n[models.{name}]\nprovider = \"{name}\"\nplugin = \"builtin:fake\"\nmodel = \"{name}\"\n"
     )
 }
 
@@ -119,11 +119,7 @@ async fn a_failing_program_is_a_configuration_error_and_does_not_fall_back() {
     let engine = Engine::from_config_in(&cfg, &registry(built, "hi"), Host::system()).unwrap();
     let e = engine.run(&env("explain", "ls")).await.unwrap_err();
     assert_eq!(e.code, "config.secret_cmd_failed");
-    assert!(
-        e.message.contains("providers.a.settings.api_key"),
-        "{}",
-        e.message
-    );
+    assert!(e.message.contains("providers.a.api_key"), "{}", e.message);
     assert!(e.message.contains("exit 4"));
     assert!(
         !spare.exists(),

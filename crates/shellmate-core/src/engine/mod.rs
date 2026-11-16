@@ -27,12 +27,12 @@ use crate::ports::{Host, RealFs};
 use crate::prompt;
 use crate::tools::Approver;
 use shellmate_api::{
-    ChatRequest, ChatStream, Error, Middleware, MiddlewareRole, Registry, Result, Store,
+    ChatRequest, ChatStream, Error, Middleware, MiddlewareRole, ModelKind, Registry, Result, Store,
 };
 use std::sync::{Arc, Mutex};
 
 pub use types::{
-    Action, ContextItem, ContextReport, DeciderSpec, Emit, ItemState, Outcome, Preview,
+    Action, Check, ContextItem, ContextReport, DeciderSpec, Emit, ItemState, Outcome, Preview,
     ProviderSpec, Report, Stages,
 };
 
@@ -108,8 +108,8 @@ fn build_tools(cfg: &Config, registry: &Registry, host: &Host) -> Result<Vec<too
 
 pub struct Engine {
     providers: Vec<ProviderSpec>,
-    /// Decision models for the semantic check, in order (empty: the LLM answers, when allowed).
-    deciders: Vec<DeciderSpec>,
+    /// The semantic check: decision and chat models, tried in order (empty: there is no semantic check).
+    checks: Vec<Check>,
     layers: Vec<Arc<dyn Middleware<ChatRequest, ChatStream>>>,
     /// True when an active layer has the `Redactor` role.
     has_redactor: bool,
@@ -165,53 +165,18 @@ impl Engine {
     /// Like [`Engine::from_config`], looking at `host` instead of the real machine.
     pub fn from_config_in(cfg: &Config, registry: &Registry, host: Host) -> Result<Self> {
         let mut providers = Vec::new();
-        for name in cfg.provider_chain()? {
-            let pc = &cfg.providers[name];
-            let id = crate::config::builtin_id(&pc.plugin)?;
-            let lazy = cfg.lazy_settings(name, &host)?;
-            let build = registry.provider_builder(id)?;
-            let named = {
-                let name = name.to_string();
-                move |mut e: shellmate_api::Error| {
-                    e.message = format!("providers.{name}: {}", e.message);
-                    e
-                }
-            };
-            let provider = build(lazy.probe()).map_err(&named)?;
-            // A `cmd:` secret is fetched when the provider is first used, not now.
-            let provider: Arc<dyn shellmate_api::Provider> = if lazy.is_lazy() {
-                let host = host.clone();
-                Arc::new(lazy::LazyProvider::new(
-                    provider,
-                    Arc::new(move || build(&lazy.complete(&host)?).map_err(&named)),
-                ))
-            } else {
-                provider
-            };
-            providers.push(ProviderSpec {
-                name: name.to_string(),
-                provider,
-                max_level: pc.effective_max_level(),
-                trust: pc.trust,
-            });
+        for name in cfg.model_chain()? {
+            providers.push(Self::chat_model(cfg, registry, &host, name)?);
         }
-        let mut deciders = Vec::new();
-        if cfg.validator.semantic {
-            for name in &cfg.validator.deciders {
-                let dc = &cfg.deciders[name];
-                let id = crate::config::builtin_id(&dc.plugin)?;
-                let decider = registry
-                    .build_decider(id, &cfg.resolved_decider_settings(name, &host)?)
-                    .map_err(|mut e| {
-                        e.message = format!("deciders.{name}: {}", e.message);
-                        e
-                    })?;
-                deciders.push(DeciderSpec {
-                    name: name.clone(),
-                    decider,
-                    trust: dc.trust,
-                });
-            }
+        let mut checks = Vec::new();
+        for name in &cfg.validator.chain {
+            let id = crate::config::builtin_id(&cfg.model(name)?.model.plugin)?;
+            checks.push(match registry.model_kind(id)? {
+                ModelKind::Chat => Check::Chat(Self::chat_model(cfg, registry, &host, name)?),
+                ModelKind::Decision => {
+                    Check::Decision(Self::decision_model(cfg, registry, &host, name)?)
+                }
+            });
         }
         let mut layers = Vec::new();
         let mut has_redactor = false;
@@ -224,7 +189,7 @@ impl Engine {
         let mut engine = Self::with_providers(providers, cfg.context.default_level)
             .with_host(host.clone())
             .with_layers(layers, has_redactor);
-        engine.deciders = deciders;
+        engine.checks = checks;
         engine.plugged = plugged;
         engine.cfg = cfg.clone();
         engine.audit =
@@ -241,11 +206,78 @@ impl Engine {
         Ok(engine)
     }
 
+    /// A chat model of the config as the engine uses it: built with a placeholder for a `cmd:` secret, and again
+    /// with its output when it is first used. Its trust and context ceiling are its provider's.
+    fn chat_model(
+        cfg: &Config,
+        registry: &Registry,
+        host: &Host,
+        name: &str,
+    ) -> Result<ProviderSpec> {
+        let m = cfg.model(name)?;
+        let id = crate::config::builtin_id(&m.model.plugin)?;
+        if registry.model_kind(id)? != ModelKind::Chat {
+            return Err(Error::new(
+                "config.wrong_kind",
+                format!("`{name}` is a decision model, and only a chat model can answer"),
+            )
+            .with_hint("decision models belong in [validator] chain"));
+        }
+        let lazy = cfg.lazy_model_settings(name, host)?;
+        let build = registry.provider_builder(id)?;
+        let named = {
+            let name = name.to_string();
+            move |mut e: shellmate_api::Error| {
+                e.message = format!("models.{name}: {}", e.message);
+                e
+            }
+        };
+        let provider = build(lazy.probe()).map_err(&named)?;
+        // A `cmd:` secret is fetched when the model is first used, not now.
+        let provider: Arc<dyn shellmate_api::Provider> = if lazy.is_lazy() {
+            let host = host.clone();
+            Arc::new(lazy::LazyProvider::new(
+                provider,
+                Arc::new(move || build(&lazy.complete(&host)?).map_err(&named)),
+            ))
+        } else {
+            provider
+        };
+        Ok(ProviderSpec {
+            name: name.to_string(),
+            provider,
+            max_level: m.provider.effective_max_level(),
+            trust: m.provider.trust,
+        })
+    }
+
+    /// A decision model of the config as the engine uses it.
+    fn decision_model(
+        cfg: &Config,
+        registry: &Registry,
+        host: &Host,
+        name: &str,
+    ) -> Result<DeciderSpec> {
+        let m = cfg.model(name)?;
+        let id = crate::config::builtin_id(&m.model.plugin)?;
+        let decider = registry
+            .build_decider(id, &cfg.resolved_model_settings(name, host)?)
+            .map_err(|mut e| {
+                e.message = format!("models.{name}: {}", e.message);
+                e
+            })?;
+        Ok(DeciderSpec {
+            name: name.to_string(),
+            decider,
+            trust: m.provider.trust,
+        })
+    }
+
     /// For tests and embedding. Providers in fallback order.
     pub fn with_providers(providers: Vec<ProviderSpec>, default_level: u8) -> Self {
         Self {
             providers,
-            deciders: Vec::new(),
+            checks: Vec::new(),
             gathered: Mutex::new(Gathered::default()),
             layers: Vec::new(),
             has_redactor: false,
@@ -273,7 +305,13 @@ impl Engine {
 
     /// Decision models for the semantic check (tests and embedding; `from_config` does this from the config).
     pub fn with_deciders(mut self, deciders: Vec<DeciderSpec>) -> Self {
-        self.deciders = deciders;
+        self.checks = deciders.into_iter().map(Check::Decision).collect();
+        self
+    }
+
+    /// The semantic check's chain, decision and chat models in order (tests and embedding).
+    pub fn with_checks(mut self, checks: Vec<Check>) -> Self {
+        self.checks = checks;
         self
     }
 
@@ -358,16 +396,16 @@ impl Engine {
     /// INV-2: nothing may reach a remote provider unless a redaction layer is active. Checked when the
     /// engine is built and again before every run, so no construction path can skip it.
     pub fn check_privacy(&self) -> Result<()> {
-        if let Some(d) = self.deciders.iter().find(|d| d.trust == Trust::Remote) {
+        if let Some(c) = self.checks.iter().find(|c| c.trust() == Trust::Remote) {
             if !self.has_redactor {
-                return Err(Error::new("privacy.no_redaction", format!("decider `{}` is remote but no redaction layer is active", d.name))
-                    .with_hint("enable `builtin:redact` in [pipeline].llm, or set trust = \"local\" if the decider runs on this machine"));
+                return Err(Error::new("privacy.no_redaction", format!("model `{}` is remote but no redaction layer is active", c.name()))
+                    .with_hint("enable `builtin:redact` in [pipeline].llm, or set trust = \"local\" on its provider if the model runs on this machine"));
             }
         }
         if let Some(p) = self.providers.iter().find(|p| p.trust == Trust::Remote) {
             if !self.has_redactor {
-                return Err(Error::new("privacy.no_redaction", format!("provider `{}` is remote but no redaction layer is active", p.name))
-                    .with_hint("enable `builtin:redact` in [pipeline].llm, or set trust = \"local\" if the provider runs on this machine"));
+                return Err(Error::new("privacy.no_redaction", format!("model `{}` is remote but no redaction layer is active", p.name))
+                    .with_hint("enable `builtin:redact` in [pipeline].llm, or set trust = \"local\" on its provider if the model runs on this machine"));
             }
         }
         Ok(())

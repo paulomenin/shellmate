@@ -59,12 +59,21 @@ fn verdict(yes: f32, label: &str, p: f32) -> DecisionResponse {
     }
 }
 
-fn semantic_cfg(deciders: &[&str], llm_fallback: bool) -> Config {
-    let mut cfg = Config::defaults();
-    cfg.validator.semantic = true;
-    cfg.validator.deciders = deciders.iter().map(|d| d.to_string()).collect();
-    cfg.validator.llm_fallback = llm_fallback;
-    cfg
+/// A chat model that also sits in the validator chain.
+fn chat_check(name: &str, p: Arc<FakeProvider>) -> Check {
+    Check::Chat(ProviderSpec {
+        name: name.into(),
+        provider: p as Arc<dyn Provider>,
+        max_level: 1,
+        trust: Trust::Local,
+    })
+}
+
+fn down() -> Arc<FakeDecider> {
+    FakeDecider::new(Err(shellmate_api::ProviderError::new(
+        shellmate_api::ProviderErrorKind::Unavailable,
+        "connection refused",
+    )))
 }
 
 const DF: &str = "Here.\n```shellmate-command\ndf -h\n```";
@@ -74,7 +83,6 @@ async fn a_confident_decider_finding_is_shown_and_the_llm_is_not_asked_again() {
     let d = FakeDecider::new(Ok(verdict(0.05, "read_only", 0.9)));
     let p = FakeProvider::replying(DF);
     let out = engine(vec![("a", p.clone(), 1)])
-        .with_config(semantic_cfg(&["laya"], true))
         .with_builtin_tools()
         .with_deciders(vec![spec("laya", d.clone(), Trust::Local)])
         .run(&env("ask", "show disk usage"))
@@ -108,7 +116,6 @@ async fn a_confident_decider_finding_is_shown_and_the_llm_is_not_asked_again() {
 async fn an_unsure_decider_stays_silent() {
     let d = FakeDecider::new(Ok(verdict(0.4, "destructive", 0.5)));
     let out = engine(vec![("a", FakeProvider::replying(DF), 1)])
-        .with_config(semantic_cfg(&["laya"], true))
         .with_builtin_tools()
         .with_deciders(vec![spec("laya", d, Trust::Local)])
         .run(&env("ask", "show disk usage"))
@@ -122,19 +129,18 @@ async fn an_unsure_decider_stays_silent() {
 }
 
 #[tokio::test]
-async fn a_failing_decider_falls_back_to_the_next_then_the_llm() {
-    let down = FakeDecider::new(Err(shellmate_api::ProviderError::new(
-        shellmate_api::ProviderErrorKind::Unavailable,
-        "connection refused",
-    )));
+async fn a_failing_model_falls_back_to_the_next_in_the_chain() {
+    let down = down();
     let p = FakeProvider::with(vec![
         Ok(DF.to_string()),
         Ok("{\"match\": 0.02, \"risk\": \"read_only\"}".to_string()),
     ]);
     let out = engine(vec![("a", p.clone(), 1)])
-        .with_config(semantic_cfg(&["laya"], true))
         .with_builtin_tools()
-        .with_deciders(vec![spec("laya", down.clone(), Trust::Local)])
+        .with_checks(vec![
+            Check::Decision(spec("laya", down.clone(), Trust::Local)),
+            chat_check("a", p.clone()),
+        ])
         .run(&env("ask", "list files"))
         .await
         .unwrap();
@@ -153,14 +159,13 @@ async fn a_failing_decider_falls_back_to_the_next_then_the_llm() {
 }
 
 #[tokio::test]
-async fn with_no_decider_configured_the_llm_answers() {
+async fn a_chat_model_in_the_chain_answers_the_same_questions() {
     let p = FakeProvider::with(vec![
         Ok(DF.to_string()),
         Ok("{\"match\": 0.97, \"risk\": \"read_only\"}".to_string()),
     ]);
     let out = engine(vec![("a", p.clone(), 1)])
-        .with_config(semantic_cfg(&[], true))
-        .with_builtin_tools()
+        .with_checks(vec![chat_check("a", p.clone())])
         .run(&env("ask", "show disk usage"))
         .await
         .unwrap();
@@ -173,26 +178,32 @@ async fn with_no_decider_configured_the_llm_answers() {
 }
 
 #[tokio::test]
-async fn without_fallback_and_without_a_decider_the_check_is_skipped_visibly() {
+async fn when_nothing_in_the_chain_answers_the_check_is_skipped_visibly() {
     let p = FakeProvider::replying(DF);
+    let d = down();
     let out = engine(vec![("a", p.clone(), 1)])
-        .with_config(semantic_cfg(&[], false))
-        .with_builtin_tools()
+        .with_deciders(vec![spec("laya", d.clone(), Trust::Local)])
         .run(&env("ask", "show disk usage"))
         .await
         .unwrap();
-    assert_eq!(p.seen.lock().unwrap().len(), 1);
+    assert_eq!(d.count(), 1);
+    assert_eq!(
+        p.seen.lock().unwrap().len(),
+        1,
+        "the chat model of the llm chain is not asked unless it is in the validator chain"
+    );
     assert!(
         out.trailer_text()
             .contains("the semantic check was skipped"),
         "{}",
         out.trailer_text()
     );
+    assert!(out.trailer_text().contains("`laya`"));
     assert_eq!(out.buffer.as_deref(), Some("df -h"));
 }
 
 #[tokio::test]
-async fn the_semantic_check_is_off_by_default() {
+async fn the_semantic_check_is_off_without_a_chain() {
     let p = FakeProvider::replying(DF);
     let out = engine(vec![("a", p.clone(), 1)])
         .run(&env("ask", "show disk usage"))
@@ -256,4 +267,60 @@ fn a_remote_decider_needs_redaction() {
         Trust::Remote,
     )]);
     assert_eq!(e.check_privacy().unwrap_err().code, "privacy.no_redaction");
+}
+
+#[test]
+fn a_remote_chat_model_in_the_chain_needs_redaction() {
+    let e = engine(vec![("a", FakeProvider::replying("x"), 1)]).with_checks(vec![Check::Chat(
+        ProviderSpec {
+            name: "cloud".into(),
+            provider: FakeProvider::replying("x") as Arc<dyn Provider>,
+            max_level: 1,
+            trust: Trust::Remote,
+        },
+    )]);
+    let err = e.check_privacy().unwrap_err();
+    assert_eq!(err.code, "privacy.no_redaction");
+    assert!(err.message.contains("cloud"), "{}", err.message);
+}
+
+fn kinds() -> Registry {
+    let mut r = Registry::new();
+    r.register_provider(
+        "chat",
+        Box::new(|_| Ok(FakeProvider::replying("x") as Arc<dyn Provider>)),
+    );
+    r.register_decider(
+        "decide",
+        Box::new(|_| Ok(FakeDecider::new(Ok(verdict(0.9, "read_only", 0.9))) as Arc<dyn Decider>)),
+    );
+    r
+}
+
+const TWO_KINDS: &str = "version = 1\n[pipeline]\nllm = []\n[conversation]\nstore = \"none\"\n\
+    [providers.p]\ntrust = \"local\"\n\
+    [models.chat]\nprovider = \"p\"\nplugin = \"builtin:chat\"\nmodel = \"c\"\n\
+    [models.judge]\nprovider = \"p\"\nplugin = \"builtin:decide\"\nmodel = \"d\"\n";
+
+#[test]
+fn the_validator_chain_takes_both_kinds_and_the_llm_chain_only_chat_models() {
+    let ok = Config::parse(&format!(
+        "{TWO_KINDS}[llm]\nchain = [\"chat\"]\n[validator]\nchain = [\"judge\", \"chat\"]\n"
+    ))
+    .unwrap();
+    let e = Engine::from_config_in(&ok, &kinds(), Host::system()).unwrap();
+    assert_eq!(e.checks.len(), 2);
+    assert!(matches!(e.checks[0], Check::Decision(_)));
+    assert!(matches!(e.checks[1], Check::Chat(_)));
+
+    let bad = Config::parse(&format!("{TWO_KINDS}[llm]\nchain = [\"judge\"]\n")).unwrap();
+    let err = Engine::from_config_in(&bad, &kinds(), Host::system())
+        .err()
+        .unwrap();
+    assert_eq!(err.code, "config.wrong_kind");
+    assert!(err.message.contains("judge"), "{}", err.message);
+    // `config check` says the same, and lists the chat models
+    let err = bad.validate_with(&kinds(), &Host::system()).unwrap_err();
+    assert_eq!(err.code, "config.wrong_kind");
+    assert!(err.hint.unwrap().contains("chat"));
 }

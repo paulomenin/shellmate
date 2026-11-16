@@ -109,7 +109,7 @@ fn config_show_lists_the_effective_settings_without_secret_values() {
     let path = home.str("c.toml");
     std::fs::write(
         &path,
-        "version = 1\n[providers.p]\nplugin = \"builtin:openai-compatible\"\n[providers.p.settings]\npreset = \"openai\"\nmodel = \"m\"\napi_key = \"env:SM_TEST_KEY\"\n[llm]\nchain = [\"p\"]\n",
+        "version = 1\n[providers.p]\npreset = \"openai\"\napi_key = \"env:SM_TEST_KEY\"\n[models.p]\nprovider = \"p\"\nplugin = \"builtin:openai-compatible\"\nmodel = \"m\"\n[llm]\nchain = [\"p\"]\n",
     )
     .unwrap();
     let r = raw(
@@ -376,9 +376,9 @@ async fn the_audit_log_can_be_turned_off() {
 
 fn with_decider(llm: &str, decider: &str, timeout: &str) -> String {
     format!(
-        "{}\n[validator]\nsemantic = true\ndeciders = [\"laya\"]\ntimeout = \"{timeout}\"\n\
-         [deciders.laya]\nplugin = \"builtin:systemone\"\ntrust = \"local\"\n\
-         [deciders.laya.settings]\nendpoint = \"{decider}\"\nmodel = \"laya\"\n",
+        "{}\n[validator]\nchain = [\"laya\"]\ntimeout = \"{timeout}\"\n\
+         [providers.laya]\ntrust = \"local\"\nendpoint = \"{decider}\"\n\
+         [models.laya]\nprovider = \"laya\"\nplugin = \"builtin:systemone\"\nmodel = \"laya\"\n",
         config(llm)
     )
 }
@@ -798,7 +798,7 @@ async fn setup_yes_verify_asks_each_server_with_the_key_and_writes_the_checker()
     assert_eq!(r.code, 0, "{}{}", r.stdout, r.stderr);
     let cfg = std::fs::read_to_string(home.path("config/shellmate/config.toml")).unwrap();
     assert!(
-        cfg.contains("[deciders.checker]") && cfg.contains("semantic = true"),
+        cfg.contains("[models.checker]") && cfg.contains("chain = [\"checker\"]"),
         "{cfg}"
     );
     assert!(cfg.contains("api_key = \"env:SETUP_TEST_KEY\""), "{cfg}");

@@ -8,7 +8,7 @@ use shellmate_testing::MockHttpServer;
 
 fn cfg(url: &str, key: &str) -> String {
     format!(
-        "version = 1\n[audit]\nenabled = false\n[providers.mock]\nplugin = \"builtin:openai-compatible\"\ntrust = \"local\"\n[providers.mock.settings]\nendpoint = \"{url}\"\nmodel = \"m\"\napi_key = \"{key}\"\n[llm]\nchain = [\"mock\"]\n"
+        "version = 1\n[audit]\nenabled = false\n[providers.mock]\ntrust = \"local\"\nendpoint = \"{url}\"\napi_key = \"{key}\"\n[models.mock]\nprovider = \"mock\"\nplugin = \"builtin:openai-compatible\"\nmodel = \"m\"\n[llm]\nchain = [\"mock\"]\n"
     )
 }
 
@@ -76,7 +76,7 @@ async fn config_check_does_not_run_the_program_and_a_bad_line_is_an_error() {
             .unwrap();
         assert_ne!(r.code, 0, "{bad}");
         assert!(r.stderr.contains(code), "{bad}: {}", r.stderr);
-        assert!(r.stderr.contains("providers.mock.settings.api_key"));
+        assert!(r.stderr.contains("providers.mock.api_key"));
     }
 }
 

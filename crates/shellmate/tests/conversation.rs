@@ -160,7 +160,7 @@ async fn placeholders_are_stable_across_turns() {
     let cfg = remote_config(
         &server.url(),
         &format!(
-            "[plugins.\"builtin:store-tmpfs\".settings]\ndir = \"{}\"\n",
+            "[plugins.\"builtin:store-tmpfs\"]\ndir = \"{}\"\n",
             dir.str("store")
         ),
     )
@@ -197,7 +197,7 @@ async fn local_only_turns_are_not_sent_to_a_remote_provider() {
     let server = counting_server().await;
     let dir = Scratch::new("audience");
     let store = format!(
-        "[plugins.\"builtin:store-tmpfs\".settings]\ndir = \"{}\"\n",
+        "[plugins.\"builtin:store-tmpfs\"]\ndir = \"{}\"\n",
         dir.str("store")
     );
     // turn 1: a local model at context level 2 (recent commands) -> the turn is local-only

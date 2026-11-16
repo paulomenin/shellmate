@@ -10,7 +10,7 @@ pub(crate) fn run(config: Option<&std::path::Path>) -> i32 {
         cfg.validate_with(&registry, &shellmate_core::ports::Host::system())?;
         let engine = Engine::from_config(&cfg, &registry)?; // also enforces the privacy rules (remote providers need redaction)
         let chain = cfg
-            .provider_chain()
+            .model_chain()
             .map(|c| c.into_iter().map(String::from).collect::<Vec<_>>())?;
         let mut risky = engine
             .risky_tool_rules()

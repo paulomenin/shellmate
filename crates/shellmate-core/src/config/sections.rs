@@ -31,15 +31,10 @@ pub struct Validator {
     /// Deterministic checks: the program exists, the line parses in your shell, the classifier's risk.
     #[serde(default = "super::default_true")]
     pub enabled: bool,
-    /// Also ask a decision model whether the command matches the request and how risky it is.
+    /// `[models.<name>]` that judge whether the command matches the request and how risky it is, tried in
+    /// order. A decision model or a chat model. Empty: there is no semantic check.
     #[serde(default)]
-    pub semantic: bool,
-    /// `[deciders.<name>]` to try, in order. Empty means the LLM answers the same questions.
-    #[serde(default)]
-    pub deciders: Vec<String>,
-    /// With no decider (or none reachable), let the LLM provider chain answer the questions.
-    #[serde(default = "super::default_true")]
-    pub llm_fallback: bool,
+    pub chain: Vec<String>,
     #[serde(default = "default_validator_timeout")]
     pub timeout: String,
     /// A semantic finding is shown only when the model is at least this sure (0.5..=1).
@@ -51,9 +46,7 @@ impl Default for Validator {
     fn default() -> Self {
         Self {
             enabled: true,
-            semantic: false,
-            deciders: Vec::new(),
-            llm_fallback: true,
+            chain: Vec::new(),
             timeout: default_validator_timeout(),
             min_confidence: default_min_confidence(),
         }
@@ -71,7 +64,7 @@ fn default_min_confidence() -> f32 {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Llm {
-    /// Primary first, then fallbacks in order.
+    /// `[models.<name>]` of chat models, primary first, then fallbacks in order.
     #[serde(default)]
     pub chain: Vec<String>,
 }
