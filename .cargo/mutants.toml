@@ -3,6 +3,10 @@
 # Mutants that change nothing observable, so no test can catch them. Everything else that survives is a
 # gap in the tests: add a test, then re-run.
 exclude_re = [
+    # `GroupGuard::disarm` only stops a second SIGKILL to the group after its leader was reaped, so that a reused
+    # process group id is never signalled. Both signals hit an empty group in a test; seeing the difference would
+    # need the kernel to hand the same id to another group in between.
+    "replace GroupGuard::disarm with \\(\\)",
     # glob_match is covered by a property test against the textbook definition; index-arithmetic mutants
     # there loop forever (reported as timeouts), which is as good as caught
     "in glob_match",

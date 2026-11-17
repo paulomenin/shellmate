@@ -166,6 +166,33 @@ async fn the_inherited_environment_is_the_real_one_and_the_sanitized_one_is_not(
     assert!(sanitized.stdout.contains("GIT_CONFIG_KEY_0=core.fsmonitor"));
 }
 
+/// True once the process is gone or is only a zombie (give the kernel a moment to reap it).
+async fn gone(pid: libc::pid_t) -> bool {
+    for _ in 0..100 {
+        let alive = unsafe { libc::kill(pid, 0) } == 0
+            && !std::fs::read_to_string(format!("/proc/{pid}/stat"))
+                .map_or(true, |s| s.contains(") Z "));
+        if !alive {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(40)).await;
+    }
+    false
+}
+
+/// The pid a script wrote to `file`, once it has written the whole line.
+async fn pid_written_to(file: &std::path::Path) -> libc::pid_t {
+    for _ in 0..500 {
+        if let Ok(s) = std::fs::read_to_string(file) {
+            if s.ends_with('\n') {
+                return s.trim().parse().expect("a pid");
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    panic!("the script never wrote {}", file.display());
+}
+
 #[tokio::test]
 async fn a_timeout_stops_the_whole_process_group_not_just_the_leader() {
     let d = scratch("group");
@@ -184,18 +211,30 @@ async fn a_timeout_stops_the_whole_process_group_not_just_the_leader() {
         .trim()
         .parse()
         .unwrap();
-    // the background child must be gone (give the kernel a moment to reap it)
-    let mut alive = true;
-    for _ in 0..50 {
-        alive = unsafe { libc::kill(pid, 0) } == 0
-            && !std::fs::read_to_string(format!("/proc/{pid}/stat"))
-                .map_or(true, |s| s.contains(") Z "));
-        if !alive {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(40));
-    }
+    let alive = !gone(pid).await;
     assert!(!alive, "the background process {pid} survived the timeout");
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+#[tokio::test]
+async fn dropping_the_future_stops_the_whole_process_group() {
+    let d = scratch("cancel");
+    let pidfile = d.join("pid");
+    let script = format!("sleep 300 & echo $! > {}; wait", pidfile.display());
+    let pid = tokio::select! {
+        _ = exec_script(
+            &script,
+            Duration::from_secs(120),
+            4096,
+            shellmate_api::ProcessEnv::Sanitized,
+        ) => panic!("the command was not expected to finish"),
+        // the background child is running once its pid is written; leaving this branch drops the other future
+        pid = pid_written_to(&pidfile) => pid,
+    };
+    assert!(
+        gone(pid).await,
+        "the background process {pid} survived the cancellation"
+    );
     let _ = std::fs::remove_dir_all(&d);
 }
 

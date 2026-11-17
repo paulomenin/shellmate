@@ -34,6 +34,31 @@ fn sanitized_env(cmd: &mut tokio::process::Command, vars: &dyn Env) {
         .env("GIT_TERMINAL_PROMPT", "0");
 }
 
+/// Owns the process group of a running command. Dropping it kills the group, so the descendants of a command
+/// do not outlive the future that was running it, whether that future finished, timed out or was cancelled.
+/// (`kill_on_drop` only kills the immediate child.)
+struct GroupGuard(Option<libc::pid_t>);
+
+impl GroupGuard {
+    fn kill(&self) {
+        if let Some(p) = self.0 {
+            // SAFETY: kill has no memory preconditions; a negative pid names the process group.
+            unsafe { libc::kill(-p, libc::SIGKILL) };
+        }
+    }
+
+    /// Call once the leader has been reaped: its group id may be reused from then on, so it must not be signalled.
+    fn disarm(&mut self) {
+        self.0 = None;
+    }
+}
+
+impl Drop for GroupGuard {
+    fn drop(&mut self) {
+        self.kill();
+    }
+}
+
 /// Run `prepared` with `execve` on its argv (never through a shell), in its own process group, with no
 /// stdin, a timeout and capped output. The group is killed on timeout and when this future is dropped.
 ///
@@ -99,12 +124,8 @@ pub async fn run_exec_with(
         Ok(c) => c,
         Err(e) => return failed(format!("could not start: {e}")),
     };
-    let pgid = child.id().map(|p| p as libc::pid_t);
-    let kill_group = move || {
-        if let Some(p) = pgid {
-            unsafe { libc::kill(-p, libc::SIGKILL) };
-        }
-    };
+    // declared after `child`, so it is dropped first: the group is killed before the child is reaped
+    let mut group = GroupGuard(child.id().map(|p| p as libc::pid_t));
     let mut out = child.stdout.take().expect("piped");
     let mut err = child.stderr.take().expect("piped");
     let cap = max_output as u64;
@@ -127,8 +148,9 @@ pub async fn run_exec_with(
         Ok((o, e, _)) => (o, e, None, false),
         Err(_) => (Vec::new(), Vec::new(), None, true),
     };
-    kill_group();
+    group.kill();
     let _ = child.wait().await;
+    group.disarm();
     let truncated = o.len() as u64 > cap || e.len() as u64 > cap;
     let text = |mut b: Vec<u8>| {
         b.truncate(max_output);
