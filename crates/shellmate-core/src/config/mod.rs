@@ -9,6 +9,7 @@ mod load;
 mod providers;
 mod resolve;
 mod sections;
+mod shortcut;
 #[cfg(test)]
 mod tests;
 mod tools;
@@ -18,6 +19,7 @@ pub use load::parse_duration;
 pub use providers::*;
 pub use resolve::{builtin_id, LazySettings};
 pub use sections::*;
+pub use shortcut::Shortcut;
 pub use tools::*;
 
 use crate::action::Action;

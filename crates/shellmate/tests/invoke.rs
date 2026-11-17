@@ -112,6 +112,28 @@ fn config_check_refuses_a_typo_in_the_store_settings() {
 }
 
 #[test]
+fn config_check_refuses_a_shortcut_that_init_cannot_bind() {
+    let cfg = format!(
+        "{}[input.shortcuts]\n\"super+m\" = \"ask\"\n",
+        config("http://127.0.0.1:1")
+    );
+    let check = run(&["config", "check"], &cfg, b"");
+    assert_eq!(check.code, 1, "{}", check.stdout);
+    assert!(
+        check.stderr.contains("unknown modifier `super`"),
+        "{}",
+        check.stderr
+    );
+    let init = run(&["init", "bash"], &cfg, b"");
+    assert_eq!(init.code, 1);
+    assert!(
+        init.stderr.contains("unknown modifier `super`"),
+        "{}",
+        init.stderr
+    );
+}
+
+#[test]
 fn config_check_and_init() {
     let ok = run(&["config", "check"], &config("http://127.0.0.1:1"), b"");
     assert_eq!(ok.code, 0, "{}", ok.stderr);

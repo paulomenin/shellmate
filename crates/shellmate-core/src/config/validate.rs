@@ -35,6 +35,8 @@ impl Config {
             ));
         }
         for (key, action) in &self.input.shortcuts {
+            Shortcut::parse(key)
+                .map_err(|e| Error::new(e.code, format!("input.shortcuts: {}", e.message)))?;
             if !KNOWN_ACTIONS.contains(&action.as_str()) {
                 return Err(Error::new(
                     "config.invalid",

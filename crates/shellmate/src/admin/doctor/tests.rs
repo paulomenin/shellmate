@@ -166,15 +166,6 @@ fn a_man_tool_needs_a_man_binary_on_the_path() {
 }
 
 #[test]
-fn a_shortcut_that_does_not_parse_is_a_failure() {
-    let bad = "version = 1\n[input.shortcuts]\n\"hyper+zz\" = \"ask\"\n";
-    let v = ctx_with(bad, MapEnv::new(), MemFs::new(), shortcuts);
-    assert!(v.iter().all(|c| c.status == Status::Fail), "{v:?}");
-    assert!(!v.is_empty());
-    assert!(ctx_with("version = 1", MapEnv::new(), MemFs::new(), shortcuts).is_empty());
-}
-
-#[test]
 fn decision_models_are_only_checked_when_they_are_in_the_validator_chain() {
     assert!(ctx_with("version = 1", MapEnv::new(), MemFs::new(), deciders).is_empty());
     let models =

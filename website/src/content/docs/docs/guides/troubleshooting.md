@@ -18,7 +18,7 @@ WARN  integration    not found in ~/.zshrc
       -> run `shellmate install-shell`
 ```
 
-`doctor` checks the version, the config, whether each provider endpoint accepts a connection (a TCP connect; nothing is sent), whether each configured decision model accepts a connection, the shell integration, the conversation store, the audit path, the locale, the `man` tool and that your shortcuts parse. Every line that is not OK says how to fix it. It exits with status 1 only if something FAILs, and `--json` gives machine-readable output.
+`doctor` checks the version, the config, whether each provider endpoint accepts a connection (a TCP connect; nothing is sent), whether each configured decision model accepts a connection, the shell integration, the conversation store, the audit path, the locale and the `man` tool. A shortcut that cannot be used is a config error, which `doctor` reports with the rest of the config. Every line that is not OK says how to fix it. It exits with status 1 only if something FAILs, and `--json` gives machine-readable output.
 
 ## Common problems
 

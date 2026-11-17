@@ -86,7 +86,7 @@ See [Checking suggested commands](../../guides/validator/).
 
 ## `[input.shortcuts]`
 
-A table of `"key" = "action"`. Keys use `ctrl+`, `alt+` or `ctrl+alt+` with a single letter or digit. Chords such as `ctrl+x ctrl+e` are not supported. Actions: `ask`, `generate`, `explain`, `new-conversation`, `capture`. Default: `"alt+m" = "ask"`.
+A table of `"key" = "action"`. Keys use `ctrl+`, `alt+` or `ctrl+alt+` with a single letter or digit. Chords such as `ctrl+x ctrl+e` are not supported. Actions: `ask`, `generate`, `explain`, `new-conversation`, `capture`. Default: `"alt+m" = "ask"`. A key that cannot be used (an unknown modifier, a bare letter, a chord) is a `config.invalid` or `config.unsupported` error when the config loads, so `config check` and `init` agree.
 
 ## `[pipeline]`
 

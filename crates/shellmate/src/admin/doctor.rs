@@ -64,7 +64,6 @@ const CHECKS: &[CheckFn] = &[
     secrets,
     deciders,
     shell_and_integration,
-    shortcuts,
     storage,
     terminal,
     man_tool,
@@ -364,24 +363,6 @@ fn integration(text: &str, exe: &str, rc: &Path) -> Check {
             Some("run `shellmate install-shell`"),
         )
     }
-}
-
-fn shortcuts(ctx: &Ctx<'_>) -> Vec<Check> {
-    ctx.cfg
-        .input
-        .shortcuts
-        .keys()
-        .filter_map(|key| {
-            crate::init::parse_key(key).err().map(|e| {
-                check(
-                    "shortcuts",
-                    Status::Fail,
-                    format!("{key}: {}", e.message),
-                    e.hint.as_deref(),
-                )
-            })
-        })
-        .collect()
 }
 
 /// The conversation store and the audit log.
