@@ -95,6 +95,23 @@ fn bad_input_and_config_are_errors_not_panics() {
 }
 
 #[test]
+fn config_check_refuses_a_typo_in_the_store_settings() {
+    let dir = std::env::temp_dir().join(format!("sm-store-typo-{}", std::process::id()));
+    let base = config("http://127.0.0.1:1");
+    let ok = format!(
+        "{base}[plugins.\"builtin:store-tmpfs\"]\ndir = \"{}\"\n",
+        dir.display()
+    );
+    assert_eq!(run(&["config", "check"], &ok, b"").code, 0);
+    let typo = format!("{ok}unknown_setting = true\n");
+    let bad = run(&["config", "check"], &typo, b"");
+    assert_eq!(bad.code, 1, "{}", bad.stdout);
+    assert!(bad.stderr.contains("config.invalid"), "{}", bad.stderr);
+    assert!(bad.stderr.contains("unknown_setting"), "{}", bad.stderr);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn config_check_and_init() {
     let ok = run(&["config", "check"], &config("http://127.0.0.1:1"), b"");
     assert_eq!(ok.code, 0, "{}", ok.stderr);

@@ -203,6 +203,8 @@ extra_patterns = [{ name = "internal-hosts", regex = '[a-z0-9-]+\.corp\.example\
 dir = "/run/user/1000/shellmate-conversations"
 ```
 
+An unknown key or a value of the wrong type is a `config.invalid` error, for the store too, so a typo cannot send transcripts to another directory. `dir` is the store's only setting.
+
 ## A fuller example
 
 ```toml

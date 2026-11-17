@@ -2,6 +2,7 @@
 //! a pointer file per session, advisory `flock` locks. Everything is `0600` in a `0700` directory
 //! that lives on tmpfs (`$XDG_RUNTIME_DIR`), so transcripts disappear at logout.
 
+use serde::Deserialize;
 use serde_json::Value;
 use shellmate_api::{
     busy, ConversationInfo, ConversationLock, Current, Error, Registry, Result, Store,
@@ -16,14 +17,23 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 pub const PLUGIN_ID: &str = "store-tmpfs";
 
+/// The store's settings. Unknown keys and a wrong type are errors (with `config.invalid`, not
+/// `conversation.store`, which the engine takes to mean "conversations are off"), so a typo cannot move the
+/// transcripts somewhere else.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Settings {
+    /// Where the store lives. Default: `$XDG_RUNTIME_DIR/shellmate/store`.
+    dir: Option<PathBuf>,
+}
+
 pub fn register(registry: &mut Registry) {
     registry.register_store(
         PLUGIN_ID,
         Box::new(|settings| {
-            let dir = match settings.get("dir").and_then(Value::as_str) {
-                Some(d) => PathBuf::from(d),
-                None => default_dir(),
-            };
+            let s: Settings = serde_json::from_value(settings.clone())
+                .map_err(|e| Error::new("config.invalid", e.to_string()))?;
+            let dir = s.dir.unwrap_or_else(default_dir);
             Ok(Arc::new(TmpfsStore::open(dir)?) as Arc<dyn Store>)
         }),
     );
@@ -345,6 +355,35 @@ mod tests {
         ));
         let _ = fs::remove_dir_all(&dir);
         (TmpfsStore::open(dir.join("store")).unwrap(), dir)
+    }
+
+    fn built(settings: Value) -> Result<Arc<dyn Store>> {
+        let mut r = Registry::new();
+        register(&mut r);
+        r.build_store(PLUGIN_ID, &settings)
+    }
+
+    #[test]
+    fn the_settings_are_strict_and_a_bad_one_creates_nothing() {
+        let (_, dir) = store();
+        let target = dir.join("elsewhere");
+        for bad in [
+            json!({"dir": target.to_str().unwrap(), "unknown_setting": true}),
+            json!({"dirr": target.to_str().unwrap()}),
+            json!({"dir": 5}),
+            json!({"dir": ["a"]}),
+        ] {
+            let err = built(bad.clone()).err().expect("refused");
+            // not `conversation.store`: the engine takes that to mean "conversations are off"
+            assert_eq!(err.code, "config.invalid", "{bad}: {}", err.message);
+        }
+        assert!(
+            !target.exists(),
+            "a refused setting must not create a directory"
+        );
+        assert!(built(json!({"dir": target.to_str().unwrap()})).is_ok());
+        assert!(target.is_dir());
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]
