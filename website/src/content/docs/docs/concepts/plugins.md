@@ -85,7 +85,7 @@ A decider plugin answers typed questions about a command, with a label and proba
 
 ## `llm` middleware
 
-Middleware wraps the provider call like layers of an onion. Each layer can change the request on the way in and the response on the way out, and can call the next layer zero, one or many times.
+Middleware wraps the provider call like layers of an onion. Each layer can change the request on the way in and the response on the way out, and can call the next layer once, or not at all if it answers by itself.
 
 - **More than one:** yes. `[pipeline] llm` is the list, outermost first. The default is `["..."]`, and `"..."` stands for the built-in defaults, today just `builtin:redact`.
 - **When it is called:** around **every** provider call: each round of the tool loop, each fallback model, a remote decision model's request, and a chat model answering the semantic questions. Not around a local decision model.

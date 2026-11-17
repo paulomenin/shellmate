@@ -8,7 +8,7 @@ pub trait Terminal<Q: Send + 'static, R: Send + 'static>: Send + Sync {
     async fn call(&self, request: Q) -> Result<R>;
 }
 
-/// Onion-style middleware: it may change the request, call `next` (zero, one or many times)
+/// Onion-style middleware: it may change the request, call `next` (at most once: `Next::run` consumes it)
 /// and change the response (`requirements.md`, "Pipeline & Middleware").
 #[async_trait]
 pub trait Middleware<Q: Send + 'static, R: Send + 'static>: Send + Sync {

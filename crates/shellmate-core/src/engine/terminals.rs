@@ -13,8 +13,17 @@ impl Terminal<ChatRequest, ChatStream> for ProviderTerminal<'_> {
     }
 }
 
-/// Records the request that reaches the end of the chain instead of sending it anywhere.
-pub(super) struct Recorder(pub(super) Mutex<Option<ChatRequest>>);
+/// Records the request that reaches the end of the chain instead of sending it anywhere. A middleware may
+/// answer by itself without passing the request on, so there can be none.
+#[derive(Default)]
+pub(super) struct Recorder(Mutex<Option<ChatRequest>>);
+
+impl Recorder {
+    /// The request that arrived, if any layer passed one on.
+    pub(super) fn take(&self) -> Option<ChatRequest> {
+        self.0.lock().expect("recorder lock").take()
+    }
+}
 
 #[async_trait]
 impl Terminal<ChatRequest, ChatStream> for Recorder {

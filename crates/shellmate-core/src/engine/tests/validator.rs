@@ -284,6 +284,28 @@ fn a_remote_chat_model_in_the_chain_needs_redaction() {
     assert!(err.message.contains("cloud"), "{}", err.message);
 }
 
+#[tokio::test]
+async fn a_remote_decider_is_not_asked_when_a_layer_swallows_the_record() {
+    let d = FakeDecider::new(Ok(verdict(0.9, "read_only", 0.9)));
+    let out = Engine::with_providers(
+        vec![ProviderSpec {
+            name: "a".into(),
+            provider: FakeProvider::replying(DF) as Arc<dyn Provider>,
+            max_level: 1,
+            trust: Trust::Remote,
+        }],
+        1,
+    )
+    .with_layers(vec![Arc::new(ShortCircuit)], true)
+    .with_deciders(vec![spec("hosted", d.clone(), Trust::Remote)])
+    .run(&env("ask", "show disk usage"))
+    .await;
+    // the chat request is swallowed by the same layer, so the run fails or ends without a check: what matters
+    // is that nothing reached the decider
+    let _ = out;
+    assert_eq!(d.count(), 0, "the record must not be sent unredacted");
+}
+
 fn kinds() -> Registry {
     let mut r = Registry::new();
     r.register_provider(

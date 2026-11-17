@@ -96,6 +96,22 @@ impl Middleware<ChatRequest, ChatStream> for Passthrough {
     }
 }
 
+/// A layer that answers by itself and never passes the request on (`next` zero times).
+struct ShortCircuit;
+#[async_trait]
+impl Middleware<ChatRequest, ChatStream> for ShortCircuit {
+    fn id(&self) -> &str {
+        "test:short-circuit"
+    }
+    async fn call(
+        &self,
+        _req: ChatRequest,
+        _next: Next<'_, ChatRequest, ChatStream>,
+    ) -> Result<ChatStream> {
+        Ok(shellmate_api::stream_from(Vec::new()))
+    }
+}
+
 fn repo_dir(name: &str, subject: &str) -> std::path::PathBuf {
     let d = std::env::temp_dir().join(format!("sm-ctx-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);

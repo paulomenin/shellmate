@@ -40,7 +40,7 @@ The request also carries the conversation's **redaction key**, so the same secre
 
 ## 2. The middleware chain
 
-Middleware is an onion. Layers are ordered **outermost first**, as written in `[pipeline] llm`. A layer receives the request and a handle to the rest of the chain. It may change the request, call `next` (zero, one or many times) and change what comes back.
+Middleware is an onion. Layers are ordered **outermost first**, as written in `[pipeline] llm`. A layer receives the request and a handle to the rest of the chain. It may change the request, call `next` (once, or not at all if it answers by itself) and change what comes back. `--dry-run` and `shellmate context` report an error when a layer does not pass a request on, since there is then nothing to show.
 
 ```text
 request  -> layer 1 -> layer 2 -> provider

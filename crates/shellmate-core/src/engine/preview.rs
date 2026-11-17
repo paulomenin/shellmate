@@ -6,7 +6,6 @@ use crate::config::Trust;
 use crate::envelope::Envelope;
 use crate::prompt::Context;
 use shellmate_api::{Error, Next, Result};
-use std::sync::Mutex;
 
 impl Engine {
     /// What each provider in the chain would receive, after redaction. Nothing is sent (`--dry-run`).
@@ -31,16 +30,20 @@ impl Engine {
         let mut out = Vec::new();
         for spec in &self.providers {
             let built = self.build_request(action, env, spec, &convo)?;
-            let recorder = Recorder(Mutex::new(None));
+            let recorder = Recorder::default();
             Next::new(&self.layers, &recorder)
                 .run(built.request)
                 .await?;
-            let request = recorder
-                .0
-                .lock()
-                .expect("recorder lock")
-                .take()
-                .expect("terminal was reached");
+            let request = recorder.take().ok_or_else(|| {
+                Error::new(
+                    "preview.no_request",
+                    format!(
+                        "a middleware layer answered without passing the request on, so there is nothing to show for `{}`",
+                        spec.name
+                    ),
+                )
+                .with_hint("a layer in [pipeline] llm that does not call the next handler sends nothing; remove it to preview")
+            })?;
             out.push(Preview {
                 provider: spec.name.clone(),
                 trust: spec.trust,

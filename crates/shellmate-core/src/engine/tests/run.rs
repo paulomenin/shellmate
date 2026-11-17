@@ -23,6 +23,17 @@ async fn remote_providers_require_a_redaction_layer() {
 }
 
 #[tokio::test]
+async fn preview_refuses_a_layer_that_does_not_pass_the_request_on() {
+    let p = FakeProvider::replying("unused");
+    let e = Engine::with_providers(remote(p.clone()), 1)
+        .with_layers(vec![Arc::new(ShortCircuit)], true);
+    let err = e.preview(&env("ask", "hello")).await.unwrap_err();
+    assert_eq!(err.code, "preview.no_request");
+    assert!(err.hint.is_some());
+    assert!(p.seen.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
 async fn preview_runs_the_chain_but_sends_nothing() {
     let p = FakeProvider::replying("unused");
     let e = engine(vec![("a", p.clone(), 3), ("b", p.clone(), 0)]);

@@ -8,7 +8,6 @@ use crate::sanitize;
 use crate::validate;
 use serde_json::json;
 use shellmate_api::{ChatRequest, DecisionRequest, DecisionResponse, Error, Message, Next, Result};
-use std::sync::Mutex;
 
 impl Engine {
     /// Checks on the suggested command (see `validate`). Advisory only: the notes are shown, the command is
@@ -110,19 +109,14 @@ impl Engine {
             temperature: None,
             redaction_key: None,
         };
-        let recorder = Recorder(Mutex::new(None));
+        let recorder = Recorder::default();
         Next::new(&self.layers, &recorder).run(request).await?;
-        let seen = recorder
-            .0
-            .lock()
-            .expect("recorder lock")
-            .take()
-            .ok_or_else(|| {
-                Error::new(
-                    "validator.redaction",
-                    "the record did not pass the redaction chain",
-                )
-            })?;
+        let seen = recorder.take().ok_or_else(|| {
+            Error::new(
+                "validator.redaction",
+                "the record did not pass the redaction chain",
+            )
+        })?;
         if seen.messages.len() != asked.state.len() {
             return Err(Error::new(
                 "validator.redaction",
