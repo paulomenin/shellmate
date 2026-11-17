@@ -87,6 +87,32 @@ class Scoring(unittest.TestCase):
         self.assertTrue(all(k["ok"] for k in evals.score(c, "", "Which files?", None)))
         self.assertFalse(all(k["ok"] for k in evals.score(c, "rm x", "Which files?", {"parses": True})))
 
+    def facts_from(self, code=0, stdout="", timed_out=False):
+        real = lib.run_binary
+        lib.run_binary = lambda *a, **k: lib.Result(code=code, stdout=stdout, stderr="boom", wall_ms=1.0, timed_out=timed_out)
+        try:
+            return evals.command_facts(Path("x"), "bash", "ls", {})
+        finally:
+            lib.run_binary = real
+
+    def test_a_broken_checker_is_an_error_not_a_low_risk_pass(self):
+        good = '{"missing":[],"parses":true,"reasons":[],"risk":"low","syntax_error":null}'
+        self.assertEqual(self.facts_from(stdout=good)["risk"], "low")
+        # a syntax check the product skipped on purpose is a valid reply
+        self.assertIsNone(self.facts_from(stdout=good.replace("true", "null"))["parses"])
+        for bad in (
+            dict(stdout="not json"),
+            dict(stdout=""),
+            dict(stdout="[1]"),
+            dict(stdout='{"parses":true}'),
+            dict(stdout='{"parses":true,"risk":"weird"}'),
+            dict(stdout='{"risk":"low"}'),
+            dict(code=2, stdout=good),
+            dict(stdout=good, timed_out=True),
+        ):
+            with self.assertRaises(evals.CheckerError, msg=str(bad)):
+                self.facts_from(**bad)
+
     def test_first_word_skips_sudo_and_env(self):
         self.assertEqual(evals.first_word("sudo -E env A=1 systemctl status x"), "systemctl")
         self.assertEqual(evals.first_word("/usr/bin/du -sh"), "du")
@@ -227,6 +253,24 @@ class WithTheBinary(unittest.TestCase):
         self.assertTrue(runs["gen-disk-usage"]["pass"])
         self.assertFalse(runs["gen-tarball"]["pass"])
         self.assertIn("cassette", runs["gen-tarball"]["error"])
+
+    @unittest.skipUnless(BIN, "no built shellmate binary")
+    def test_a_checker_that_fails_makes_the_run_an_error_not_a_pass(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            wrapper = d / "shellmate"
+            wrapper.write_text(f'#!/bin/sh\n[ "$1" = check ] && {{ echo oops; exit 3; }}\nexec {BIN} "$@"\n')
+            wrapper.chmod(0o755)
+            cas = d / "cas"
+            cas.mkdir()
+            (cas / "ok.json").write_text(json.dumps({"model": "p", "cases": {"gen-disk-usage": [["```shellmate-command\ndf -h\n```"]]}}))
+            out = d / "r.json"
+            subprocess.run([sys.executable, "-I", str(HERE / "evals.py"), "--replay", str(cas), "--bin", str(wrapper),
+                            "--no-build", "--out", str(out), "--case", "gen-disk-usage"],
+                           capture_output=True, text=True, timeout=120)
+            run = json.loads(out.read_text())["models"][0]["cases"][0]["runs"][0]
+        self.assertFalse(run["pass"])
+        self.assertIn("command check", run["error"])
 
     def test_perf_quick_run_writes_results_and_a_report(self):
         with tempfile.TemporaryDirectory() as d:

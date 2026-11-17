@@ -72,13 +72,26 @@ def clean_text(stderr: str) -> str:
     return "\n".join(keep).strip()
 
 
+class CheckerError(Exception):
+    """The product's own check could not say anything about a command: a problem of the tooling, not an answer."""
+
+
 def command_facts(binary: Path, shell: str, command: str, env: dict) -> dict:
-    """What the product itself says about a command line (`shellmate check --json`): never run."""
+    """What the product itself says about a command line (`shellmate check --json`): never run.
+    Raises CheckerError when it says nothing usable, so a broken checker cannot pass a case. (A syntax check the
+    product skipped on purpose is a valid reply with `parses: null`, not an error.)"""
     r = lib.run_binary([str(binary), "check", "--shell", shell, "--json", command], env=env, timeout=20)
+    if r.timed_out:
+        raise CheckerError("the command check timed out")
+    if r.code != 0:
+        raise CheckerError(f"the command check exited with status {r.code}: {r.stderr.strip()[:80]}")
     try:
-        return json.loads(r.stdout.strip().splitlines()[-1])
+        facts = json.loads(r.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
-        return {"parses": None, "missing": [], "risk": "low", "reasons": []}
+        raise CheckerError("the command check printed no JSON") from None
+    if not isinstance(facts, dict) or "parses" not in facts or facts.get("risk") not in RISK:
+        raise CheckerError(f"the command check printed an unexpected reply: {r.stdout.strip()[:80]}")
+    return facts
 
 
 def first_word(command: str) -> str:
@@ -283,7 +296,10 @@ def evaluate(models: list[dict], cases: list[dict], binary: Path, repeats: int, 
                             miss["n"] = 0
                         facts = None
                         if run["command"] and not run.get("error"):
-                            facts = command_facts(binary, c["shell"], run["command"], env)
+                            try:
+                                facts = command_facts(binary, c["shell"], run["command"], env)
+                            except CheckerError as e:
+                                run["error"] = str(e)  # an error run, never a pass: the tooling is what failed
                         run["checks"] = [] if run.get("error") else score(c, run["command"], run["output"], facts)
                         run["pass"] = not run.get("error") and all(k["ok"] for k in run["checks"])
                         runs.append(run)
