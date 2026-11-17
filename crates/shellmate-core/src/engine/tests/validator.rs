@@ -322,5 +322,33 @@ fn the_validator_chain_takes_both_kinds_and_the_llm_chain_only_chat_models() {
     // `config check` says the same, and lists the chat models
     let err = bad.validate_with(&kinds(), &Host::system()).unwrap_err();
     assert_eq!(err.code, "config.wrong_kind");
-    assert!(err.hint.unwrap().contains("chat"));
+    let hint = err.hint.unwrap();
+    assert!(hint.contains("chat models: chat"), "{hint}");
+    assert!(!hint.contains("judge"), "{hint}");
+}
+
+#[tokio::test]
+async fn a_remote_decider_is_asked_through_the_redaction_chain() {
+    let d = FakeDecider::new(Ok(verdict(0.9, "read_only", 0.9)));
+    let out = Engine::with_providers(
+        vec![ProviderSpec {
+            name: "a".into(),
+            provider: FakeProvider::replying(DF) as Arc<dyn Provider>,
+            max_level: 1,
+            trust: Trust::Remote,
+        }],
+        1,
+    )
+    .with_layers(vec![Arc::new(Passthrough)], true)
+    .with_deciders(vec![spec("hosted", d.clone(), Trust::Remote)])
+    .run(&env("ask", "show disk usage"))
+    .await
+    .unwrap();
+    assert_eq!(out.buffer.as_deref(), Some("df -h"));
+    assert_eq!(d.count(), 1, "the remote decider was asked");
+    let q = d.asked.lock().unwrap()[0].clone();
+    assert!(q
+        .state
+        .iter()
+        .any(|(k, v)| k == "proposed_command" && v == "df -h"));
 }

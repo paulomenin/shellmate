@@ -201,6 +201,15 @@ fn cmd_config(line: &str) -> Config {
 }
 
 #[test]
+fn cmd_secrets_lists_the_path_and_line_of_each_cmd_reference() {
+    let found = cmd_config("cmd:pass show api/x").cmd_secrets();
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, "providers.p.api_key");
+    assert!(found[0].1.contains("pass show"), "{found:?}");
+    assert!(cmd_config("env:SOME_KEY").cmd_secrets().is_empty());
+}
+
+#[test]
 fn secrets_settings_have_safe_defaults_and_are_checked() {
     let c = Config::parse("version = 1").unwrap();
     assert_eq!(c.cmd_options().timeout.as_secs(), 5);
