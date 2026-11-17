@@ -47,8 +47,10 @@ pub fn escape_keep_layout(s: &str) -> String {
 }
 
 /// True when `c` may appear in a command that is placed into the user's input buffer.
+/// A backslash is ordinary shell text (`\;`, `\n` in a `printf` format, a line continuation), so it is safe
+/// even though `escape_char` shows it doubled.
 pub fn is_buffer_safe(c: char) -> bool {
-    c == '\n' || c == '\t' || (!c.is_control() && escape_char(c).is_none())
+    c == '\n' || c == '\t' || c == '\\' || (!c.is_control() && escape_char(c).is_none())
 }
 
 #[cfg(test)]
@@ -71,6 +73,11 @@ mod tests {
     fn buffer_safety() {
         assert!(is_buffer_safe('a') && is_buffer_safe('\n') && is_buffer_safe('é'));
         assert!(!is_buffer_safe('\u{1b}') && !is_buffer_safe('\u{202e}') && !is_buffer_safe('\r'));
+    }
+
+    #[test]
+    fn a_backslash_is_safe_in_a_command() {
+        assert!(is_buffer_safe('\\'));
     }
 
     #[test]

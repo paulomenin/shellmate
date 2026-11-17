@@ -171,6 +171,17 @@ mod tests {
     }
 
     #[test]
+    fn a_command_with_backslashes_is_kept() {
+        let text =
+            "```shellmate-command\nfind . -type f -printf '%s %p\\n' | sort -nr | head -1\n```\n\
+                    ```shellmate-command\nfind . -name '*.log' -exec ls -l {} \\;\n```";
+        let a = parse(text);
+        assert_eq!(a.rejected, 0);
+        assert_eq!(a.commands.len(), 2, "{:?}", a.commands);
+        assert!(a.commands[0].contains("%p\\n"));
+    }
+
+    #[test]
     fn unsafe_characters_are_rejected_not_buffered() {
         let a = parse("```shellmate-command\necho hi\u{1b}[2J\n```\n```shellmate-command\nok\n```");
         assert_eq!(a.commands, ["ok"]);
