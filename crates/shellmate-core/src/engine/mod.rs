@@ -377,7 +377,8 @@ impl Engine {
     }
 
     /// Replace the settings used for conversations and tools (tests and embedding). The tools that
-    /// implement the plugin API are built from the config by [`Engine::with_tools_from`].
+    /// implement the plugin API are built from the config by [`Engine::with_tools_from`], so call this
+    /// first: tools built earlier keep the settings they were built with.
     pub fn with_config(mut self, cfg: Config) -> Self {
         self.cfg = cfg;
         self
@@ -390,7 +391,8 @@ impl Engine {
     }
 
     /// Build the tools of the registry from the engine's config and host (tests and embedding;
-    /// `from_config` does this itself). They replace the tools added so far.
+    /// `from_config` does this itself). They replace the tools added so far. A later [`Engine::with_config`]
+    /// does not rebuild them.
     pub fn with_tools_from(mut self, registry: &Registry) -> Result<Self> {
         self.plugged = build_tools(&self.cfg, registry, &self.host)?;
         Ok(self)

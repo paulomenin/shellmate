@@ -132,6 +132,36 @@ fn config_show_lists_the_effective_settings_without_secret_values() {
 }
 
 #[test]
+fn config_show_lists_the_tools_of_this_build_with_or_without_a_table() {
+    let home = Scratch::new("showtools");
+    let path = home.str("c.toml");
+    std::fs::write(
+        &path,
+        "version = 1\n[providers.p]\ntrust = \"local\"\nendpoint = \"http://127.0.0.1:1\"\n[models.p]\nprovider = \"p\"\nplugin = \"builtin:openai-compatible\"\nmodel = \"m\"\n[llm]\nchain = [\"p\"]\n[tools.exec]\napproval = \"ask\"\npreapproved = [\"ls *\"]\n",
+    )
+    .unwrap();
+    let r = raw(&["--config", &path, "config", "show"], &home, &[]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let tools: Vec<&str> = r
+        .stdout
+        .lines()
+        .filter(|l| l.contains(" tool:"))
+        .map(|l| l.split_whitespace().next().unwrap())
+        .collect();
+    // every built-in tool once, in registration order, whether or not it has a table
+    assert_eq!(tools, ["man", "exec", "read"], "{}", r.stdout);
+    let exec = r
+        .stdout
+        .lines()
+        .find(|l| l.starts_with("exec tool:"))
+        .unwrap();
+    assert!(
+        exec.contains("approval=ask") && exec.contains("preapproved=1"),
+        "{exec}"
+    );
+}
+
+#[test]
 fn install_shell_adds_updates_and_removes_a_marked_block_with_a_backup() {
     let home = Scratch::new("rc");
     let rc = home.path(".bashrc");

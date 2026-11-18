@@ -127,18 +127,19 @@ pub fn config_show(explicit: Option<&Path>, p: &dyn Presenter) -> Result<String>
         cfg.conversation.max_turns,
         cfg.conversation.max_tool_rounds
     ));
-    // the built-in `man`, `exec` and `read` are on without a table, so they are listed either way
-    let man = shellmate_core::config::ToolEntry::default();
-    let listed = ["man", "exec", "read"]
-        .map(|n| (n, &man))
-        .into_iter()
-        .chain(
-            cfg.tools
-                .entries
-                .iter()
-                .filter(|(n, _)| !matches!(n.as_str(), "man" | "exec" | "read"))
-                .map(|(n, t)| (n.as_str(), t)),
-        );
+    // the tools this build has are on without a table, so they are listed either way; then any other table
+    let default = shellmate_core::config::ToolEntry::default();
+    let built_in: Vec<String> = shellmate_builtin::registry()
+        .tool_ids()
+        .map(String::from)
+        .collect();
+    let listed = built_in.iter().map(|n| (n.as_str(), &default)).chain(
+        cfg.tools
+            .entries
+            .iter()
+            .filter(|(n, _)| !built_in.contains(n))
+            .map(|(n, t)| (n.as_str(), t)),
+    );
     for (name, t) in listed {
         let t = cfg.tools.entries.get(name).unwrap_or(t);
         o.push_str(&format!(
