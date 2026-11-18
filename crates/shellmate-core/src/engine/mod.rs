@@ -131,7 +131,7 @@ pub struct Engine {
 /// belong to the request, not to the engine, so overlapping requests cannot replace each other's facts.
 #[derive(Default)]
 struct Gathered {
-    project: Option<String>,
+    project: Option<crate::collect::ProjectInfo>,
     git: Option<crate::collect::GitInfo>,
 }
 

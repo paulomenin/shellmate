@@ -28,17 +28,8 @@ pub(crate) fn run(shell: Option<&str>, json: bool, line: &str) -> i32 {
         Vec::new()
     };
     let a = classify(line);
-    let reasons: Vec<String> = a
-        .reasons
-        .iter()
-        .filter(|r| !r.starts_with("not a simple command"))
-        .cloned()
-        .collect();
-    let risk = if reasons.is_empty() {
-        Risk::Low
-    } else {
-        a.risk
-    };
+    let reasons = a.reasons.clone();
+    let risk = a.line_risk();
     if json {
         println!(
             "{}",

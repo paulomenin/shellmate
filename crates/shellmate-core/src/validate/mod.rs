@@ -196,17 +196,16 @@ pub async fn deterministic(line: &str, shell: &str, path: &str) -> (Vec<Note>, b
             }
         }
     }
-    // "not a simple command" matters for `exec` gating, not for judging a line the user will read and run
+    // being a complex line matters for `exec` gating, not for judging a line the user will read and run
     let a = command::classify(line);
-    let reasons: Vec<&String> = a
-        .reasons
-        .iter()
-        .filter(|r| !r.starts_with("not a simple command"))
-        .collect();
-    let risky = a.risk >= Risk::Medium && !reasons.is_empty();
+    let risk = a.line_risk();
+    let risky = risk >= Risk::Medium;
     if risky {
-        let why: Vec<&str> = reasons.iter().map(|r| r.as_str()).collect();
-        notes.push(Note(format!("{} risk: {}", a.risk.label(), why.join("; "))));
+        notes.push(Note(format!(
+            "{} risk: {}",
+            risk.label(),
+            a.reasons.join("; ")
+        )));
     }
     (notes, risky)
 }

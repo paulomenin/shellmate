@@ -19,7 +19,7 @@ pub struct Context {
     /// Level 2: the rendered section for the output captured with `shellmate run` (see `capture`).
     pub capture: Option<String>,
     /// Level 1: what kind of project the working directory is (see `collect::project`).
-    pub project: Option<String>,
+    pub project: Option<crate::collect::ProjectInfo>,
     /// Level 2: the git repository's state (see `collect::git_info`).
     pub git: Option<String>,
     /// The git section carries text written by others (commit subjects).
@@ -101,7 +101,7 @@ fn base_rules(ctx: &Context, level: u8, extras: &Extras) -> String {
         s.push_str(dialect_notes(&ctx.shell));
         s.push('\n');
         if let Some(project) = &ctx.project {
-            s.push_str(project);
+            s.push_str(&project.sentence());
         }
     }
     if level >= 2 {

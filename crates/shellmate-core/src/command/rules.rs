@@ -72,7 +72,7 @@ pub fn dangerous_rules(rules: &[String]) -> Vec<(String, String)> {
                 r.clone(),
                 format!(
                     "the classifier flags it ({}), so it will still ask",
-                    a.reasons.join("; ")
+                    a.all_reasons().join("; ")
                 ),
             ));
         }

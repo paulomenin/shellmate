@@ -15,7 +15,7 @@ fn project_kinds_come_from_file_names_only() {
     std::fs::write(d.join("Makefile"), "").unwrap();
     std::fs::write(d.join("pnpm-lock.yaml"), "").unwrap();
     std::fs::create_dir(d.join("Dockerfile")).unwrap(); // a directory is not a marker file
-    let s = project(&d, None, &RealFs).unwrap();
+    let s = project(&d, None, &RealFs).unwrap().sentence();
     assert!(
         s.contains("Rust (cargo)") && s.contains("make") && s.contains("pnpm"),
         "{s}"
@@ -23,6 +23,32 @@ fn project_kinds_come_from_file_names_only() {
     assert!(!s.contains("Docker") && !s.contains("IGNORE"), "{s}");
     assert!(project(&tmp("empty"), None, &RealFs).is_none());
     let _ = std::fs::remove_dir_all(&d);
+}
+
+#[test]
+fn a_marker_found_in_two_directories_is_listed_once() {
+    let root = tmp("twice");
+    std::fs::write(root.join("Cargo.toml"), "").unwrap();
+    let sub = root.join("crates/x");
+    std::fs::create_dir_all(&sub).unwrap();
+    std::fs::write(sub.join("Cargo.toml"), "").unwrap();
+    std::fs::write(sub.join("Makefile"), "").unwrap();
+    let info = project(&sub, None, &RealFs).unwrap();
+    assert_eq!(info.kinds, ["Rust (cargo)", "make"]);
+    assert_eq!(info.files, ["Cargo.toml", "Makefile"]);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_project_sentence_is_stable() {
+    let info = ProjectInfo {
+        kinds: vec!["Rust (cargo)", "make"],
+        files: vec!["Cargo.toml", "Makefile"],
+    };
+    assert_eq!(
+        info.sentence(),
+        "Project files in the working directory or above suggest: Rust (cargo), make. (Found: Cargo.toml, Makefile.)\n"
+    );
 }
 
 #[test]
@@ -34,7 +60,7 @@ fn the_search_climbs_to_the_repository_root_and_no_further() {
     std::fs::write(repo.join("go.mod"), "").unwrap();
     let sub = repo.join("a/b");
     std::fs::create_dir_all(&sub).unwrap();
-    let s = project(&sub, None, &RealFs).unwrap();
+    let s = project(&sub, None, &RealFs).unwrap().sentence();
     assert!(
         s.contains("Go") && !s.contains("make"),
         "stops at the repo root: {s}"

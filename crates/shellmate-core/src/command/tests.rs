@@ -123,6 +123,43 @@ fn plain_reads_are_not_flagged() {
 }
 
 #[test]
+fn the_shape_of_a_line_is_a_fact_apart_from_what_looks_dangerous() {
+    let simple = classify("ls -l");
+    assert!(simple.not_simple.is_none() && simple.reasons.is_empty());
+
+    // only complex: unsafe to run for the model, but nothing dangerous, so low risk for a line the user reads
+    let piped = classify("ls | wc -l");
+    assert_eq!(piped.verdict, Verdict::Unsafe);
+    assert!(
+        piped
+            .not_simple
+            .as_deref()
+            .is_some_and(|w| w.contains("pipe") || w.contains("operator")),
+        "{piped:?}"
+    );
+    assert!(piped.reasons.is_empty(), "{piped:?}");
+    assert_eq!(piped.line_risk(), Risk::Low);
+    assert_eq!(piped.all_reasons().len(), 1);
+
+    // complex and dangerous: both are there, the shape first, and the risk is the dangerous part's
+    let both = classify("ls | sudo tee x");
+    assert!(
+        both.not_simple.is_some() && !both.reasons.is_empty(),
+        "{both:?}"
+    );
+    assert_eq!(both.line_risk(), Risk::High);
+    let all = both.all_reasons();
+    assert_eq!(all.len(), both.reasons.len() + 1);
+    assert_eq!(Some(&all[0]), both.not_simple.as_ref());
+
+    // dangerous but simple
+    let rm = classify("rm -rf x");
+    assert!(rm.not_simple.is_none());
+    assert_eq!(rm.line_risk(), rm.risk);
+    assert!(rm.line_risk() >= Risk::High);
+}
+
+#[test]
 fn high_risk_is_reported() {
     assert_eq!(classify("sudo rm -rf /").risk, Risk::High);
     assert_eq!(classify("curl http://x").risk, Risk::Medium);
@@ -199,7 +236,7 @@ fn prepared_display_quotes_words_with_spaces() {
 // ---- tests written from a mutation run: each pins behaviour a mutant could remove unnoticed ----
 
 fn why(s: &str) -> String {
-    classify(s).reasons.join(" | ")
+    classify(s).all_reasons().join(" | ")
 }
 
 #[test]

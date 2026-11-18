@@ -59,8 +59,28 @@ fn is_file(fs: &dyn Fs, p: &Path) -> bool {
     fs.symlink_metadata(p).is_ok_and(|m| m.is_file)
 }
 
-/// A sentence naming the kinds of project found in `cwd` and the directories above it, or `None`.
-pub fn project(cwd: &Path, home: Option<&Path>, fs: &dyn Fs) -> Option<String> {
+/// The kinds of project found in the working directory and the directories above it, from file names only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectInfo {
+    /// For example `Rust (cargo)`, in the order they were found.
+    pub kinds: Vec<&'static str>,
+    /// The marker file names that were found (`Cargo.toml`).
+    pub files: Vec<&'static str>,
+}
+
+impl ProjectInfo {
+    /// The sentence the model is given at level 1.
+    pub fn sentence(&self) -> String {
+        format!(
+            "Project files in the working directory or above suggest: {}. (Found: {}.)\n",
+            self.kinds.join(", "),
+            self.files.join(", ")
+        )
+    }
+}
+
+/// The kinds of project found in `cwd` and the directories above it, or `None`.
+pub fn project(cwd: &Path, home: Option<&Path>, fs: &dyn Fs) -> Option<ProjectInfo> {
     let mut labels: Vec<&str> = Vec::new();
     let mut files: Vec<&str> = Vec::new();
     let mut dir = Some(cwd);
@@ -85,11 +105,10 @@ pub fn project(cwd: &Path, home: Option<&Path>, fs: &dyn Fs) -> Option<String> {
     if labels.is_empty() {
         return None;
     }
-    Some(format!(
-        "Project files in the working directory or above suggest: {}. (Found: {}.)\n",
-        labels.join(", "),
-        files.join(", ")
-    ))
+    Some(ProjectInfo {
+        kinds: labels,
+        files,
+    })
 }
 
 // ---- git ----------------------------------------------------------------------------------------------------

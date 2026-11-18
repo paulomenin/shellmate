@@ -64,6 +64,28 @@ async fn the_items_come_in_a_fixed_order_with_the_level_that_unlocks_each() {
 }
 
 #[tokio::test]
+async fn the_project_item_names_the_kinds_found() {
+    let d = std::env::temp_dir().join(format!("sm-report-proj-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    std::fs::write(d.join("Cargo.toml"), "").unwrap();
+    std::fs::write(d.join("Makefile"), "").unwrap();
+    let mut e = full_env();
+    e.cwd = Some(d.display().to_string());
+    let r = report_at(1, 4, Config::defaults(), &e).await;
+    let project = item(&r, "project type");
+    assert!(is_sent(project), "{project:?}");
+    assert_eq!(project.detail, "Rust (cargo), make (file names only)");
+    // and where there is nothing to find
+    let r = report_at(1, 4, Config::defaults(), &full_env()).await;
+    assert_eq!(
+        item(&r, "project type").detail,
+        "no known project files found here"
+    );
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+#[tokio::test]
 async fn level_one_sends_the_basics_and_holds_back_the_rest_naming_the_setting() {
     let r = report_at(1, 4, Config::defaults(), &full_env()).await;
     let typed = item(&r, "your typed text");

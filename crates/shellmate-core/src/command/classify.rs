@@ -17,6 +17,10 @@ pub enum Verdict {
 pub struct Assessment {
     pub verdict: Verdict,
     pub risk: Risk,
+    /// Set when the line is not a simple command (pipes, redirects, substitutions...): why, in words. This is a
+    /// fact about the shape of the line, kept apart from `reasons` so that nobody has to match on its wording.
+    pub not_simple: Option<String>,
+    /// What looks dangerous in the line.
     pub reasons: Vec<String>,
 }
 
@@ -25,8 +29,32 @@ impl Assessment {
         Self {
             verdict: Verdict::Safe,
             risk: Risk::Low,
+            not_simple: None,
             reasons: Vec::new(),
         }
+    }
+    /// Everything that makes the line unsafe to run for the model: its shape first, then what looks dangerous.
+    /// Approval prompts and `exec` gating show all of it.
+    pub fn all_reasons(&self) -> Vec<String> {
+        self.not_simple
+            .iter()
+            .chain(&self.reasons)
+            .cloned()
+            .collect()
+    }
+    /// The risk of a line the user will read and run themselves. Being complex matters for gating a command
+    /// the model asked to run, not for judging a line the user sees, so a line that is only complex is low risk.
+    pub fn line_risk(&self) -> Risk {
+        if self.reasons.is_empty() {
+            Risk::Low
+        } else {
+            self.risk
+        }
+    }
+    fn complex(&mut self, why: impl Into<String>) {
+        self.verdict = Verdict::Unsafe;
+        self.risk = self.risk.max(Risk::Medium);
+        self.not_simple = Some(format!("not a simple command: {}", why.into()));
     }
     fn flag(&mut self, risk: Risk, reason: impl Into<String>) {
         self.verdict = Verdict::Unsafe;
@@ -46,10 +74,7 @@ pub fn classify(text: &str) -> Assessment {
     match parse_strict(text) {
         Ok(argv) => classify_argv(&argv, &mut a),
         Err(why) => {
-            a.flag(
-                Risk::Medium,
-                format!("not a simple command: {}", why.describe()),
-            );
+            a.complex(why.describe());
             // Look at every word anyway, split on anything that is not part of a word.
             let words: Vec<String> = text
                 .split(|c: char| !(c.is_ascii_alphanumeric() || "_./-".contains(c)))

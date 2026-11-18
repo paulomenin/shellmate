@@ -37,7 +37,7 @@ impl ToolServices for CoreServices<'_> {
         CommandRisk {
             safe: a.verdict == command::Verdict::Safe,
             risk: a.risk,
-            reasons: a.reasons,
+            reasons: a.all_reasons(),
         }
     }
 

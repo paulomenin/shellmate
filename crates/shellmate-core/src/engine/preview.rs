@@ -211,12 +211,8 @@ fn project_fact(enabled: bool, ctx: &Context) -> std::result::Result<String, Str
         return Err("turned off ([context] project = false)".into());
     }
     ctx.project
-        .as_deref()
-        .map(|p| {
-            let kinds = p.split_once("suggest: ").map_or(p, |x| x.1);
-            let kinds = kinds.split(" (Found").next().unwrap_or(kinds);
-            format!("{} (file names only)", kinds.trim().trim_end_matches('.'))
-        })
+        .as_ref()
+        .map(|p| format!("{} (file names only)", p.kinds.join(", ")))
         .ok_or_else(|| "no known project files found here".into())
 }
 

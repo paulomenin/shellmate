@@ -19,7 +19,10 @@ fn ctx() -> Context {
 #[test]
 fn project_and_git_sections_follow_their_levels() {
     let mut c = ctx();
-    c.project = Some("PROJECT-SECTION\n".into());
+    c.project = Some(crate::collect::ProjectInfo {
+        kinds: vec!["PROJECT-SECTION"],
+        files: vec!["f"],
+    });
     c.git = Some("GIT-SECTION\n".into());
     let sys = |level| build(Action::Ask, &c, level).unwrap()[0].content.clone();
     assert!(!sys(0).contains("PROJECT-SECTION") && !sys(0).contains("GIT-SECTION"));
