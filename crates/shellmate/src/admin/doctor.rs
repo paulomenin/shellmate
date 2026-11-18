@@ -9,7 +9,7 @@ use super::config_path;
 use super::install_shell::{rc_path, BEGIN};
 use serde_json::{json, Value};
 use shellmate_api::{ModelKind, Registry};
-use shellmate_core::config::{builtin_id, parse_duration};
+use shellmate_core::config::{builtin_id, parse_duration, ModelInspection};
 use shellmate_core::ports::{Env, Host};
 use shellmate_core::present::{Presenter, Tone};
 use shellmate_core::{audit, conversation, Config, Engine};
@@ -52,6 +52,29 @@ struct Ctx<'a> {
     host: &'a Host,
     /// Where the config file is (or would be).
     path: &'a Path,
+    /// The models that can be built, looked at once (a model that cannot is reported by the `config` check).
+    models: Vec<ModelInspection>,
+}
+
+impl<'a> Ctx<'a> {
+    fn new(cfg: &'a Config, registry: &'a Registry, host: &'a Host, path: &'a Path) -> Self {
+        let models = cfg
+            .models
+            .keys()
+            .filter_map(|name| cfg.inspect_model(name, registry, host).ok())
+            .collect();
+        Self {
+            cfg,
+            registry,
+            host,
+            path,
+            models,
+        }
+    }
+
+    fn model(&self, name: &str) -> Option<&ModelInspection> {
+        self.models.iter().find(|m| m.name == name)
+    }
 }
 
 type CheckFn = fn(&Ctx<'_>) -> Vec<Check>;
@@ -119,12 +142,7 @@ fn doctor_checks_in(explicit: Option<&Path>, host: &Host, registry: &Registry) -
         }
     };
     let path = config_path(explicit, host.env.as_ref());
-    let ctx = Ctx {
-        cfg: &cfg,
-        registry,
-        host,
-        path: &path,
-    };
+    let ctx = Ctx::new(&cfg, registry, host, &path);
     for run in CHECKS {
         v.extend(run(&ctx));
     }
@@ -168,18 +186,10 @@ fn providers(ctx: &Ctx<'_>) -> Vec<Check> {
         return v;
     };
     for name in chain {
-        let info = ctx
-            .cfg
-            .lazy_model_settings(name, ctx.host)
-            .ok()
-            .and_then(|s| {
-                let id = builtin_id(&ctx.cfg.models.get(name)?.plugin).ok()?;
-                ctx.registry
-                    .build_provider(id, s.probe())
-                    .ok()
-                    .map(|p| p.info())
-            });
-        let Some((model, endpoint)) = info.and_then(|i| i.endpoint.map(|e| (i.model, e))) else {
+        let Some((model, endpoint)) = ctx
+            .model(name)
+            .and_then(|m| m.info.endpoint.clone().map(|e| (m.info.model.clone(), e)))
+        else {
             continue;
         };
         v.push(match host_port(&endpoint) {
@@ -237,23 +247,16 @@ fn deciders(ctx: &Ctx<'_>) -> Vec<Check> {
     }
     let mut decision = false;
     for name in &cfg.validator.chain {
-        let Some(id) = cfg
-            .models
-            .get(name)
-            .and_then(|m| builtin_id(&m.plugin).ok())
-        else {
-            continue;
-        };
-        if ctx.registry.model_kind(id).ok() != Some(ModelKind::Decision) {
+        // the kind of a model that could not be built still comes from its plugin id: it is then reported below
+        let kind = ctx.model(name).map(|m| m.kind).or_else(|| {
+            let id = builtin_id(&cfg.models.get(name)?.plugin).ok()?;
+            ctx.registry.model_kind(id).ok()
+        });
+        if kind != Some(ModelKind::Decision) {
             continue;
         }
         decision = true;
-        let info = cfg.lazy_model_settings(name, ctx.host).ok().and_then(|s| {
-            ctx.registry
-                .build_decider(id, s.probe())
-                .ok()
-                .map(|d| d.info())
-        });
+        let info = ctx.model(name).map(|m| m.info.clone());
         v.push(match info.and_then(|i| i.endpoint.map(|e| (i.model, e))) {
             Some((model, endpoint)) => match host_port(&endpoint) {
                 Some(hp) if reachable(&hp) => check(

@@ -325,6 +325,40 @@ const TWO_KINDS: &str = "version = 1\n[pipeline]\nllm = []\n[conversation]\nstor
     [models.judge]\nprovider = \"p\"\nplugin = \"builtin:decide\"\nmodel = \"d\"\n";
 
 #[test]
+fn inspecting_a_model_says_what_it_is_and_runs_no_secret_program() {
+    let marker = std::env::temp_dir().join(format!("sm-inspect-{}", std::process::id()));
+    let _ = std::fs::remove_file(&marker);
+    let cfg = Config::parse(&format!(
+        "{TWO_KINDS}[providers.q]\ntrust = \"local\"\napi_key = \"cmd:/bin/sh -c 'touch {}'\"\n\
+         [models.keyed]\nprovider = \"q\"\nplugin = \"builtin:decide\"\nmodel = \"d\"\n",
+        marker.display()
+    ))
+    .unwrap();
+    let host = Host::system();
+    let chat = cfg.inspect_model("chat", &kinds(), &host).unwrap();
+    assert_eq!((chat.kind, chat.lazy), (ModelKind::Chat, false));
+    assert_eq!(chat.info.model, "fake-1");
+    let judge = cfg.inspect_model("judge", &kinds(), &host).unwrap();
+    assert_eq!(
+        (judge.kind, judge.name.as_str()),
+        (ModelKind::Decision, "judge")
+    );
+    // a model with a `cmd:` secret is only noted: the program is not run
+    let keyed = cfg.inspect_model("keyed", &kinds(), &host).unwrap();
+    assert!(keyed.lazy);
+    assert!(
+        !marker.exists(),
+        "inspecting must not run the secret program"
+    );
+    // all of them, and an unknown name is an error
+    assert_eq!(cfg.inspect_models(&kinds(), &host).unwrap().len(), 3);
+    assert_eq!(
+        cfg.inspect_model("nope", &kinds(), &host).unwrap_err().code,
+        "config.invalid"
+    );
+}
+
+#[test]
 fn the_validator_chain_takes_both_kinds_and_the_llm_chain_only_chat_models() {
     let ok = Config::parse(&format!(
         "{TWO_KINDS}[llm]\nchain = [\"chat\"]\n[validator]\nchain = [\"judge\", \"chat\"]\n"

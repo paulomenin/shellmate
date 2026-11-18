@@ -6,6 +6,16 @@ use crate::secret_cmd::CmdOptions;
 use crate::secrets;
 use shellmate_api::{Error, ModelKind, Registry, Result};
 
+/// What looking at a model without using it shows (see [`Config::inspect_model`]).
+#[derive(Debug, Clone)]
+pub struct ModelInspection {
+    pub name: String,
+    pub kind: ModelKind,
+    pub info: shellmate_api::ProviderInfo,
+    /// A `cmd:` secret is fetched when the model is first used.
+    pub lazy: bool,
+}
+
 impl Config {
     /// What a model's plugin is given as JSON with secret references resolved: the settings of the provider it is
     /// reached through and its own, in one table. A key is never in both (`check_static`).
@@ -55,30 +65,52 @@ impl Config {
         }
     }
 
+    /// One model built from its probe settings: nothing is sent and no `cmd:` program is run, so it says what the
+    /// model is and where it would send requests, and whether a secret is fetched on first use. This is the one
+    /// way to look at a model without using it; `validate_with` and `doctor` both go through it.
+    pub fn inspect_model(
+        &self,
+        name: &str,
+        registry: &Registry,
+        host: &Host,
+    ) -> Result<ModelInspection> {
+        let m = self.model(name)?;
+        let id = builtin_id(&m.model.plugin)?;
+        let named = |mut e: Error| {
+            e.message = format!("models.{name}: {}", e.message);
+            e
+        };
+        let kind = registry.model_kind(id).map_err(named)?;
+        let settings = self.lazy_model_settings(name, host)?;
+        let info = match kind {
+            ModelKind::Chat => registry
+                .build_provider(id, settings.probe())
+                .map(|p| p.info()),
+            ModelKind::Decision => registry
+                .build_decider(id, settings.probe())
+                .map(|d| d.info()),
+        }
+        .map_err(named)?;
+        Ok(ModelInspection {
+            name: name.to_string(),
+            kind,
+            info,
+            lazy: settings.is_lazy(),
+        })
+    }
+
+    /// Every model of the config, inspected. The first one that cannot be built is the error.
+    pub fn inspect_models(&self, registry: &Registry, host: &Host) -> Result<Vec<ModelInspection>> {
+        self.models
+            .keys()
+            .map(|name| self.inspect_model(name, registry, host))
+            .collect()
+    }
+
     /// Full check used by `config check`: instantiate every model (no network), and see that the `llm` chain
     /// holds only chat models.
     pub fn validate_with(&self, registry: &Registry, host: &Host) -> Result<()> {
-        for (name, m) in &self.models {
-            let id = builtin_id(&m.plugin)?;
-            let kind = registry
-                .model_kind(id)
-                .map_err(|e| Error::new(e.code, format!("models.{name}: {}", e.message)))?;
-            let settings = self.lazy_model_settings(name, host)?;
-            let named = |mut e: Error| {
-                e.message = format!("models.{name}: {}", e.message);
-                e
-            };
-            match kind {
-                ModelKind::Chat => registry
-                    .build_provider(id, settings.probe())
-                    .map(|_| ())
-                    .map_err(named)?,
-                ModelKind::Decision => registry
-                    .build_decider(id, settings.probe())
-                    .map(|_| ())
-                    .map_err(named)?,
-            }
-        }
+        self.inspect_models(registry, host)?;
         for name in &self.llm.chain {
             let id = builtin_id(&self.model(name)?.model.plugin)?;
             if registry.model_kind(id)? != ModelKind::Chat {

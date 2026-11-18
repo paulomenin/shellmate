@@ -17,7 +17,7 @@ mod validate;
 
 pub use load::parse_duration;
 pub use providers::*;
-pub use resolve::{builtin_id, LazySettings};
+pub use resolve::{builtin_id, LazySettings, ModelInspection};
 pub use sections::*;
 pub use shortcut::Shortcut;
 pub use tools::*;

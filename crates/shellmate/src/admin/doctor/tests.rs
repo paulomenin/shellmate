@@ -5,12 +5,12 @@ fn ctx_with<R>(toml: &str, env: MapEnv, fs: MemFs, f: impl FnOnce(&Ctx<'_>) -> R
     let cfg = Config::parse(toml).unwrap();
     let registry = shellmate_builtin::registry();
     let host = Host::system().with_env(env).with_fs(fs);
-    f(&Ctx {
-        cfg: &cfg,
-        registry: &registry,
-        host: &host,
-        path: Path::new("/cfg/shellmate/config.toml"),
-    })
+    f(&Ctx::new(
+        &cfg,
+        &registry,
+        &host,
+        Path::new("/cfg/shellmate/config.toml"),
+    ))
 }
 
 fn plain() -> shellmate_core::present::PlainPresenter {
