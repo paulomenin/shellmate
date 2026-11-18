@@ -8,9 +8,22 @@ use crate::tools;
 use async_trait::async_trait;
 use shellmate_api::{CommandRisk, FileTarget, FileText, ProcessOutput, ProcessSpec, ToolServices};
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 pub(in crate::engine) struct CoreServices<'a> {
     pub(in crate::engine) host: &'a Host,
+    /// Every target `vet_file` returned. `FileTarget` has public fields, so a tool could build one by hand;
+    /// `read_file` reads only what was vetted here (INV-3).
+    vetted: Mutex<Vec<FileTarget>>,
+}
+
+impl<'a> CoreServices<'a> {
+    pub(in crate::engine) fn new(host: &'a Host) -> Self {
+        Self {
+            host,
+            vetted: Mutex::new(Vec::new()),
+        }
+    }
 }
 
 #[async_trait]
@@ -90,10 +103,23 @@ impl ToolServices for CoreServices<'_> {
         roots: &[String],
     ) -> Result<FileTarget, String> {
         let home = self.host.env.var("HOME");
-        tools::prepare_read(arg, cwd, home.as_deref(), roots)
+        let target = tools::prepare_read(arg, cwd, home.as_deref(), roots)?;
+        let mut vetted = self.vetted.lock().unwrap_or_else(|e| e.into_inner());
+        if !vetted.contains(&target) {
+            vetted.push(target.clone());
+        }
+        Ok(target)
     }
 
     fn read_file(&self, target: &FileTarget, max_bytes: usize) -> Result<FileText, String> {
+        let known = self
+            .vetted
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains(target);
+        if !known {
+            return Err("that file was not checked by `vet_file`, so it is not read".into());
+        }
         tools::read_file(target, max_bytes)
     }
 }
@@ -112,7 +138,7 @@ mod tests {
     #[test]
     fn the_services_look_at_the_host_not_the_process() {
         let h = host("/usr/bin:/bin");
-        let s = CoreServices { host: &h };
+        let s = CoreServices::new(&h);
         assert_eq!(s.env_var("HOME").as_deref(), Some("/home/u"));
         assert_eq!(s.env_var("NOPE"), None);
         assert!(s.is_dir("/"));
@@ -123,13 +149,13 @@ mod tests {
         let limit = s.internal_limit(five);
         assert!(limit >= five && limit <= five * 100, "{limit:?}");
         let none = host("");
-        assert_eq!(CoreServices { host: &none }.find_program("sh"), None);
+        assert_eq!(CoreServices::new(&none).find_program("sh"), None);
     }
 
     #[test]
     fn commands_are_parsed_strictly_and_classified() {
         let h = host("/usr/bin:/bin");
-        let s = CoreServices { host: &h };
+        let s = CoreServices::new(&h);
         assert_eq!(s.parse_command("git status").unwrap(), ["git", "status"]);
         assert!(s.parse_command("ls | wc").is_err());
         let safe = s.classify_command("ls -l");
@@ -161,7 +187,7 @@ mod tests {
     #[tokio::test]
     async fn a_process_runs_with_a_timeout_and_a_cap() {
         let h = host("/usr/bin:/bin");
-        let s = CoreServices { host: &h };
+        let s = CoreServices::new(&h);
         let spec = |script: &str, timeout_ms: u64, cap: usize| ProcessSpec {
             program: "/bin/sh".into(),
             argv: vec!["sh".into(), "-c".into(), script.into()],
@@ -197,7 +223,7 @@ mod tests {
         std::fs::write(d.join("a.txt"), "0123456789").unwrap();
         std::fs::write(d.join(".env"), "KEY=1").unwrap();
         let h = host("/usr/bin:/bin");
-        let s = CoreServices { host: &h };
+        let s = CoreServices::new(&h);
         let cwd = d.display().to_string();
         let t = s.vet_file("a.txt", Some(&cwd), &[]).unwrap();
         assert_eq!((t.shown.as_str(), t.size), ("a.txt", 10));
@@ -208,6 +234,19 @@ mod tests {
             s.vet_file("/etc/passwd", Some(&cwd), &[]).is_err(),
             "outside the roots"
         );
+        // a target built by hand was never vetted, so it is not read, even for a file that is allowed
+        let forged = FileTarget {
+            path: d.join("a.txt"),
+            shown: "a.txt".into(),
+            size: 10,
+        };
+        assert!(CoreServices::new(&h).read_file(&forged, 4).is_err());
+        let secret = FileTarget {
+            path: d.join(".env"),
+            shown: ".env".into(),
+            size: 5,
+        };
+        assert!(s.read_file(&secret, 100).is_err(), "credentials");
         let _ = std::fs::remove_dir_all(&d);
     }
 }

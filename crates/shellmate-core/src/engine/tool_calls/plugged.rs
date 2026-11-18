@@ -47,7 +47,7 @@ impl Plugged {
         host: &crate::ports::Host,
     ) -> Vec<(String, String)> {
         self.tool
-            .risky_rules(&self.settings.preapproved, &CoreServices { host })
+            .risky_rules(&self.settings.preapproved, &CoreServices::new(host))
     }
 
     /// Decide and, if allowed, run one call. A refusal is a `ToolRun`, not an error.
@@ -60,7 +60,7 @@ impl Plugged {
                 &format!("the {} tool is disabled.", info.name),
             ));
         }
-        let services = CoreServices { host: env.host };
+        let services = CoreServices::new(env.host);
         let ctx = api::ToolCtx {
             settings: &self.settings,
             services: &services,
