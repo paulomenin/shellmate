@@ -52,6 +52,7 @@ async fn an_approved_git_command_cannot_run_the_repositorys_fsmonitor() {
 }
 
 use super::*;
+use shellmate_api::{FileTarget, ProcessOutput};
 use std::time::Duration;
 
 fn call(s: &str) -> ToolCall {
@@ -86,7 +87,7 @@ async fn exec_script(
     timeout: Duration,
     cap: usize,
     env: shellmate_api::ProcessEnv,
-) -> ExecResult {
+) -> ProcessOutput {
     exec_script_with(script, timeout, cap, env, &crate::ports::SystemEnv).await
 }
 
@@ -97,7 +98,7 @@ async fn exec_script_with(
     cap: usize,
     env: shellmate_api::ProcessEnv,
     vars: &dyn crate::ports::Env,
-) -> ExecResult {
+) -> ProcessOutput {
     let prepared = crate::command::Prepared {
         program: "/bin/sh".into(),
         argv: vec!["sh".into(), "-c".into(), script.into()],
@@ -302,7 +303,7 @@ fn a_file_is_cut_at_the_limit_and_flagged_only_beyond_it() {
     let d = scratch("limit");
     let f = d.join("t.txt");
     std::fs::write(&f, "abcdefghij").unwrap();
-    let t = ReadTarget {
+    let t = FileTarget {
         path: f.clone(),
         shown: "t.txt".into(),
         size: 10,
@@ -317,7 +318,7 @@ fn a_file_is_cut_at_the_limit_and_flagged_only_beyond_it() {
     std::fs::write(&f, b"ab\0cd").unwrap();
     assert!(read_file(&t, 100).unwrap_err().contains("binary"));
     // a directory is not a regular file
-    let dt = ReadTarget {
+    let dt = FileTarget {
         path: d.clone(),
         shown: "dir".into(),
         size: 0,

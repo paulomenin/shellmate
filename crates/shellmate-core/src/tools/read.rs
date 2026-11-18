@@ -1,16 +1,7 @@
 //! The `read` tool: paths checked against the allowed roots, plain text files only.
 
 use super::text::strip_terminal_codes;
-
-/// A file the model asked to read, after every check that needs no human. The path is canonical (symlinks
-/// resolved), inside an allowed root, a regular file, and not credential-looking.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReadTarget {
-    pub path: std::path::PathBuf,
-    /// How it is shown and matched against rules: relative to the working directory when inside it.
-    pub shown: String,
-    pub size: u64,
-}
+use shellmate_api::{FileTarget, FileText};
 
 fn expand_home(arg: &str, home: Option<&str>) -> Option<std::path::PathBuf> {
     match arg.strip_prefix("~/") {
@@ -21,13 +12,14 @@ fn expand_home(arg: &str, home: Option<&str>) -> Option<std::path::PathBuf> {
     }
 }
 
-/// Resolve and vet the path in `arg`. `Err` carries the reason, which goes back to the model.
+/// Resolve and vet the path in `arg`. The target is canonical (symlinks resolved), inside an allowed root, a
+/// regular file, and not credential-looking. `Err` carries the reason, which goes back to the model.
 pub fn prepare_read(
     arg: &str,
     cwd: Option<&str>,
     home: Option<&str>,
     extra_roots: &[String],
-) -> Result<ReadTarget, String> {
+) -> Result<FileTarget, String> {
     let argv = crate::command::parse_strict(arg)
         .map_err(|e| format!("write the path as one plain word ({})", e.describe()))?;
     let [given] = argv.as_slice() else {
@@ -83,22 +75,15 @@ pub fn prepare_read(
         .strip_prefix(&cwd_root)
         .map(|r| r.to_string_lossy().into_owned())
         .unwrap_or_else(|_| path.to_string_lossy().into_owned());
-    Ok(ReadTarget {
+    Ok(FileTarget {
         path,
         shown,
         size: meta.len(),
     })
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReadResult {
-    pub text: String,
-    pub bytes: u64,
-    pub truncated: bool,
-}
-
 /// Read up to `max` bytes of text. Binary files are refused; control bytes are removed.
-pub fn read_file(t: &ReadTarget, max: usize) -> Result<ReadResult, String> {
+pub fn read_file(t: &FileTarget, max: usize) -> Result<FileText, String> {
     use std::io::Read;
     let file =
         std::fs::File::open(&t.path).map_err(|e| format!("cannot open `{}`: {e}", t.shown))?;
@@ -117,7 +102,7 @@ pub fn read_file(t: &ReadTarget, max: usize) -> Result<ReadResult, String> {
     let truncated = buf.len() > max;
     buf.truncate(max);
     let text = strip_terminal_codes(&String::from_utf8_lossy(&buf));
-    Ok(ReadResult {
+    Ok(FileText {
         text,
         bytes: meta.len(),
         truncated,

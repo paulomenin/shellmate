@@ -58,12 +58,7 @@ impl ToolServices for CoreServices<'_> {
     }
 
     fn display_command(&self, argv: &[String]) -> String {
-        command::Prepared {
-            program: PathBuf::new(),
-            argv: argv.to_vec(),
-            cwd: None,
-        }
-        .display()
+        command::display_argv(argv)
     }
 
     async fn run_process(&self, spec: &ProcessSpec) -> ProcessOutput {
@@ -72,7 +67,7 @@ impl ToolServices for CoreServices<'_> {
             argv: spec.argv.clone(),
             cwd: spec.cwd.clone(),
         };
-        let r = tools::run_exec_with(
+        tools::run_exec_with(
             &prepared,
             spec.timeout,
             spec.max_output,
@@ -81,15 +76,7 @@ impl ToolServices for CoreServices<'_> {
             &spec.set_env,
             &spec.remove_env,
         )
-        .await;
-        ProcessOutput {
-            exit: r.exit,
-            timed_out: r.timed_out,
-            stdout: r.stdout,
-            stderr: r.stderr,
-            truncated: r.truncated,
-            elapsed: r.elapsed,
-        }
+        .await
     }
 
     fn internal_limit(&self, limit: std::time::Duration) -> std::time::Duration {
@@ -103,26 +90,11 @@ impl ToolServices for CoreServices<'_> {
         roots: &[String],
     ) -> Result<FileTarget, String> {
         let home = self.host.env.var("HOME");
-        let t = tools::prepare_read(arg, cwd, home.as_deref(), roots)?;
-        Ok(FileTarget {
-            path: t.path,
-            shown: t.shown,
-            size: t.size,
-        })
+        tools::prepare_read(arg, cwd, home.as_deref(), roots)
     }
 
     fn read_file(&self, target: &FileTarget, max_bytes: usize) -> Result<FileText, String> {
-        let t = tools::ReadTarget {
-            path: target.path.clone(),
-            shown: target.shown.clone(),
-            size: target.size,
-        };
-        let r = tools::read_file(&t, max_bytes)?;
-        Ok(FileText {
-            text: r.text,
-            bytes: r.bytes,
-            truncated: r.truncated,
-        })
+        tools::read_file(target, max_bytes)
     }
 }
 

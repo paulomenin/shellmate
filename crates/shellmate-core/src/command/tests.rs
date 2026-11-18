@@ -233,6 +233,31 @@ fn prepared_display_quotes_words_with_spaces() {
     assert_eq!(p.display(), "echo 'a b' c");
 }
 
+#[test]
+fn display_argv_quotes_only_what_needs_it() {
+    let words = |w: &[&str]| w.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    assert_eq!(display_argv(&words(&["ls", "-l", "/tmp"])), "ls -l /tmp");
+    assert_eq!(
+        display_argv(&words(&[
+            "echo",
+            "a b",
+            "",
+            "it's",
+            "say \"x\"",
+            "tab\there"
+        ])),
+        "echo 'a b' '' 'it'\\''s' 'say \"x\"' 'tab\there'"
+    );
+    assert_eq!(display_argv(&[]), "");
+    // the same text for a prepared command, whatever its program and directory
+    let p = Prepared {
+        program: "/usr/bin/echo".into(),
+        argv: words(&["echo", "a b"]),
+        cwd: Some("/tmp".into()),
+    };
+    assert_eq!(p.display(), display_argv(&p.argv));
+}
+
 // ---- tests written from a mutation run: each pins behaviour a mutant could remove unnoticed ----
 
 fn why(s: &str) -> String {

@@ -2,18 +2,8 @@
 
 use super::text::clean_man;
 use crate::ports::Env;
+use shellmate_api::ProcessOutput;
 use std::time::Duration;
-
-/// What a finished (or failed) command produced.
-#[derive(Debug, Clone)]
-pub struct ExecResult {
-    pub exit: Option<i32>,
-    pub timed_out: bool,
-    pub stdout: String,
-    pub stderr: String,
-    pub truncated: bool,
-    pub elapsed: Duration,
-}
 
 /// A small, fixed environment: nothing from the user's secrets, no pager, no colors. Only the variables in
 /// the allow list are copied from `vars`.
@@ -70,7 +60,7 @@ pub async fn run_exec(
     max_output: usize,
     env: shellmate_api::ProcessEnv,
     vars: &dyn Env,
-) -> ExecResult {
+) -> ProcessOutput {
     run_exec_with(prepared, timeout, max_output, env, vars, &[], &[]).await
 }
 
@@ -83,11 +73,11 @@ pub async fn run_exec_with(
     vars: &dyn Env,
     set_env: &[(String, String)],
     remove_env: &[String],
-) -> ExecResult {
+) -> ProcessOutput {
     use tokio::io::AsyncReadExt;
     use tokio::process::Command;
     let started = std::time::Instant::now();
-    let failed = |msg: String| ExecResult {
+    let failed = |msg: String| ProcessOutput {
         exit: None,
         timed_out: false,
         stdout: String::new(),
@@ -156,7 +146,7 @@ pub async fn run_exec_with(
         b.truncate(max_output);
         clean_man(&String::from_utf8_lossy(&b))
     };
-    ExecResult {
+    ProcessOutput {
         exit: status.and_then(|s| s.code()),
         timed_out,
         stdout: text(o),

@@ -14,18 +14,22 @@ pub struct Prepared {
 
 impl Prepared {
     pub fn display(&self) -> String {
-        self.argv
-            .iter()
-            .map(|w| {
-                if w.is_empty() || w.contains([' ', '\t', '\'', '"']) {
-                    format!("'{}'", w.replace('\'', "'\\''"))
-                } else {
-                    w.clone()
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
+        display_argv(&self.argv)
     }
+}
+
+/// The words of a command as one line for a person to read: a word with spaces or quotes in it is quoted.
+pub fn display_argv(argv: &[String]) -> String {
+    argv.iter()
+        .map(|w| {
+            if w.is_empty() || w.contains([' ', '\t', '\'', '"']) {
+                format!("'{}'", w.replace('\'', "'\\''"))
+            } else {
+                w.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Resolve `name` through `path` (a `PATH` value). Names containing `/` are never resolved: `./ls` and
