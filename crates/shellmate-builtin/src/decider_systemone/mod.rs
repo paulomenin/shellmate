@@ -3,6 +3,7 @@
 //! a preset or the `path` setting says otherwise. Served by Ollama (decision models such as `laya`), by
 //! Ollaya, and by hosted APIs that use the same format.
 
+use crate::http::classify_status;
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
@@ -237,17 +238,6 @@ fn parse_response(body: &str, asked: &DecisionRequest) -> Result<DecisionRespons
         out.answers.push((id.clone(), answer));
     }
     Ok(out)
-}
-
-fn classify_status(status: u16) -> ProviderErrorKind {
-    match status {
-        401 | 403 => ProviderErrorKind::Auth,
-        408 => ProviderErrorKind::Timeout,
-        429 => ProviderErrorKind::RateLimited,
-        400 | 404 | 413 | 422 => ProviderErrorKind::BadRequest,
-        500..=599 => ProviderErrorKind::Unavailable,
-        _ => ProviderErrorKind::Other,
-    }
 }
 
 #[async_trait]

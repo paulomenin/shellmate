@@ -1,7 +1,6 @@
 //! The JSON the API sends back, and how HTTP errors map to error kinds.
 
 use serde::Deserialize;
-use shellmate_api::ProviderErrorKind;
 
 #[derive(Deserialize)]
 pub(crate) struct WireResponse {
@@ -24,17 +23,6 @@ pub(crate) struct WireMessage {
 pub(crate) struct WireUsage {
     pub(crate) prompt_tokens: Option<u32>,
     pub(crate) completion_tokens: Option<u32>,
-}
-
-pub(crate) fn classify_status(status: u16) -> ProviderErrorKind {
-    match status {
-        401 | 403 => ProviderErrorKind::Auth,
-        408 => ProviderErrorKind::Timeout,
-        429 => ProviderErrorKind::RateLimited,
-        400 | 404 | 413 | 422 => ProviderErrorKind::BadRequest,
-        500..=599 => ProviderErrorKind::Unavailable,
-        _ => ProviderErrorKind::Other,
-    }
 }
 
 /// Pull `error.message` out of an error body, bounded in size; never echo the request.

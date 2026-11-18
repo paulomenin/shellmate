@@ -5,6 +5,8 @@ use shellmate_api::Registry;
 
 #[cfg(feature = "decider-systemone")]
 pub mod decider_systemone;
+#[cfg(any(feature = "provider-openai-compatible", feature = "decider-systemone"))]
+mod http;
 #[cfg(feature = "middleware-redact")]
 pub mod middleware_redact;
 #[cfg(feature = "provider-openai-compatible")]

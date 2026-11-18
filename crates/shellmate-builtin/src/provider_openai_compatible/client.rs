@@ -1,6 +1,7 @@
 //! The non-streaming and streaming client for `/chat/completions`.
 
 use super::{settings::*, sse::*, wire::*, *};
+use crate::http::classify_status;
 use async_trait::async_trait;
 use shellmate_api::{
     parse_model_ids, resolve_api_key, resolve_endpoint, ChatRequest, ChatResponse, ChatStream,
