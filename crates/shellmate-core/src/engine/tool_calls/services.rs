@@ -144,6 +144,8 @@ mod tests {
         assert!(s.is_dir("/"));
         assert!(!s.is_dir("/no/such/dir"));
         assert!(s.find_program("sh").is_some());
+        assert!(s.glob_match("src/*.rs", "src/a.rs"));
+        assert!(!s.glob_match("src/*.rs", "docs/a.md"));
         // a short internal limit is never shorter than asked, and is stretched when the clock is slow
         let five = Duration::from_secs(5);
         let limit = s.internal_limit(five);

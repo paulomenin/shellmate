@@ -55,6 +55,10 @@ Rules for writing tests:
 - **Test the refusal.** For anything security-relevant, write the test that shows the dangerous input is rejected, not only that the good input works.
 - Property tests use `proptest`.
 
+### Model evaluation
+
+The opt-in [v2 evaluator](../benchmarks/evaluation-v2/) compares generators and deciders in disposable containers. Its offline tests run with `python3 -I -m unittest discover -s tools/bench/v2 -v`. Live model calls are separate from the test suite and need explicitly configured providers and prices.
+
 ### Coverage and mutation testing
 
 Line coverage says code ran. Mutation testing says a test would notice if the code were wrong.

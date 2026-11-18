@@ -7,6 +7,7 @@ Nothing here ships in the `shellmate` binary.
 | `shellmate-testing/` | Rust crate with mock HTTP/SSE servers, a fake provider and an in-memory conversation store, used by the tests |
 | `e2e/` | Conformance suite: real fish, zsh and bash in tmux against a mock provider (`e2e/run-all.sh`) |
 | `bench/` | Benchmarks: process performance (`perf.py`) and model quality and speed (`evals.py`), with Markdown reports for the docs. See `bench/README.md` |
+| `bench/v2/` | Opt-in container model evaluation: separate generators/deciders, cost and answer-style metrics, behavioral checks with approval, HTML human review. See `bench/v2/README.md` |
 | `mutants.sh` | Mutation testing of the security modules (`mise run mutants`) |
 | `spikes/` | Archived experiments from the design phase. Kept for reference, not built or maintained |
 

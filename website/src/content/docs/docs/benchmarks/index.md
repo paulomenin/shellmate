@@ -34,3 +34,7 @@ tools/bench/evals.py --ollama --model qwen --repeats 3
 ```
 
 The README in `tools/bench` explains every option, how to add a request, how to compare two releases, and how to record a model's answers so the scoring can be replayed without it.
+
+## Model evaluation v2
+
+The opt-in [v2 evaluator](../evaluation-v2/) runs in disposable Docker containers and separates main models from deciders. It adds behavioral assertions with per-command approval, answer-style and cost metrics, and a report for reviewing every answer. Existing model numbers above come from the original evaluator.

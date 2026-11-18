@@ -11,6 +11,10 @@ Two questions, two tools, one report format. Python 3.11+, standard library only
 Results are JSON files in `results/` (git-ignored; put the ones you want to keep as baselines in
 `results/baselines/`). Reports are Markdown, written to be pasted into `website/src/content/docs/`.
 
+## Model evaluation v2
+
+The opt-in evaluator in [`v2/`](v2/README.md) adds disposable Docker environments, separate generator and decider profiles, answer-style and cost metrics, and HTML review of every answer. It has its own cases and offline tests. Existing scripts and published numbers still use v1. Start with `python3 tools/bench/v2/evals.py --plan` from the repository root.
+
 ## Process performance: `perf.py`
 
 ```sh

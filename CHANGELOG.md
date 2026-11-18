@@ -4,6 +4,8 @@
 
 First public development version.
 
+- Added: an opt-in model evaluator in `tools/bench/v2` with disposable Docker environments, separate generator and decider profiles, answer-style and cost metrics, response replay, and HTML human review. Behavioral execution requires approval for each command.
+
 - `setup` is a guided conversation. It looks at the machine first (which hosted services have their key variable set, by name only, and which local servers answer on their default port), lists the providers as local or remote with what it found, confirms a local port, asks where the key is (`env:NAME` or `file:PATH`; a pasted key is refused and never echoed), asks the server for its models to confirm the address and the key, and asks for the model name, which is never guessed. It does the same for an optional checker, listing only the ones found. A remote service needs your agreement before anything is contacted.
 - Changed: `setup --yes` needs `--provider` and `--model` and no longer picks Ollama because one is running. New options: `--api-key <env:NAME|file:PATH>` (`--api-key-env` still works), `--checker`, `--checker-model`, `--checker-url`, `--checker-api-key`, and `--verify`, which asks each server for its models before anything is written. `--base-url` also works with a preset. `config init --provider` needs `--model` too.
 - Plugin API: `Provider::models` and `Decider::models` list the models a server offers (the plugin knows the path, `/v1/models` for the built-ins), and `shellmate_api::parse_model_ids` reads the reply.
