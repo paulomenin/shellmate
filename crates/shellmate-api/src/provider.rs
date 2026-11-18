@@ -46,6 +46,17 @@ impl ProviderError {
     }
 }
 
+impl Error {
+    /// [`ProviderError::falls_back`] for an error that has already been converted: the engine only has the
+    /// `Error`, and the codes are the ones `From<ProviderError>` gives. A test keeps the two in step.
+    pub fn allows_fallback(&self) -> bool {
+        matches!(
+            self.code,
+            "provider.timeout" | "provider.unavailable" | "provider.rate_limited"
+        )
+    }
+}
+
 impl From<ProviderError> for Error {
     fn from(e: ProviderError) -> Self {
         let (code, hint) = match e.kind {
@@ -101,5 +112,30 @@ pub trait Provider: Send + Sync {
     /// Streaming variant. Providers without streaming get this default: the whole answer as one event.
     async fn chat_stream(&self, request: &ChatRequest) -> Result<ChatStream, ProviderError> {
         self.chat(request).await.map(stream_of_response)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_converted_error_allows_fallback_exactly_when_the_provider_error_does() {
+        use ProviderErrorKind::*;
+        for kind in [
+            Timeout,
+            Unavailable,
+            RateLimited,
+            Auth,
+            BadRequest,
+            ContentFiltered,
+            Other,
+        ] {
+            let e = ProviderError::new(kind, "x");
+            let allowed = e.falls_back();
+            assert_eq!(Error::from(e).allows_fallback(), allowed, "{kind:?}");
+        }
+        // an error that did not come from a provider never falls back
+        assert!(!Error::new("config.invalid", "x").allows_fallback());
     }
 }

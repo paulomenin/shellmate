@@ -89,7 +89,7 @@ impl Engine {
             {
                 Ok(a) => a,
                 Err(f) => {
-                    let fallback = !f.produced && falls_back(&f.error);
+                    let fallback = !f.produced && f.error.allows_fallback();
                     self.audit_call_failed(&ctx, spec, &f, llm_started, fallback);
                     if fallback {
                         last_error = Some(f.error);
@@ -202,13 +202,6 @@ impl Engine {
         }
         e
     }
-}
-
-fn falls_back(e: &Error) -> bool {
-    matches!(
-        e.code,
-        "provider.timeout" | "provider.unavailable" | "provider.rate_limited"
-    )
 }
 
 fn finish(action: Action, text: &str, provider: &str) -> Result<Outcome> {
