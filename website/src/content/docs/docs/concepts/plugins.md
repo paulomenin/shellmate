@@ -38,7 +38,7 @@ flowchart LR
 
 Constructors must be cheap. They build an object and check the settings. They never open the network, because start-up has a 30 ms budget. A constructor rejects unknown or mistyped settings with a `config.*` error.
 
-`shellmate config check` builds every model in the config without sending anything, so a typo is caught before a request.
+`shellmate config check` builds every model, middleware layer and tool in the config and opens the store, without sending anything and without running the `cmd:` secret program of a model, so a typo is caught before a request. It also applies the privacy rule: a remote model, chat or decision, is refused unless a redaction layer is active.
 
 ### Settings and secrets
 

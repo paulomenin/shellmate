@@ -1,4 +1,5 @@
-//! `config check`: load the config and build everything it names, without sending anything.
+//! `config check`: load the config and look at everything it names, without sending anything and without
+//! starting an engine (see `Engine::inspect`).
 
 use crate::commands::EXIT_ERROR;
 use shellmate_core::present::Tone;
@@ -7,13 +8,11 @@ use shellmate_core::{Config, Engine};
 pub(crate) fn run(config: Option<&std::path::Path>) -> i32 {
     let registry = shellmate_builtin::registry();
     let result = Config::load(config).and_then(|cfg| {
-        cfg.validate_with(&registry, &shellmate_core::ports::Host::system())?;
-        let engine = Engine::from_config(&cfg, &registry)?; // also enforces the privacy rules (remote providers need redaction)
-        let chain = cfg
-            .model_chain()
-            .map(|c| c.into_iter().map(String::from).collect::<Vec<_>>())?;
-        let mut risky = engine
-            .risky_tool_rules()
+        // also enforces the privacy rules (a remote model needs redaction)
+        let found = Engine::inspect(&cfg, &registry, &shellmate_core::ports::Host::system())?;
+        let chain = found.chain;
+        let mut risky = found
+            .risky_tool_rules
             .into_iter()
             .map(|(tool, r, why)| (format!("tools.{tool}.preapproved \"{r}\""), why))
             .collect::<Vec<_>>();

@@ -178,13 +178,7 @@ impl Engine {
                 }
             });
         }
-        let mut layers = Vec::new();
-        let mut has_redactor = false;
-        for layer in cfg.llm_layers() {
-            let id = crate::config::builtin_id(&layer)?;
-            has_redactor |= registry.llm_middleware_role(id) == Some(MiddlewareRole::Redactor);
-            layers.push(registry.build_llm_middleware(id, &cfg.plugin_settings(&layer, &host)?)?);
-        }
+        let (layers, has_redactor) = build_layers(cfg, registry, &host)?;
         let plugged = build_tools(cfg, registry, &host)?;
         let mut engine = Self::with_providers(providers, cfg.context.default_level)
             .with_host(host.clone())
@@ -204,6 +198,39 @@ impl Engine {
         }
         engine.check_privacy()?;
         Ok(engine)
+    }
+
+    /// What `config check` and `doctor` learn from a config without starting an engine: every model is built
+    /// from its probe settings (no `cmd:` program is run, nothing is sent), the middleware and tools are built
+    /// and their settings checked, the store is opened as the engine would, and the privacy rule (a remote model
+    /// needs an active redactor) is applied to the models of both chains. No audit log is opened and nothing is
+    /// kept. [`Engine::from_config`] enforces the same privacy rule when it builds the real thing.
+    pub fn inspect(cfg: &Config, registry: &Registry, host: &Host) -> Result<Inspection> {
+        cfg.validate_with(registry, host)?;
+        let (_layers, has_redactor) = build_layers(cfg, registry, host)?;
+        let plugged = build_tools(cfg, registry, host)?;
+        match conversation::open_store(cfg, registry, host) {
+            Ok(_) => {}
+            // an unusable store only turns conversations off; `doctor` says why
+            Err(e) if e.code == "conversation.store" => {}
+            Err(e) => return Err(e),
+        }
+        let chain: Vec<&str> = cfg.model_chain()?;
+        let mut models = Vec::new();
+        for name in cfg
+            .validator
+            .chain
+            .iter()
+            .map(String::as_str)
+            .chain(chain.iter().copied())
+        {
+            models.push((name, cfg.model(name)?.provider.trust));
+        }
+        privacy_check(models, has_redactor)?;
+        Ok(Inspection {
+            chain: chain.into_iter().map(String::from).collect(),
+            risky_tool_rules: risky_rules(&plugged, host),
+        })
     }
 
     /// A chat model of the config as the engine uses it: built with a placeholder for a `cmd:` secret, and again
@@ -359,14 +386,7 @@ impl Engine {
     /// The user's `preapproved` rules that are too broad to be safe, as `(tool, rule, why)`. They still
     /// work, because the classifier keeps its veto; `config check` reports them.
     pub fn risky_tool_rules(&self) -> Vec<(String, String, String)> {
-        self.plugged
-            .iter()
-            .flat_map(|p| {
-                p.risky_rules(&self.host)
-                    .into_iter()
-                    .map(|(rule, why)| (p.name().to_string(), rule, why))
-            })
-            .collect()
+        risky_rules(&self.plugged, &self.host)
     }
 
     /// Build the tools of the registry from the engine's config and host (tests and embedding;
@@ -395,18 +415,63 @@ impl Engine {
     /// INV-2: nothing may reach a remote provider unless a redaction layer is active. Checked when the
     /// engine is built and again before every run, so no construction path can skip it.
     pub fn check_privacy(&self) -> Result<()> {
-        if let Some(c) = self.checks.iter().find(|c| c.trust() == Trust::Remote) {
-            if !self.has_redactor {
-                return Err(Error::new("privacy.no_redaction", format!("model `{}` is remote but no redaction layer is active", c.name()))
-                    .with_hint("enable `builtin:redact` in [pipeline].llm, or set trust = \"local\" on its provider if the model runs on this machine"));
-            }
-        }
-        if let Some(p) = self.providers.iter().find(|p| p.trust == Trust::Remote) {
-            if !self.has_redactor {
-                return Err(Error::new("privacy.no_redaction", format!("model `{}` is remote but no redaction layer is active", p.name))
-                    .with_hint("enable `builtin:redact` in [pipeline].llm, or set trust = \"local\" on its provider if the model runs on this machine"));
-            }
-        }
-        Ok(())
+        privacy_check(
+            self.checks
+                .iter()
+                .map(|c| (c.name(), c.trust()))
+                .chain(self.providers.iter().map(|p| (p.name.as_str(), p.trust))),
+            self.has_redactor,
+        )
     }
+}
+
+/// What [`Engine::inspect`] found.
+#[derive(Debug, Clone)]
+pub struct Inspection {
+    /// The chat models of `[llm] chain`, in order.
+    pub chain: Vec<String>,
+    /// `preapproved` rules that are too broad to be safe, as `(tool, rule, why)`.
+    pub risky_tool_rules: Vec<(String, String, String)>,
+}
+
+/// INV-2: a model whose provider is remote is refused unless a redactor is active. The same rule for the running
+/// engine and for `config check`, which looks at the config without building one.
+fn privacy_check<'a>(
+    models: impl IntoIterator<Item = (&'a str, Trust)>,
+    has_redactor: bool,
+) -> Result<()> {
+    if has_redactor {
+        return Ok(());
+    }
+    match models.into_iter().find(|(_, trust)| *trust == Trust::Remote) {
+        Some((name, _)) => Err(Error::new("privacy.no_redaction", format!("model `{name}` is remote but no redaction layer is active"))
+            .with_hint("enable `builtin:redact` in [pipeline].llm, or set trust = \"local\" on its provider if the model runs on this machine")),
+        None => Ok(()),
+    }
+}
+
+type Layers = Vec<Arc<dyn Middleware<ChatRequest, ChatStream>>>;
+
+/// The `llm` middleware chain of the config, and whether one of the layers is a redactor.
+fn build_layers(cfg: &Config, registry: &Registry, host: &Host) -> Result<(Layers, bool)> {
+    let mut layers = Vec::new();
+    let mut has_redactor = false;
+    for layer in cfg.llm_layers() {
+        let id = crate::config::builtin_id(&layer)?;
+        has_redactor |= registry.llm_middleware_role(id) == Some(MiddlewareRole::Redactor);
+        layers.push(registry.build_llm_middleware(id, &cfg.plugin_settings(&layer, host)?)?);
+    }
+    Ok((layers, has_redactor))
+}
+
+/// The `preapproved` rules of the tools that are too broad to be safe, as `(tool, rule, why)`.
+fn risky_rules(plugged: &[tool_calls::Plugged], host: &Host) -> Vec<(String, String, String)> {
+    plugged
+        .iter()
+        .flat_map(|p| {
+            p.risky_rules(host)
+                .into_iter()
+                .map(|(rule, why)| (p.name().to_string(), rule, why))
+        })
+        .collect()
 }

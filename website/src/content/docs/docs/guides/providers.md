@@ -156,7 +156,7 @@ How it works:
 - **A failure is a configuration error.** It names the key (`providers.work.api_key`) and the program, and shows the program's error output, shortened. shellmate does **not** fall back to the next provider, because a broken key is something to fix, not to route around.
 - **The key is never shown.** Messages name the program and never print its arguments or output, and `config show` prints the line you wrote. If an argument looks like a key written in place (`cmd:echo sk-...`), `config check` warns and `config show` hides the arguments. Put the key in a password manager, and let `cmd:` name where it is.
 
-The `cmd:` line comes from your own config file only. It runs with your permissions, like a shell alias, so protect the file as you protect `~/.ssh`. `cmd:` works in provider settings. For a decision model, and for plugin settings, the program runs when shellmate starts and not on first use.
+The `cmd:` line comes from your own config file only. It runs with your permissions, like a shell alias, so protect the file as you protect `~/.ssh`. `cmd:` works in provider settings. For a decision model, and for plugin settings, the program runs when shellmate starts a request, not on first use. `config check` does not run a decision model's program, and `doctor` runs it once on purpose and reports whether it worked.
 
 ### Use the system keyring
 

@@ -124,6 +124,21 @@ async fn a_remote_provider_without_redaction_is_refused_before_any_request() {
     assert!(c.stderr.contains("privacy.no_redaction"));
 }
 
+#[test]
+fn a_remote_decision_model_without_redaction_is_refused_by_config_check() {
+    let judge = "[validator]\nchain = [\"judge\"]\n\
+                 [providers.hosted]\ntrust = \"remote\"\nendpoint = \"https://example.invalid\"\n\
+                 [models.judge]\nprovider = \"hosted\"\nplugin = \"builtin:systemone\"\nmodel = \"j\"\n";
+    // the chat model is local: only the decision model sends anything off the machine
+    let cfg = format!("{}{judge}", config("http://127.0.0.1:1"));
+    assert_eq!(run(&["config", "check"], &cfg, b"").code, 0);
+    let off = format!("{cfg}[plugins.\"builtin:redact\"]\nenabled = false\n");
+    let r = run(&["config", "check"], &off, b"");
+    assert_eq!(r.code, 1, "{}", r.stdout);
+    assert!(r.stderr.contains("privacy.no_redaction"), "{}", r.stderr);
+    assert!(r.stderr.contains("judge"), "{}", r.stderr);
+}
+
 #[tokio::test]
 async fn local_providers_may_run_without_redaction() {
     let server = MockHttpServer::start(200, &completion("fine")).await;

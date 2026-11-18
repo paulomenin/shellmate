@@ -51,6 +51,13 @@ impl Tool for Web {
     fn rule_matches(&self, rule: &str, subject: &[String], _: &dyn api::ToolServices) -> bool {
         subject.iter().any(|s| s.starts_with(rule))
     }
+    fn risky_rules(&self, rules: &[String], _: &dyn api::ToolServices) -> Vec<(String, String)> {
+        rules
+            .iter()
+            .filter(|r| r.as_str() == "*")
+            .map(|r| (r.clone(), "it matches every call".to_string()))
+            .collect()
+    }
     async fn run(&self, p: Prepared, _: &Granted, _: &ToolCtx<'_>) -> ToolOutput {
         ToolOutput {
             result: format!("fetched {}", p.downcast::<String>().unwrap()),
@@ -164,6 +171,28 @@ fn a_misspelt_key_of_the_core_is_a_config_error_and_a_misspelt_one_of_the_tool_i
     .unwrap();
     assert_eq!(e.code, "config.invalid");
     assert_eq!(e.message, "tools.web: unknown key `typo`");
+}
+
+#[test]
+fn inspect_and_the_engine_report_the_same_risky_rules() {
+    let cfg = config("[tools.web]\npreapproved = [\"*\", \"https://example.org\"]\n");
+    let reg = registry(ApprovalMode::Required, Arc::default());
+    let expected = vec![(
+        "web".to_string(),
+        "*".to_string(),
+        "it matches every call".to_string(),
+    )];
+    let found = Engine::inspect(&cfg, &reg, &Host::system()).unwrap();
+    assert_eq!(found.risky_tool_rules, expected);
+    assert_eq!(found.chain, ["p"]);
+    let engine = Engine::from_config_in(&cfg, &reg, Host::system()).unwrap();
+    assert_eq!(engine.risky_tool_rules(), expected);
+    // and a config with only safe rules reports none
+    let safe = config("[tools.web]\npreapproved = [\"https://example.org\"]\n");
+    assert!(Engine::inspect(&safe, &reg, &Host::system())
+        .unwrap()
+        .risky_tool_rules
+        .is_empty());
 }
 
 #[test]

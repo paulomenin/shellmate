@@ -383,6 +383,33 @@ fn with_decider(llm: &str, decider: &str, timeout: &str) -> String {
     )
 }
 
+#[test]
+fn config_check_does_not_run_a_decision_models_secret_but_doctor_does() {
+    let home = Scratch::new("deckey");
+    let marker = home.0.join("ran");
+    let path = home.str("c.toml");
+    let cfg = format!(
+        "{}\n[validator]\nchain = [\"laya\"]\n\
+         [providers.laya]\ntrust = \"local\"\nendpoint = \"http://127.0.0.1:9\"\n\
+         api_key = \"cmd:/bin/sh -c 'echo k; touch {}'\"\n\
+         [models.laya]\nprovider = \"laya\"\nplugin = \"builtin:systemone\"\nmodel = \"laya\"\n",
+        config("http://127.0.0.1:1"),
+        marker.display()
+    );
+    std::fs::write(&path, cfg).unwrap();
+    let check = raw(&["--config", &path, "config", "check"], &home, &[]);
+    assert_eq!(check.code, 0, "{}{}", check.stdout, check.stderr);
+    assert!(!marker.exists(), "config check must not run the program");
+    // doctor runs it on purpose, once, and says so
+    let doctor = raw(&["--config", &path, "doctor"], &home, &[]);
+    assert!(marker.exists(), "{}", doctor.stdout);
+    assert!(
+        doctor.stdout.contains("laya: the `cmd:` secret works"),
+        "{}",
+        doctor.stdout
+    );
+}
+
 #[tokio::test]
 async fn doctor_checks_the_decision_model_and_warns_about_a_short_timeout() {
     let llm = MockHttpServer::start(200, &completion("x")).await;

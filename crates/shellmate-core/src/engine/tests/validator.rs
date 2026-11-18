@@ -359,6 +359,158 @@ fn inspecting_a_model_says_what_it_is_and_runs_no_secret_program() {
 }
 
 #[test]
+fn inspect_applies_the_privacy_rule_as_the_engine_does() {
+    let remote = "version = 1\n[pipeline]\nllm = []\n[conversation]\nstore = \"none\"\n\
+        [providers.p]\ntrust = \"local\"\n\
+        [providers.far]\ntrust = \"remote\"\n\
+        [models.chat]\nprovider = \"p\"\nplugin = \"builtin:chat\"\nmodel = \"c\"\n\
+        [models.judge]\nprovider = \"far\"\nplugin = \"builtin:decide\"\nmodel = \"d\"\n\
+        [models.farchat]\nprovider = \"far\"\nplugin = \"builtin:chat\"\nmodel = \"c\"\n";
+    let host = Host::system();
+    for (tail, who) in [
+        // only a decision model of the validator chain leaves the machine
+        (
+            "[llm]\nchain = [\"chat\"]\n[validator]\nchain = [\"judge\"]\n",
+            "judge",
+        ),
+        // a chat model of the validator chain does too
+        (
+            "[llm]\nchain = [\"chat\"]\n[validator]\nchain = [\"farchat\"]\n",
+            "farchat",
+        ),
+        // and so does the one that answers
+        ("[llm]\nchain = [\"farchat\"]\n", "farchat"),
+    ] {
+        let cfg = Config::parse(&format!("{remote}{tail}")).unwrap();
+        let seen = Engine::inspect(&cfg, &kinds(), &host).unwrap_err();
+        let built = Engine::from_config_in(&cfg, &kinds(), host.clone())
+            .err()
+            .unwrap();
+        assert_eq!(seen.code, "privacy.no_redaction", "{tail}");
+        assert!(seen.message.contains(who), "{}", seen.message);
+        assert_eq!(
+            (seen.code, &seen.message),
+            (built.code, &built.message),
+            "{tail}"
+        );
+    }
+    // nothing leaves the machine: both accept it, and inspect names the chain
+    let local = Config::parse(&format!(
+        "{remote}[llm]\nchain = [\"chat\"]\n[validator]\nchain = [\"chat\"]\n"
+    ))
+    .unwrap();
+    let found = Engine::inspect(&local, &kinds(), &host).unwrap();
+    assert_eq!(found.chain, ["chat"]);
+    assert!(found.risky_tool_rules.is_empty());
+    assert!(Engine::from_config_in(&local, &kinds(), host).is_ok());
+}
+
+/// `kinds()` with two `llm` layers: one is a redactor, one is not.
+fn kinds_with_layers() -> Registry {
+    let mut r = kinds();
+    r.register_llm_middleware(
+        "red",
+        Some(shellmate_api::MiddlewareRole::Redactor),
+        Box::new(|_| Ok(Arc::new(Passthrough))),
+    );
+    r.register_llm_middleware("plain", None, Box::new(|_| Ok(Arc::new(Passthrough))));
+    r
+}
+
+#[test]
+fn only_a_layer_with_the_redactor_role_satisfies_the_privacy_rule() {
+    let cfg = |layer: &str| {
+        Config::parse(&format!(
+            "version = 1\n[conversation]\nstore = \"none\"\n[pipeline]\nllm = [\"builtin:{layer}\"]\n\
+             [providers.far]\ntrust = \"remote\"\n\
+             [models.chat]\nprovider = \"far\"\nplugin = \"builtin:chat\"\nmodel = \"c\"\n\
+             [llm]\nchain = [\"chat\"]\n"
+        ))
+        .unwrap()
+    };
+    let host = Host::system();
+    let reg = kinds_with_layers();
+    let (red, plain) = (cfg("red"), cfg("plain"));
+    assert!(Engine::inspect(&red, &reg, &host).is_ok());
+    let engine = Engine::from_config_in(&red, &reg, host.clone()).unwrap();
+    assert!(engine.has_redactor);
+    assert_eq!(engine.layers.len(), 1, "the layer is built into the engine");
+    for refused in [
+        Engine::inspect(&plain, &reg, &host).err().unwrap(),
+        Engine::from_config_in(&plain, &reg, host.clone())
+            .err()
+            .unwrap(),
+    ] {
+        assert_eq!(refused.code, "privacy.no_redaction");
+    }
+}
+
+#[test]
+fn an_unusable_store_turns_conversations_off_and_a_bad_setting_is_an_error() {
+    let mut reg = kinds();
+    reg.register_store(
+        "unusable",
+        Box::new(|_| Err(shellmate_api::Error::new("conversation.store", "no room"))),
+    );
+    reg.register_store(
+        "broken",
+        Box::new(|_| Err(shellmate_api::Error::new("config.invalid", "bad key"))),
+    );
+    let cfg = |store: &str| {
+        Config::parse(&format!(
+            "version = 1\n[pipeline]\nllm = []\n[conversation]\nstore = \"builtin:{store}\"\n\
+             [providers.p]\ntrust = \"local\"\n\
+             [models.chat]\nprovider = \"p\"\nplugin = \"builtin:chat\"\nmodel = \"c\"\n\
+             [llm]\nchain = [\"chat\"]\n"
+        ))
+        .unwrap()
+    };
+    let host = Host::system();
+    // unusable: the engine runs without conversations and says why; inspecting it is not an error
+    assert!(Engine::inspect(&cfg("unusable"), &reg, &host).is_ok());
+    let engine = Engine::from_config_in(&cfg("unusable"), &reg, host.clone()).unwrap();
+    assert!(engine.store.is_none());
+    assert!(engine
+        .store_note
+        .as_deref()
+        .is_some_and(|n| n.contains("no room")));
+    // a bad setting is an error for both
+    assert_eq!(
+        Engine::inspect(&cfg("broken"), &reg, &host)
+            .unwrap_err()
+            .code,
+        "config.invalid"
+    );
+    assert_eq!(
+        Engine::from_config_in(&cfg("broken"), &reg, host)
+            .err()
+            .unwrap()
+            .code,
+        "config.invalid"
+    );
+}
+
+#[test]
+fn inspect_runs_no_decision_model_secret_but_the_engine_does() {
+    let marker = std::env::temp_dir().join(format!("sm-inspect-eng-{}", std::process::id()));
+    let _ = std::fs::remove_file(&marker);
+    let cfg = Config::parse(&format!(
+        "{TWO_KINDS}[providers.q]\ntrust = \"local\"\napi_key = \"cmd:/bin/sh -c 'echo k; touch {}'\"\n\
+         [models.keyed]\nprovider = \"q\"\nplugin = \"builtin:decide\"\nmodel = \"d\"\n\
+         [llm]\nchain = [\"chat\"]\n[validator]\nchain = [\"keyed\"]\n",
+        marker.display()
+    ))
+    .unwrap();
+    let host = Host::system();
+    Engine::inspect(&cfg, &kinds(), &host).unwrap();
+    assert!(!marker.exists(), "inspecting must not run the program");
+    // the running engine does fetch it, when it is built
+    Engine::from_config_in(&cfg, &kinds(), host).unwrap();
+    assert!(marker.exists());
+    let _ = std::fs::remove_file(&marker);
+}
+
+#[test]
 fn the_validator_chain_takes_both_kinds_and_the_llm_chain_only_chat_models() {
     let ok = Config::parse(&format!(
         "{TWO_KINDS}[llm]\nchain = [\"chat\"]\n[validator]\nchain = [\"judge\", \"chat\"]\n"

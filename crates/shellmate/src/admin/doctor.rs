@@ -159,12 +159,8 @@ fn config_is_valid(ctx: &Ctx<'_>) -> Vec<Check> {
             Some("run `shellmate setup`"),
         )];
     }
-    let built = ctx
-        .cfg
-        .validate_with(ctx.registry, ctx.host)
-        .and_then(|_| Engine::from_config_in(ctx.cfg, ctx.registry, ctx.host.clone()).map(|_| ()));
-    vec![match built {
-        Ok(()) => check(
+    vec![match Engine::inspect(ctx.cfg, ctx.registry, ctx.host) {
+        Ok(_) => check(
             "config",
             Status::Ok,
             format!("{} is valid", path.display()),
@@ -201,12 +197,18 @@ fn providers(ctx: &Ctx<'_>) -> Vec<Check> {
     v
 }
 
-/// `cmd:` secrets of the providers in the chain: run each program once and say whether it worked. This is
-/// the one place besides a request that runs them. Nothing about the value is shown, not even its length.
+/// `cmd:` secrets of the models in the `llm` chain and the validator chain: run each program once and say
+/// whether it worked. This is the one place besides a request that runs them (`config check` only checks that
+/// the line is valid). Nothing about the value is shown, not even its length.
 fn secrets(ctx: &Ctx<'_>) -> Vec<Check> {
-    let Ok(chain) = ctx.cfg.model_chain() else {
+    let Ok(mut chain) = ctx.cfg.model_chain() else {
         return Vec::new();
     };
+    for name in &ctx.cfg.validator.chain {
+        if !chain.contains(&name.as_str()) {
+            chain.push(name);
+        }
+    }
     let mut v = Vec::new();
     for name in chain {
         let Ok(lazy) = ctx.cfg.lazy_model_settings(name, ctx.host) else {
