@@ -1,6 +1,6 @@
 //! Building the payload for one provider, and the conversation a request continues.
 
-use super::{Action, Engine, ProviderSpec};
+use super::{Action, Engine, Gathered, ProviderSpec};
 use crate::config::Trust;
 use crate::conversation::{self, Turn};
 use crate::envelope::Envelope;
@@ -51,6 +51,7 @@ impl Engine {
         env: &Envelope,
         spec: &ProviderSpec,
         convo: &Convo,
+        gathered: &Gathered,
     ) -> Result<Built> {
         let level = self.default_level().min(spec.max_level);
         let history = conversation::assemble(
@@ -65,7 +66,7 @@ impl Engine {
             omitted: history.omitted_restricted,
             unchanged_suggestion: convo.last_suggestion.as_deref() == Some(env.buffer.as_str()),
         };
-        let ctx = self.context(env);
+        let ctx = self.context(env, gathered);
         // Captured output is untrusted program output: a turn that carries it is tainted (INV-4).
         let tainted = level >= 2 && (ctx.capture.is_some() || ctx.git_untrusted);
         let messages = prompt::build_with(action, &ctx, level, &extras)?;

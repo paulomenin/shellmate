@@ -26,10 +26,10 @@ impl Engine {
             .with_hint("run `shellmate setup`, or choose a provider in the config (`shellmate config edit`)"));
         }
         let convo = self.peek(env, action)?;
-        self.prefetch(env).await;
+        let gathered = self.prefetch(env).await;
         let mut out = Vec::new();
         for spec in &self.providers {
-            let built = self.build_request(action, env, spec, &convo)?;
+            let built = self.build_request(action, env, spec, &convo, &gathered)?;
             let recorder = Recorder::default();
             Next::new(&self.layers, &recorder)
                 .run(built.request)
@@ -65,8 +65,8 @@ impl Engine {
             )
             .with_hint("run `shellmate setup`, or choose a provider in the config (`shellmate config edit`)"));
         }
-        self.prefetch(env).await;
-        let ctx = self.context(env);
+        let gathered = self.prefetch(env).await;
+        let ctx = self.context(env, &gathered);
         // what there is to send is the same for every provider; what each may receive is not
         let facts = self.context_facts(env, &ctx);
         let mut out = Vec::new();

@@ -1,12 +1,12 @@
 //! What the model is told about the shell: the context for a request, and the project and git sections
-//! gathered once per request.
+//! collected once per request and passed along with it.
 
 use super::{Engine, Gathered};
 use crate::envelope::Envelope;
 use crate::prompt::Context;
 
 impl Engine {
-    pub(super) fn context(&self, env: &Envelope) -> Context {
+    pub(super) fn context(&self, env: &Envelope, gathered: &Gathered) -> Context {
         let mut ctx = Context::from_envelope(
             env,
             self.os.clone(),
@@ -14,12 +14,9 @@ impl Engine {
             self.cfg.context.history_lines,
         );
         // Output the user explicitly captured with `shellmate run` (level 2 and above decides if it is sent).
-        {
-            let g = self.gathered.lock().expect("gathered lock");
-            ctx.project = g.project.clone();
-            ctx.git = g.git.as_ref().map(|i| i.section.clone());
-            ctx.git_untrusted = g.git.as_ref().is_some_and(|i| i.untrusted);
-        }
+        ctx.project = gathered.project.clone();
+        ctx.git = gathered.git.as_ref().map(|i| i.section.clone());
+        ctx.git_untrusted = gathered.git.as_ref().is_some_and(|i| i.untrusted);
         ctx.capture = env
             .session
             .as_deref()
@@ -36,7 +33,7 @@ impl Engine {
 
     /// Gather the project and git sections for this request. Runs `git` (bounded by a deadline) off the
     /// async threads, and only when the context level can carry the result.
-    pub(super) async fn prefetch(&self, env: &Envelope) {
+    pub(super) async fn prefetch(&self, env: &Envelope) -> Gathered {
         let max_level = self
             .providers
             .iter()
@@ -53,7 +50,7 @@ impl Engine {
             c.git && max_level >= 2,
             c.git_log_lines,
         );
-        let gathered = match cwd {
+        match cwd {
             Some(cwd) if want_project || want_git => {
                 tokio::task::spawn_blocking(move || Gathered {
                     project: want_project
@@ -73,7 +70,6 @@ impl Engine {
                 .unwrap_or_default()
             }
             _ => Gathered::default(),
-        };
-        *self.gathered.lock().expect("gathered lock") = gathered;
+        }
     }
 }

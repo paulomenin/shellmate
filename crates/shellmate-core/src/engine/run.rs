@@ -62,7 +62,7 @@ impl Engine {
         let show_text = action != Action::Generate;
         let cwd = env.cwd.clone();
         let run_started = Instant::now();
-        self.prefetch(env).await;
+        let gathered = self.prefetch(env).await;
         let context_us = run_started.elapsed().as_micros() as u64;
         // The conversation stays locked for the whole turn, so two requests cannot interleave.
         let mut active = self.resolve_conversation(env, action)?;
@@ -80,7 +80,7 @@ impl Engine {
         let started = Instant::now();
         let mut last_error = None;
         for spec in &self.providers {
-            let mut built = self.build_request(action, env, spec, &convo)?;
+            let mut built = self.build_request(action, env, spec, &convo, &gathered)?;
             built.request.request_id = rid.clone();
             let llm_started = Instant::now();
             let attempt = match self

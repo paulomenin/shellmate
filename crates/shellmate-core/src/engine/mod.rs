@@ -29,7 +29,7 @@ use crate::tools::Approver;
 use shellmate_api::{
     ChatRequest, ChatStream, Error, Middleware, MiddlewareRole, ModelKind, Registry, Result, Store,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub use types::{
     Action, Check, ContextItem, ContextReport, DeciderSpec, Emit, ItemState, Outcome, Preview,
@@ -125,10 +125,10 @@ pub struct Engine {
     audit: Option<Arc<dyn AuditSink>>,
     /// Asks the human before a model-driven command runs. `None` (no terminal): every such request is denied.
     approver: Option<Arc<dyn Approver>>,
-    /// Project and git sections for the current request, gathered once (see `prefetch`).
-    gathered: Mutex<Gathered>,
 }
 
+/// The project and git sections of one request, collected once by `prefetch` and passed along with it. They
+/// belong to the request, not to the engine, so overlapping requests cannot replace each other's facts.
 #[derive(Default)]
 struct Gathered {
     project: Option<String>,
@@ -278,7 +278,6 @@ impl Engine {
         Self {
             providers,
             checks: Vec::new(),
-            gathered: Mutex::new(Gathered::default()),
             layers: Vec::new(),
             has_redactor: false,
             os: prompt::detect_os(&RealFs),
