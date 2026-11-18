@@ -45,6 +45,13 @@ impl Config {
                 .with_hint(format!("known actions: {}", KNOWN_ACTIONS.join(", "))));
             }
         }
+        if self.conversation.max_turns == 0 {
+            return Err(Error::new(
+                "config.invalid",
+                "conversation.max_turns must be at least 1",
+            )
+            .with_hint("it is the number of turns kept per conversation; use store = \"none\" to turn follow-ups off"));
+        }
         if self.conversation.store != "none" {
             builtin_id(&self.conversation.store)
                 .map_err(|e| Error::new(e.code, format!("conversation.store: {}", e.message)))?;

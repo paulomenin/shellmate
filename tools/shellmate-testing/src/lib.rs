@@ -4,7 +4,7 @@ mod services;
 mod store;
 
 pub use services::{output, FakeServices};
-pub use store::MemoryStore;
+pub use store::{assert_store_contract, MemoryStore};
 
 use async_trait::async_trait;
 use shellmate_api::{ChatRequest, ChatResponse, Provider, ProviderError, ProviderInfo};

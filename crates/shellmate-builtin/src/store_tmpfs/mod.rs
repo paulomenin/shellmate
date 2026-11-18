@@ -257,7 +257,7 @@ impl Store for TmpfsStore {
             .map_err(|e| io_err("appending turn", e))?;
         drop(f);
         let lines = self.lines(conversation)?;
-        if max_turns > 0 && lines.len() > max_turns + 1 {
+        if lines.len() > max_turns + 1 {
             let mut kept = vec![lines[0].clone()];
             kept.extend_from_slice(&lines[lines.len() - max_turns..]);
             self.rewrite(conversation, &kept)?;
@@ -384,6 +384,13 @@ mod tests {
         assert!(built(json!({"dir": target.to_str().unwrap()})).is_ok());
         assert!(target.is_dir());
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_tmpfs_store_meets_the_store_contract() {
+        let (s, dir) = store();
+        shellmate_testing::assert_store_contract(&s);
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

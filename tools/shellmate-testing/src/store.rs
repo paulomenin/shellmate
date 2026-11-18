@@ -1,5 +1,6 @@
-//! A conversation store in memory, for tests of the engine.
+//! A conversation store in memory, for tests of the engine, and the contract every `Store` must meet.
 
+use serde_json::json;
 use serde_json::Value;
 use shellmate_api::{ConversationInfo, ConversationLock, Current, Error, Result, Store};
 use std::collections::BTreeMap;
@@ -149,5 +150,85 @@ impl Store for MemoryStore {
 
     fn lock(&self, _: &str, _: Duration) -> Result<Box<dyn ConversationLock>> {
         Ok(Box::new(Held))
+    }
+}
+
+/// What every [`Store`] must do, checked through the trait only. Run it on a new, empty store; it is run by
+/// the in-memory store here and by `builtin:store-tmpfs`, so the fake the engine tests use cannot drift from
+/// the real one. Process locking is not part of it: only a real adapter can show that.
+pub fn assert_store_contract(store: &dyn Store) {
+    let ns =
+        |turns: &[Value]| -> Vec<i64> { turns.iter().map(|t| t["n"].as_i64().unwrap()).collect() };
+
+    // an empty store
+    assert_eq!(store.current("s").unwrap(), None);
+    assert!(store.list().unwrap().is_empty());
+
+    // create keeps the header, and ids are distinct
+    let a = store.create(&json!({"session": "s"})).unwrap();
+    let b = store.create(&json!({"session": "s"})).unwrap();
+    assert_ne!(a, b);
+    let (header, turns) = store.read(&a, None).unwrap();
+    assert_eq!(header["session"], "s");
+    assert!(turns.is_empty());
+
+    // turns come back oldest first, and `tail` takes the newest
+    for n in 0..5 {
+        store.append_turn(&a, &json!({ "n": n }), 40).unwrap();
+    }
+    assert_eq!(ns(&store.read(&a, None).unwrap().1), [0, 1, 2, 3, 4]);
+    assert_eq!(ns(&store.read(&a, Some(2)).unwrap().1), [3, 4]);
+    assert_eq!(ns(&store.read(&a, Some(99)).unwrap().1), [0, 1, 2, 3, 4]);
+    assert!(store.read(&a, Some(0)).unwrap().1.is_empty());
+
+    // the oldest turns are dropped past `max_turns`, never the header, and the limit is exact
+    for n in 5..8 {
+        store.append_turn(&a, &json!({ "n": n }), 3).unwrap();
+    }
+    let (header, turns) = store.read(&a, None).unwrap();
+    assert_eq!(header["session"], "s");
+    assert_eq!(ns(&turns), [5, 6, 7]);
+    store.append_turn(&b, &json!({"n": 1}), 0).unwrap();
+    assert!(
+        store.read(&b, None).unwrap().1.is_empty(),
+        "0 keeps no turn"
+    );
+
+    // list counts turns
+    let listed = store.list().unwrap();
+    let turns_of = |id: &str| listed.iter().find(|c| c.id == id).map(|c| c.turns);
+    assert_eq!((turns_of(&a), turns_of(&b)), (Some(3), Some(0)));
+
+    // pop returns the newest turn, then nothing once only the header is left
+    assert_eq!(store.pop_turn(&a).unwrap().unwrap()["n"], 7);
+    assert_eq!(ns(&store.read(&a, None).unwrap().1), [5, 6]);
+    store.pop_turn(&a).unwrap();
+    store.pop_turn(&a).unwrap();
+    assert_eq!(store.pop_turn(&a).unwrap(), None);
+    assert_eq!(store.read(&a, None).unwrap().0["session"], "s");
+
+    // the session pointer follows a conversation until it is deleted
+    store.set_current("s", &a).unwrap();
+    assert_eq!(store.current("s").unwrap().unwrap().conversation, a);
+    store.delete(&a).unwrap();
+    assert_eq!(store.current("s").unwrap(), None);
+    assert!(store.read(&a, None).is_err());
+    assert!(store.append_turn(&a, &json!({}), 40).is_err());
+    assert!(store.pop_turn(&a).is_err());
+
+    // clear forgets everything
+    store.set_current("s", &b).unwrap();
+    store.clear().unwrap();
+    assert_eq!(store.current("s").unwrap(), None);
+    assert!(store.list().unwrap().is_empty());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_memory_store_meets_the_contract() {
+        assert_store_contract(&MemoryStore::new());
     }
 }

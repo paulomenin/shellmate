@@ -100,7 +100,7 @@ A table of `"key" = "action"`. Keys use `ctrl+`, `alt+` or `ctrl+alt+` with a si
 |---|---|---|
 | `store` | `builtin:store-tmpfs` | The store plugin, or `none` to turn follow-ups off. |
 | `idle_timeout` | `30m` | A conversation idle for longer is replaced. |
-| `max_turns` | `40` | Turns kept in the store. |
+| `max_turns` | `40` | Turns kept in the store: the newest ones. At least 1. |
 | `max_tool_rounds` | `8` | Tool calls allowed per request. |
 | `history.strategy` | `window` | How history is reduced (`summarize` is not available yet). |
 | `history.keep_recent_turns` | `6` | Turns replayed to the model. |

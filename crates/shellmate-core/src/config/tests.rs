@@ -210,6 +210,14 @@ fn cmd_secrets_lists_the_path_and_line_of_each_cmd_reference() {
 }
 
 #[test]
+fn max_turns_must_be_at_least_one() {
+    let e = Config::parse("version = 1\n[conversation]\nmax_turns = 0").unwrap_err();
+    assert_eq!(e.code, "config.invalid");
+    assert!(e.message.contains("max_turns"), "{}", e.message);
+    assert!(Config::parse("version = 1\n[conversation]\nmax_turns = 1").is_ok());
+}
+
+#[test]
 fn secrets_settings_have_safe_defaults_and_are_checked() {
     let c = Config::parse("version = 1").unwrap();
     assert_eq!(c.cmd_options().timeout.as_secs(), 5);

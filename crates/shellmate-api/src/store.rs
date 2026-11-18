@@ -32,7 +32,8 @@ pub trait Store: Send + Sync {
     fn create(&self, header: &Value) -> Result<String>;
     /// The header and the last `tail` turns (all when `None`), oldest first.
     fn read(&self, conversation: &str, tail: Option<usize>) -> Result<(Value, Vec<Value>)>;
-    /// Append atomically; when more than `max_turns` would remain, the oldest are dropped.
+    /// Append atomically; when more than `max_turns` would remain, the oldest are dropped, so exactly the newest
+    /// `max_turns` are kept (the core never passes 0: the config requires at least 1).
     fn append_turn(&self, conversation: &str, turn: &Value, max_turns: usize) -> Result<()>;
     /// Remove and return the most recent turn (`undo`).
     fn pop_turn(&self, conversation: &str) -> Result<Option<Value>>;
