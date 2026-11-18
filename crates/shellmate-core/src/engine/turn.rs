@@ -20,14 +20,35 @@ pub(super) struct Sent {
     pub(super) user: String,
 }
 
-/// When the stages of one request started, for the report.
+/// How long each stage of one request took, measured when the stage ended (never read from a clock later, so
+/// a stage cannot include the one after it). Plain values, so the report can be built and tested from them.
 pub(super) struct Timing {
-    pub(super) run_started: Instant,
-    /// Microseconds spent gathering context before the first provider was tried.
+    /// Gathering context before the first provider was tried.
     pub(super) context_us: u64,
-    /// The start of the provider call that answered.
-    pub(super) llm_started: Instant,
-    pub(super) validate_started: Instant,
+    /// The provider call that answered, from its start to the end of its answer. A fallback attempt that
+    /// failed earlier is not in this number, only in the total.
+    pub(super) llm_us: u64,
+    /// Checking the suggested command.
+    pub(super) validate_us: u64,
+    /// The whole run, up to the finished outcome.
+    pub(super) total_us: u64,
+}
+
+impl Timing {
+    pub(super) fn stages(&self, first_token_us: Option<u64>) -> Stages {
+        Stages {
+            context_us: self.context_us,
+            llm_us: self.llm_us,
+            first_token_us,
+            validate_us: self.validate_us,
+            total_us: self.total_us,
+        }
+    }
+}
+
+/// Microseconds from `since` until now.
+pub(super) fn micros_since(since: Instant) -> u64 {
+    since.elapsed().as_micros() as u64
 }
 
 impl Engine {
@@ -147,15 +168,9 @@ impl Engine {
                 .collect(),
             input_tokens: attempt.usage.map(|u| u.input_tokens),
             output_tokens: attempt.usage.map(|u| u.output_tokens),
-            llm_ms: timing.llm_started.elapsed().as_millis() as u64,
+            llm_ms: timing.llm_us / 1000,
             first_token_ms: attempt.first_token_ms,
-            stages: Stages {
-                context_us: timing.context_us,
-                llm_us: timing.llm_started.elapsed().as_micros() as u64,
-                first_token_us: attempt.first_token_us,
-                validate_us: timing.validate_started.elapsed().as_micros() as u64,
-                total_us: timing.run_started.elapsed().as_micros() as u64,
-            },
+            stages: timing.stages(attempt.first_token_us),
         }
     }
 

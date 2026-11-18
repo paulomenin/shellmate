@@ -374,3 +374,43 @@ async fn a_remote_decider_is_asked_through_the_redaction_chain() {
         .iter()
         .any(|(k, v)| k == "proposed_command" && v == "df -h"));
 }
+
+/// A decision model that takes a while, so that the check is a real part of the run. Nothing asserts how long.
+struct SlowDecider(Arc<FakeDecider>);
+
+#[async_trait]
+impl Decider for SlowDecider {
+    fn info(&self) -> shellmate_api::ProviderInfo {
+        self.0.info()
+    }
+    async fn decide(
+        &self,
+        request: &DecisionRequest,
+    ) -> std::result::Result<DecisionResponse, shellmate_api::ProviderError> {
+        tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+        self.0.decide(request).await
+    }
+}
+
+#[tokio::test]
+async fn the_stages_of_a_run_do_not_overlap() {
+    let d = FakeDecider::new(Ok(verdict(0.9, "read_only", 0.9)));
+    let out = engine(vec![("a", FakeProvider::replying(DF), 1)])
+        .with_deciders(vec![DeciderSpec {
+            name: "slow".into(),
+            decider: Arc::new(SlowDecider(d.clone())) as Arc<dyn Decider>,
+            trust: Trust::Local,
+        }])
+        .run(&env("ask", "show disk usage"))
+        .await
+        .unwrap();
+    assert_eq!(d.count(), 1, "the check ran");
+    let s = &out.report.stages;
+    // the check took a while, and the model's stage must not contain it: the three stages are disjoint
+    // stretches of the run, so they cannot add up to more than the whole
+    assert!(
+        s.context_us + s.llm_us + s.validate_us <= s.total_us,
+        "{s:?}"
+    );
+    assert_eq!(out.report.llm_ms, s.llm_us / 1000);
+}

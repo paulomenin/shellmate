@@ -2,7 +2,7 @@
 //! suggestion, record the turn.
 
 use super::request::Convo;
-use super::turn::{Sent, Timing};
+use super::turn::{micros_since, Sent, Timing};
 use super::{Action, Emit, Engine, Outcome, Report};
 use crate::conversation::{self, Active};
 use crate::envelope::Envelope;
@@ -98,6 +98,7 @@ impl Engine {
                     return Err(f.error);
                 }
             };
+            let llm_us = micros_since(llm_started);
             self.audit_call_ok(&ctx, spec, &attempt, llm_started);
             let mut outcome = finish(action, &attempt.text, &spec.name)?;
             if outcome.buffer.is_none() && matches!(action, Action::Ask | Action::Generate) {
@@ -106,10 +107,10 @@ impl Engine {
             let validate_started = Instant::now();
             self.add_check_notes(action, env, &ctx, &mut outcome).await;
             let timing = Timing {
-                run_started,
                 context_us,
-                llm_started,
-                validate_started,
+                llm_us,
+                validate_us: micros_since(validate_started),
+                total_us: micros_since(run_started),
             };
             let sent = Sent {
                 level: built.level,

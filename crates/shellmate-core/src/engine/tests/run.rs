@@ -1,3 +1,4 @@
+use super::turn::Timing;
 use super::*;
 
 #[tokio::test]
@@ -175,4 +176,25 @@ async fn empty_answers_and_unsafe_commands() {
 #[test]
 fn unknown_action_is_a_protocol_error() {
     assert_eq!("fly".parse::<Action>().unwrap_err().code, "glue.protocol");
+}
+
+#[test]
+fn the_stages_are_the_measured_values_and_first_token_comes_from_the_attempt() {
+    let t = Timing {
+        context_us: 11,
+        llm_us: 2_500,
+        validate_us: 700,
+        total_us: 4_000,
+    };
+    assert_eq!(
+        t.stages(Some(90)),
+        Stages {
+            context_us: 11,
+            llm_us: 2_500,
+            first_token_us: Some(90),
+            validate_us: 700,
+            total_us: 4_000,
+        }
+    );
+    assert_eq!(t.stages(None).first_token_us, None);
 }

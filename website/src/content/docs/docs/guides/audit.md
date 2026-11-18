@@ -59,7 +59,7 @@ This is the quickest way to answer "why was that slow?" or "did that go to the c
 timings:  startup 3.2 ms · context 5.6 ms · llm 1 420.1 ms (first text 380.4 ms) · checks 1.7 ms · overhead 0.2 ms · total 1 431.8 ms
 ```
 
-*Start-up* is reading the config and building the providers. *Context* is the project and git collectors. *llm* is everything between sending the request and the end of the answer, tool runs and approvals included. *Checks* is the validation of the suggested command. *Overhead* is whatever the engine spent outside those. `--timings=json` prints the same as one JSON object, which is what the [benchmarks](../../benchmarks/) read.
+*Start-up* is reading the config and building the providers. *Context* is the project and git collectors. *llm* is everything between sending the request and the end of the answer, tool runs and approvals included, for the provider that answered. *Checks* is the validation of the suggested command, and it is not counted in *llm*. *Overhead* is whatever the engine spent outside those, which includes the time lost to a provider that failed before the fallback answered. `--timings=json` prints the same as one JSON object, which is what the [benchmarks](../../benchmarks/) read.
 
 ## `--dry-run`
 

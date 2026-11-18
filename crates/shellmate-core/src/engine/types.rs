@@ -68,12 +68,14 @@ pub struct Report {
 pub struct Stages {
     /// Gathering context (project and git collectors).
     pub context_us: u64,
-    /// The model, including tool runs and approvals.
+    /// The model, including tool runs and approvals, for the attempt that answered. A provider that failed
+    /// earlier in the fallback chain is counted only in `total_us`.
     pub llm_us: u64,
     pub first_token_us: Option<u64>,
     /// Checking the suggested command (syntax, programs, decision model).
     pub validate_us: u64,
-    /// The whole engine run, from the start of the request to the finished outcome.
+    /// The whole engine run, from the start of the request to the finished outcome. The stages above do not
+    /// overlap, so their sum is at most this.
     pub total_us: u64,
 }
 
