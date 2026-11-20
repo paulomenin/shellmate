@@ -60,6 +60,8 @@ jobs:
       - run: cargo build --release -q -p shellmate
       # the benchmark tooling's own tests, and the answer-scoring pipeline replayed with no model
       - run: python3 -I -m unittest discover -s tools/bench
+      # the v2 evaluator replays its cassettes in its container image, built from this source
+      - run: docker build -f tools/bench/v2/Dockerfile -t shellmate-evals:v2 .
       - run: REQUIRE_TOOLS=1 python3 -I -m unittest discover -s tools/bench/v2
       # fails over a budget in tools/bench/budgets.toml
       - run: python3 tools/bench/perf.py --no-build --runs 50 --markdown perf.md
