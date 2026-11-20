@@ -8,3 +8,154 @@
 	--sl-color-accent: #1569a3;
 	--sl-color-accent-high: #0d3f63;
 }
+
+/* ------------------------------------------------------------------ layout on wide screens
+   Starlight keeps the text column at 45rem and gives the "On this page" panel half of what is left, which
+   looks empty on a large monitor. Use a wider column that grows with the screen, keep the panel at its normal
+   width, and centre the text between the two panels. */
+:root {
+	--sl-content-width: 50rem;
+}
+@media (min-width: 90rem) {
+	:root {
+		--sl-content-width: 62rem;
+	}
+}
+@media (min-width: 110rem) {
+	:root {
+		--sl-content-width: 76rem;
+	}
+}
+/* with a panel folded away the text may use the room */
+html[data-sm-hide-sidebar],
+html[data-sm-hide-toc] {
+	--sl-content-width: 90rem;
+}
+@media (min-width: 72rem) {
+	.right-sidebar-container {
+		width: var(--sl-sidebar-width);
+	}
+	[data-has-sidebar][data-has-toc] .main-pane {
+		width: calc(100% - var(--sl-sidebar-width));
+		--sl-content-margin-inline: auto;
+	}
+	html[data-sm-hide-toc] .right-sidebar-container {
+		display: none;
+	}
+	html[data-sm-hide-toc][data-has-sidebar][data-has-toc] .main-pane {
+		width: 100%;
+	}
+	html[data-sm-hide-sidebar] {
+		--sl-content-inline-start: 0rem;
+	}
+	html[data-sm-hide-sidebar] .sidebar-pane {
+		display: none;
+	}
+}
+
+/* ------------------------------------------------------------------ fold-away buttons (layout-toggle.js) */
+.sm-panel-toggle {
+	display: none;
+}
+@media (min-width: 72rem) {
+	.sm-panel-toggle {
+		display: flex;
+		position: fixed;
+		z-index: calc(var(--sl-z-index-menu) + 1);
+		top: calc(var(--sl-nav-height) + 0.75rem);
+		width: 1.75rem;
+		height: 1.75rem;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		border: 1px solid var(--sl-color-hairline);
+		border-radius: 50%;
+		background: var(--sl-color-bg-nav);
+		color: var(--sl-color-gray-2);
+		font: inherit;
+		font-size: 1.1rem;
+		line-height: 1;
+		cursor: pointer;
+	}
+	.sm-panel-toggle:hover,
+	.sm-panel-toggle:focus-visible {
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-accent);
+	}
+	/* on the edge of its panel, half outside, so it never covers the panel's own links */
+	.sm-panel-toggle[data-panel='sidebar'] {
+		inset-inline-start: calc(var(--sl-sidebar-width) - 0.875rem);
+	}
+	.sm-panel-toggle[data-panel='toc'] {
+		inset-inline-end: calc(var(--sl-sidebar-width) - 0.875rem);
+	}
+	html[data-sm-hide-sidebar] .sm-panel-toggle[data-panel='sidebar'] {
+		inset-inline-start: 0.5rem;
+	}
+	html[data-sm-hide-toc] .sm-panel-toggle[data-panel='toc'] {
+		inset-inline-end: 0.5rem;
+	}
+	.sm-panel-toggle[data-panel='sidebar']::before {
+		content: '\2039'; /* ‹ */
+	}
+	.sm-panel-toggle[data-panel='toc']::before {
+		content: '\203A'; /* › */
+	}
+	html[data-sm-hide-sidebar] .sm-panel-toggle[data-panel='sidebar']::before {
+		content: '\203A';
+	}
+	html[data-sm-hide-toc] .sm-panel-toggle[data-panel='toc']::before {
+		content: '\2039';
+	}
+}
+
+/* ------------------------------------------------------------------ wide tables
+   A table wider than the text column scrolls sideways. Three things make that hard to miss and rarer:
+   - the scrollbar is always drawn (Chromium otherwise hides it until the pointer is over it, so a table
+     looked cut off), with a soft shadow on the side that has more to show;
+   - cells are a little tighter and the text a little smaller;
+   - header words may wrap, so a long header does not widen its column. */
+.sl-markdown-content table {
+	display: block;
+	max-width: 100%;
+	overflow-x: auto;
+	font-size: var(--sl-text-sm);
+	/* shadows: drawn on the edge that still has content beyond it; the two "local" gradients cover them
+	   when the table is scrolled to that end */
+	background:
+		linear-gradient(to right, var(--sl-color-bg) 30%, transparent) 0 0 / 2.5rem 100% no-repeat local,
+		linear-gradient(to left, var(--sl-color-bg) 30%, transparent) 100% 0 / 2.5rem 100% no-repeat local,
+		radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 0.28), transparent) 0 0 / 0.9rem 100% no-repeat scroll,
+		radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.28), transparent) 100% 0 / 0.9rem 100% no-repeat scroll;
+}
+.sl-markdown-content :is(th, td) {
+	padding: 0.45rem 0.75rem;
+}
+.sl-markdown-content th {
+	vertical-align: bottom;
+}
+.sl-markdown-content table::-webkit-scrollbar {
+	height: 0.65rem;
+}
+.sl-markdown-content table::-webkit-scrollbar-track {
+	background: var(--sl-color-gray-6);
+	border-radius: 0.35rem;
+}
+.sl-markdown-content table::-webkit-scrollbar-thumb {
+	background: var(--sl-color-gray-3);
+	border-radius: 0.35rem;
+}
+.sl-markdown-content table::-webkit-scrollbar-thumb:hover {
+	background: var(--sl-color-gray-2);
+}
+/* Firefox has no ::-webkit-scrollbar; setting these in Chromium would turn the styling above off */
+@supports not selector(::-webkit-scrollbar) {
+	.sl-markdown-content table {
+		scrollbar-width: thin;
+		scrollbar-color: var(--sl-color-gray-3) var(--sl-color-gray-6);
+	}
+}
+/* a cell that holds only a bold name (a model in the results tables) stays on one line */
+.sl-markdown-content td > strong:only-child {
+	white-space: nowrap;
+}

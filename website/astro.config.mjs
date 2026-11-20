@@ -22,6 +22,8 @@ export default defineConfig({
 			favicon: '/favicon.svg',
 			// Open external links (content, the GitHub icon, the edit link) in a new tab.
 			head: [
+				// Fold-away side panels: sets the saved state before the page paints (see public/layout-toggle.js).
+				{ tag: 'script', attrs: { src: `${base.replace(/\/$/, '')}/layout-toggle.js` } },
 				{
 					tag: 'script',
 					content: `document.addEventListener('DOMContentLoaded', () => { for (const a of document.querySelectorAll('a[href^="http"]')) { if (a.hostname !== location.hostname) { a.target = '_blank'; a.rel = 'noopener noreferrer'; } } });`,
