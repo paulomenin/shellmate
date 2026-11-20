@@ -1,0 +1,26 @@
+# Replays the shipped cassettes: no model, no network. Used to check the evaluator itself.
+#   reference  answers that pass every rule: proves the cases can be passed and the pipeline works
+#   careless   typical mistakes: proves the rules catch them (see test_careless.py)
+version = 2
+[run]
+image = "shellmate-evals:v2"
+models = ["reference", "careless"]
+deciders = ["reference", "careless"]
+modes = ["generator", "decider", "combined"]
+repeats = 1
+warmup = false
+[providers.replay]
+endpoint = "http://127.0.0.1:1"
+trust = "remote"
+[models.reference]
+provider = "replay"
+model = "reference"
+[models.careless]
+provider = "replay"
+model = "careless"
+[deciders.reference]
+provider = "replay"
+model = "reference"
+[deciders.careless]
+provider = "replay"
+model = "careless"

@@ -1,0 +1,183 @@
+# Cases for `generate` and the dialect checks. See README.md for the keys under [case.expect].
+# `generate` is command-only: the buffer the model fills is what is scored.
+
+[[case]]
+id = "gen-largest-files"
+category = "generate"
+action = "generate"
+shell = "bash"
+input = "show the 5 largest files in this directory tree"
+[case.expect]
+parses = true
+installed = true
+matches = ['\b(du|find|ls)\b']
+
+[[case]]
+id = "gen-count-rs-lines"
+category = "generate"
+action = "generate"
+shell = "bash"
+input = "count the lines of all .rs files under src"
+[case.expect]
+parses = true
+installed = true
+matches = ['\b(wc|tokei|cloc)\b', '\.rs']
+
+[[case]]
+id = "gen-listening-ports"
+category = "generate"
+action = "generate"
+shell = "bash"
+input = "list the tcp ports this machine is listening on"
+[case.expect]
+parses = true
+matches = ['\b(ss|netstat|lsof)\b']
+
+[[case]]
+id = "gen-git-last-commits"
+category = "generate"
+action = "generate"
+shell = "bash"
+input = "show the last 5 git commits, one line each"
+[case.expect]
+parses = true
+matches = ['git\s+log', '(?:-5|--max-count[= ]5|-[a-zA-Z]*n\s*5)', '--oneline|--pretty(?:=| )oneline|--format=']
+
+[[case]]
+id = "gen-disk-usage"
+category = "generate"
+action = "generate"
+shell = "zsh"
+input = "show free disk space in human readable form"
+[case.expect]
+parses = true
+installed = true
+matches = ['\bdf\b']
+
+[[case]]
+id = "gen-tarball"
+category = "generate"
+action = "generate"
+shell = "bash"
+input = "create a gzip compressed tarball of the src directory called src.tar.gz"
+[case.expect]
+parses = true
+matches = ['\btar\b', 'src\.tar\.gz', '(?:-[a-zA-Z]*c|--create)', '(?:-[a-zA-Z]*z|--gzip)']
+
+[[case]]
+id = "gen-extract"
+category = "generate"
+action = "generate"
+shell = "bash"
+input = "extract archive.tar.gz into the current directory"
+[case.expect]
+parses = true
+matches = ['\btar\b', 'archive\.tar\.gz']
+not_matches = ['\brm\b']
+
+[[case]]
+id = "gen-todo-search"
+category = "generate"
+action = "generate"
+shell = "fish"
+input = "find all lines containing TODO in this project"
+[case.expect]
+parses = true
+matches = ['\b(grep|rg|ag|ack)\b', 'TODO']
+
+[[case]]
+id = "gen-memory-hogs"
+category = "generate"
+action = "generate"
+shell = "bash"
+input = "show the 10 processes using the most memory"
+[case.expect]
+parses = true
+installed = true
+matches = ['\b(ps|top|htop)\b']
+
+[[case]]
+id = "gen-failed-services"
+category = "generate"
+action = "generate"
+shell = "bash"
+input = "list the systemd services that failed"
+[case.expect]
+parses = true
+matches = ['systemctl', 'failed']
+
+[[case]]
+id = "gen-json-field"
+category = "generate"
+action = "generate"
+shell = "bash"
+input = "print the name field of package.json"
+[case.expect]
+parses = true
+matches = ['\b(jq|node|python3?)\b', 'name']
+[case.behavior]
+stdout_matches = ['^"?demo"?\s*$']
+
+# ---- same intent in each shell's own syntax: the parse check in the target shell is the judge
+
+[[case]]
+id = "dia-env-fish"
+category = "dialect"
+action = "generate"
+shell = "fish"
+input = "set the environment variable EDITOR to vim for this session"
+[case.expect]
+parses = true
+matches = ['\bset\s+(-x|-gx|--export)\s+EDITOR\s+"?vim']
+not_matches = ['^\s*export\b']
+
+[[case]]
+id = "dia-env-bash"
+category = "dialect"
+action = "generate"
+shell = "bash"
+input = "set the environment variable EDITOR to vim for this session"
+[case.expect]
+parses = true
+matches = ['\bexport\s+EDITOR="?vim']
+
+[[case]]
+id = "dia-loop-fish"
+category = "dialect"
+action = "generate"
+shell = "fish"
+input = "for every .txt file here print its name and its number of lines"
+[case.expect]
+parses = true
+matches = ['\bfor\b', '\.txt']
+
+[[case]]
+id = "dia-loop-bash"
+category = "dialect"
+action = "generate"
+shell = "bash"
+input = "for every .txt file here print its name and its number of lines"
+[case.expect]
+parses = true
+matches = ['\.txt']
+
+[[case]]
+id = "dia-loop-zsh"
+category = "dialect"
+action = "generate"
+shell = "zsh"
+input = "for every .txt file here print its name and its number of lines"
+[case.expect]
+parses = true
+matches = ['\.txt']
+
+[[case]]
+id = "dia-status-fish"
+category = "dialect"
+action = "generate"
+shell = "fish"
+input = "print the exit status of the previous command"
+[case.expect]
+parses = true
+matches = ['\$status']
+not_matches = ['\$\?']

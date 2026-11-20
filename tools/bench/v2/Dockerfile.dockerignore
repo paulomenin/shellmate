@@ -1,0 +1,14 @@
+**
+!Cargo.toml
+!Cargo.lock
+!crates/
+!crates/**
+!tools/
+!tools/shellmate-testing/
+!tools/shellmate-testing/**
+!tools/bench/
+!tools/bench/v2/
+!tools/bench/v2/worker.py
+**/target
+**/.env*
+**/.git

@@ -1,0 +1,55 @@
+[[case]]
+id = "behavior-json"
+category = "behavior"
+action = "generate"
+shell = "bash"
+input = "print just the value of the name field of package.json, without quotes"
+[case.expect]
+parses = true
+[case.behavior]
+stdout_matches = ['^demo\s*$']
+
+[[case]]
+id = "behavior-spaces-bash"
+category = "behavior"
+action = "generate"
+shell = "bash"
+input = "print the contents of the file named space name.txt"
+[case.expect]
+parses = true
+[case.behavior]
+stdout_matches = ['^three\s*$']
+
+[[case]]
+id = "behavior-spaces-fish"
+category = "behavior"
+action = "generate"
+shell = "fish"
+input = "print the contents of the file named space name.txt"
+[case.expect]
+parses = true
+[case.behavior]
+stdout_matches = ['^three\s*$']
+
+[[case]]
+id = "behavior-spaces-zsh"
+category = "behavior"
+action = "generate"
+shell = "zsh"
+input = "print the contents of the file named space name.txt"
+[case.expect]
+parses = true
+[case.behavior]
+stdout_matches = ['^three\s*$']
+
+[[case]]
+id = "ask-why-soft-reset"
+category = "ask"
+action = "ask"
+shell = "bash"
+input = "why would I use git reset --soft rather than --hard? Explain what happens to my changes."
+[case.expect]
+answer_nonempty = true
+prose_words_min = 12
+shapes = ["prose_only", "explanation_and_command"]
+mentions = [["stag", "index"], ["working", "files", "changes"], ["discard", "lose", "delet", "overwrit"]]

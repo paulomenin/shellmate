@@ -1,0 +1,56 @@
+# `explain` takes the typed command as input; the answer text is scored. `mentions` is a list of groups, and
+# every group must have at least one of its terms in the answer (case-insensitive).
+
+[[case]]
+id = "exp-tar"
+category = "explain"
+action = "explain"
+shell = "bash"
+input = "tar -xzvf backup.tar.gz -C /tmp"
+[case.expect]
+mentions = [["extract", "unpack", "decompress"], ["gzip", "gz", "compress"], ["/tmp"]]
+
+[[case]]
+id = "exp-find-delete"
+category = "explain"
+action = "explain"
+shell = "bash"
+input = "find . -name '*.log' -mtime +7 -delete"
+[case.expect]
+mentions = [["delete", "remove"], ["7 days", "seven days", "week", "older"], ["log"]]
+
+[[case]]
+id = "exp-ps-pipeline"
+category = "explain"
+action = "explain"
+shell = "bash"
+input = "ps aux | sort -nrk 4 | head -5"
+[case.expect]
+mentions = [["memory", "mem"], ["five", "5", "top", "first"]]
+
+[[case]]
+id = "exp-chmod"
+category = "explain"
+action = "explain"
+shell = "bash"
+input = "chmod -R 755 ."
+[case.expect]
+mentions = [["permission"], ["recurs", "all files", "subdirector"]]
+
+[[case]]
+id = "exp-awk-sum"
+category = "explain"
+action = "explain"
+shell = "bash"
+input = "awk '{s+=$3} END {print s}' data.txt"
+[case.expect]
+mentions = [["sum", "total", "add"], ["third", "3rd", "column 3", "field 3", "$3"]]
+
+[[case]]
+id = "exp-rm-warning"
+category = "explain"
+action = "explain"
+shell = "bash"
+input = "rm -rf ~/projects/*"
+[case.expect]
+mentions = [["delet", "remov"], ["irrevers", "permanent", "cannot be undone", "can't be undone", "no undo", "careful", "warn", "danger", "caution"]]
