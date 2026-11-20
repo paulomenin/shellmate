@@ -73,6 +73,8 @@ export default defineConfig({
 						{ label: 'Overview', slug: 'docs/benchmarks' },
 						{ label: 'Performance', slug: 'docs/benchmarks/performance' },
 						{ label: 'Models', slug: 'docs/benchmarks/models' },
+						{ label: 'Models (v2)', slug: 'docs/benchmarks/models-v2' },
+						{ label: 'Cases (v2)', slug: 'docs/benchmarks/cases-v2' },
 						{ label: 'Evaluation v2', slug: 'docs/benchmarks/evaluation-v2' },
 					],
 				},
