@@ -13,6 +13,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler
 
+import native
 from config import scrub
 from metrics import cost, is_free, usage_of
 
@@ -33,6 +34,23 @@ def reply_text(raw):
                 except (ValueError, KeyError, IndexError, TypeError):
                     pass
         return "".join(out)
+
+
+def sse_of(raw):
+    """A recorded answer (a JSON body) as the server-sent events a streaming request gets: the words, then each native
+    call as its server sends it (the id and the name first, then the arguments in pieces), then the end."""
+    def event(delta, finish=None):
+        return "data: " + json.dumps({"choices": [{"delta": delta, "finish_reason": finish}]}) + "\n\n"
+    out = [event({"content": reply_text(raw)})] if reply_text(raw) else []
+    calls = native.calls_in(raw)
+    for index, call in enumerate(calls):
+        out.append(event({"tool_calls": [{"index": index, "id": call["id"] or f"call_{index}", "type": "function",
+                                          "function": {"name": call["name"], "arguments": ""}}]}))
+        arguments = call["arguments"]
+        for start in range(0, len(arguments), 7):
+            out.append(event({"tool_calls": [{"index": index, "function": {"arguments": arguments[start:start + 7]}}]}))
+    out.append(event({}, "tool_calls" if calls else "stop"))
+    return "".join(out) + "data: [DONE]\n\n"
 
 
 class BudgetError(ValueError):
@@ -156,10 +174,7 @@ class Broker:
                 raw = replies.encode()
                 call["replay"] = True
                 if body.get("stream"):
-                    answer = reply_text(raw.decode())
-                    raw = ("data: " + json.dumps({"choices": [{"delta": {"content": answer}, "finish_reason": None}]})
-                           + "\n\ndata: " + json.dumps({"choices": [{"delta": {}, "finish_reason": "stop"}]})
-                           + "\n\ndata: [DONE]\n\n").encode()
+                    raw = sse_of(raw.decode()).encode()
                 h.send_response(200)
                 h.send_header("Content-Type", "text/event-stream" if body.get("stream") else "application/json")
                 h.send_header("Content-Length", str(len(raw)))

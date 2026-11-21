@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import config
 import metrics
+import native
 import proxy
 import report
 import sandbox
@@ -54,9 +55,9 @@ def model_config(generator, checker, providers, tools=(), preapproved=None):
                  'max_context_level = 1', f'[models.{role}]', f'provider = "{role}"',
                  f'plugin = "builtin:{m["plugin"]}"', f'model = {q(m["model"])}']
         if role == "generator":
-            # The scorer reads calls written in text, so the generator is pinned to that. The default, `auto`, would ask
-            # the server (the broker) about the model and could change what is measured from one run to the next.
-            text.append('tool_calling = "text"')
+            # Always set: the default, `auto`, would ask the server (the broker) about the model and could change what
+            # is measured from one run to the next. `text` unless the model is configured to be run natively.
+            text.append(f'tool_calling = {q(m.get("tool_calling", "text"))}')
         text += [f'{k} = {q(v)}' for k, v in m["settings"].items()]
     text += ['[llm]', 'chain = ["generator"]', '[validator]', f'enabled = {str(bool(checker)).lower()}',
              'chain = ["checker"]' if checker else 'chain = []', 'timeout = "120s"']
@@ -113,8 +114,31 @@ def parse_output(result, replay=False):
     return result.get("stdout", "").strip(), "\n".join(lines).strip(), {} if replay else timing
 
 
-def cassette_reply(text):
-    return json.dumps({"choices": [{"message": {"role": "assistant", "content": text}, "finish_reason": "stop"}]})
+def cassette_reply(text, calls=()):
+    """A recorded answer as the body of a chat completion. `calls` are native tool calls: (name, arguments) pairs."""
+    message = {"role": "assistant", "content": text or None if calls else text}
+    if calls:
+        message["tool_calls"] = [{"id": f"call_{i}", "type": "function", "function": {"name": name, "arguments": json.dumps(arguments)}}
+                                 for i, (name, arguments) in enumerate(calls)]
+    return json.dumps({"choices": [{"message": message, "finish_reason": "tool_calls" if calls else "stop"}]})
+
+
+def cassette_of(replay, key, generator):
+    """The recorded answers of a model. A model run natively may have none of its own: it replays the cassette of the
+    model it names (`model = "reference"`), which holds the text that model wrote, served as native calls."""
+    return replay.get(key) or (replay.get(generator.get("model"), {}) if generator else {})
+
+
+def replay_reply(text, native_calls):
+    """What a cassette reply is served as. A cassette records the text a model wrote, so a model run natively has each
+    `shellmate-tool` block in it served as a native call instead, with the words around the blocks as its text."""
+    if not native_calls:
+        return cassette_reply(text)
+    blocks = [b.strip() for b in scoring.TOOL_BLOCK.findall(text)]
+    said = scoring.TOOL_BLOCK.sub("", text).strip()
+    calls = [(b.split(None, 1)[0], native.arguments_of(b.split(None, 1)[0], b.split(None, 1)[1] if len(b.split(None, 1)) > 1 else ""))
+             for b in blocks if b.split()]
+    return cassette_reply(said, calls)
 
 
 SLEEP = time.sleep  # a test replaces it
@@ -250,7 +274,7 @@ def evaluate(c, cases, image, secrets, replay, behavior, result, outdir, blind):
                                 replay_routes["generator"] = cassette_reply(answers[repeat % len(answers)][0])
                         if replay is not None:
                             key = check_name if not gen_name else gen_name
-                            cassette = replay.get(key, {})
+                            cassette = cassette_of(replay, key, generator if gen_name else None)
                             answers = cassette.get("cases", {}).get(case["id"], [])
                             if gen_name and answers:
                                 replies = answers[repeat % len(answers)]
@@ -258,7 +282,8 @@ def evaluate(c, cases, image, secrets, replay, behavior, result, outdir, blind):
                                         or len(replies) != 1 and "tools" not in case:
                                     row["error"] = "cassette needs exactly one generator reply per case (one per request when it uses tools)"
                                 elif "tools" in case:
-                                    replay_routes["generator"] = [cassette_reply(x) for x in replies]
+                                    natively = generator.get("tool_calling", "text") == "native"
+                                    replay_routes["generator"] = [replay_reply(x, natively) for x in replies]
                                 else:
                                     replay_routes["generator"] = cassette_reply(replies[0])
                             elif gen_name:
@@ -281,7 +306,10 @@ def evaluate(c, cases, image, secrets, replay, behavior, result, outdir, blind):
                                         "timeout": r["timeout_secs"], "config": model_config(generator, checker, local["providers"], case.get("tools", ()), case.get("preapproved"))})
                                 row["calls"] = broker.calls
                                 command, text, timing = parse_output(worker, replay is not None or composed)
-                                replies = [proxy.reply_text(x.get("response", "")) for x in broker.calls if x["role"] == "generator"]
+                                # Each answer as the text it stands for: a native call is the block it would have been written as.
+                                # `details` says, per answer, whether each native call was well formed (empty for text).
+                                read = [native.reply_of(x.get("response", ""), proxy.reply_text(x.get("response", ""))) for x in broker.calls if x["role"] == "generator"]
+                                replies, details = [r[0] for r in read], [r[1] for r in read]
                                 # what the model said last is its answer; the calls before it were requests for tools
                                 raw = replies[-1] if "tools" in case and replies else "\n".join(replies)
                                 # Keep notes available for review; score the model prose independently.
@@ -309,7 +337,7 @@ def evaluate(c, cases, image, secrets, replay, behavior, result, outdir, blind):
                                 priced = [x.get("cost_usd") for x in broker.calls if not x.get("replay")]
                                 row["cost_usd"] = sum(priced) if priced and all(x is not None for x in priced) else None
                                 if gen_name:
-                                    row["checks"] = scoring.score(case, command, prose, worker.get("facts"), row["style"], replies)
+                                    row["checks"] = scoring.score(case, command, prose, worker.get("facts"), row["style"], replies, details)
                                     if "tools" in case:
                                         row["tool_calls"] = [c for reply in replies for c in scoring.tool_calls_in(reply)]
                                         row["tool_results"] = [x["tool_result"] for x in broker.calls if x.get("tool_result")]
@@ -385,7 +413,8 @@ def write_recordings(result, directory):
             if group == "decisions":
                 replies[row["repeat"]] = call["response"]
             else:  # a tool case has one answer per request, in order
-                replies[row["repeat"]] = (replies[row["repeat"]] or []) + [proxy.reply_text(call["response"])]
+                # recorded as the text it stands for, so one cassette can be replayed in either mode
+                replies[row["repeat"]] = (replies[row["repeat"]] or []) + [native.reply_of(call["response"], proxy.reply_text(call["response"]))[0]]
     for (profile, name), cassette in recordings.items():
         destination = Path(directory) / "cassettes" / profile.replace(":", "-")
         destination.mkdir(parents=True, exist_ok=True)

@@ -20,6 +20,7 @@ from pathlib import Path
 
 import aggregate
 import metrics
+import native
 import report
 import sandbox
 import scorecard
@@ -94,7 +95,10 @@ class Cassettes(unittest.TestCase):
         self.assertGreaterEqual(sum(m["missed_mismatch"] for m in careless.values()), 8)
 
 
-class Replay(unittest.TestCase):
+class ReplayBase(unittest.TestCase):
+    """Replays the shipped cassettes through the real evaluator in the container, with the config of the subclass."""
+    CONFIG = "replay.toml"
+
     @classmethod
     def setUpClass(cls):
         try:
@@ -104,7 +108,7 @@ class Replay(unittest.TestCase):
                 raise AssertionError("build the evaluation image first: make build-podman (or build-docker)")
             raise unittest.SkipTest("evaluation image unavailable; make build-podman (or build-docker)")
         cls.out = tempfile.TemporaryDirectory()
-        done = subprocess.run([sys.executable, "-I", str(HERE / "evals.py"), "--config", str(HERE / "replay.toml"),
+        done = subprocess.run([sys.executable, "-I", str(HERE / "evals.py"), "--config", str(HERE / cls.CONFIG),
                                "--replay", str(HERE / "cassettes"), "--out", str(Path(cls.out.name) / "run")],
                               capture_output=True, text=True, timeout=900, env=os.environ)
         if done.returncode:
@@ -120,6 +124,8 @@ class Replay(unittest.TestCase):
         return {r["case_id"]: {c["name"] for c in r["checks"] if not c["ok"]} for r in self.groups[profile]
                 if r.get("passed") is not True and r.get("behavior_status") != "not_approved"}
 
+
+class Replay(ReplayBase):
     def test_the_reference_answers_pass_every_rule(self):
         self.assertEqual(self.failed("generator:reference"), {}, "a case cannot be passed, or a rule is wrong")
         summary = aggregate.rate_summary(self.groups["generator:reference"])
@@ -173,6 +179,34 @@ class Replay(unittest.TestCase):
             for checker in ("reference", "careless"):
                 pair = aggregate.rate_summary(self.groups[f"combined:{generator}+{checker}"])
                 self.assertEqual((pair["passed"], pair["total"], pair["unsafe"]), (alone["passed"], alone["total"], alone["unsafe"]), f"{generator}+{checker}")
+
+
+
+
+class ReplayNative(ReplayBase):
+    """The same answers served as native tool calls: a model that calls tools natively is scored by the same rules."""
+    CONFIG = "replay-native.toml"
+
+    def test_the_calls_were_served_natively(self):
+        rows = [r for r in self.groups["generator:careless_native"] + self.groups["generator:reference_native"] if r["case_id"] == "tool-exec-status"]
+        self.assertTrue(rows)
+        for row in rows:
+            served = [native.calls_in(call.get("response", "")) for call in row["calls"] if call["role"] == "generator"]
+            self.assertTrue(served[0], "the first answer was a native call, not a block in the text")
+            self.assertEqual(served[0][0]["name"], "exec")
+
+    def test_the_reference_answers_pass_every_rule_natively_too(self):
+        self.assertEqual(self.failed("generator:reference_native"), {}, "a case cannot be passed natively, or a rule reads native calls wrongly")
+        summary = aggregate.rate_summary(self.groups["generator:reference_native"])
+        self.assertEqual((summary["tier"], summary["safety"], summary["recommendation"], summary["unsafe"], summary["errors"]), ("Excellent", "Safe", "Recommended", 0, 0))
+
+    def test_each_careless_mistake_is_caught_natively_except_the_one_about_writing_a_block(self):
+        failed = self.failed("generator:careless_native")
+        # prose around a block is a mistake of the text form: natively the words come before the call and are not wrong
+        expected = {case_id: rules for case_id, rules in MUST_FAIL.items() if case_id != "tool-exec-status"}
+        for case_id, rules in expected.items():
+            self.assertTrue(rules <= failed.get(case_id, set()), f"{case_id}: expected {sorted(rules)} to fail, got {sorted(failed.get(case_id, []))}")
+        self.assertEqual(set(failed), set(expected), "nothing else fails, so a new failure is noticed")
 
 
 if __name__ == "__main__":

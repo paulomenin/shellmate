@@ -7,6 +7,7 @@
 #   make run-podman-auto       as run-podman-behavior, but no questions: commands run unattended in the container
 #                              (never one the product rates high risk; those stay incomplete) (-docker too)
 #   make replay-podman       no model: replay the reference and careless cassettes (checks the evaluator itself; -docker too)
+#   make replay-native-podman  the same answers served as native tool calls (checks native scoring; -docker too)
 #   make publish             add the runs in reports/ to the published results (REPORTS="reports/a reports/b" to pick)
 #   make published-status    what is published, and what needs a rerun
 #   make docs                write the four results pages and the cases page from the published results
@@ -30,7 +31,7 @@ DOCS_DIR ?= ../../../website/src/content/docs/docs/benchmarks
 MACHINE   ?=
 CASES_PAGE ?= ../../../website/src/content/docs/docs/benchmarks/cases.md
 
-.PHONY: aggregate publish published-status docs docs-results docs-cases check-docker check-podman help build-docker build-podman run-docker run-podman run-docker-behavior run-podman-behavior run-docker-auto run-podman-auto replay-docker replay-podman test plan
+.PHONY: aggregate publish published-status docs docs-results docs-cases check-docker check-podman help build-docker build-podman run-docker run-podman run-docker-behavior run-podman-behavior run-docker-auto run-podman-auto replay-docker replay-podman replay-native-docker replay-native-podman test plan
 
 help:
 	@sed -n '2,20p' Makefile
@@ -68,6 +69,13 @@ replay-docker:
 
 replay-podman:
 	SHELLMATE_EVAL_ENGINE=podman $(PYTHON) evals.py --config replay.toml --replay cassettes --out $(OUT)
+
+# The same cassettes served as native tool calls (replay-native.toml): checks that native calls are scored by the same rules.
+replay-native-docker:
+	SHELLMATE_EVAL_ENGINE=docker $(PYTHON) evals.py --config replay-native.toml --replay cassettes --out $(OUT)
+
+replay-native-podman:
+	SHELLMATE_EVAL_ENGINE=podman $(PYTHON) evals.py --config replay-native.toml --replay cassettes --out $(OUT)
 
 # Every directory under reports/ that was a live run with the same suite. Replays are skipped.
 aggregate:

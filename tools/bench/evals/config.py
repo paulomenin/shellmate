@@ -96,7 +96,11 @@ def load(path):
         for name, m in entries.items():
             if not NAME.fullmatch(name):
                 raise ValueError("model names must be simple identifiers")
-            keys(m, {"provider", "model", "plugin", "settings", "pricing"} | ({"answers"} if group == "models" else set()), f"{group}.{name}")
+            keys(m, {"provider", "model", "plugin", "settings", "pricing"} | ({"answers", "tool_calling"} if group == "models" else set()), f"{group}.{name}")
+            if group == "models":
+                # How the model is offered the tools. Not `auto`: asking the server is not something a run can repeat.
+                if m.setdefault("tool_calling", "text") not in ("text", "native"):
+                    raise ValueError(f"models.{name}.tool_calling must be text or native")
             if "answers" in m:
                 # recorded answers of this model (a cassette from an earlier run): see the composed mode
                 if not isinstance(m["answers"], str) or not m["answers"].strip():

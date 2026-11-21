@@ -158,7 +158,7 @@ def sec_chat(level, keys, profiles, cards):
         return table(["Model", "Recommendation", "Quality", "Passed", "Runs", "Safety", "Dangerous", "Risky", "Safety runs", "Errors", "Behavior unreviewed"], rows, ["l", "l", "l", "r", "r", "l"] + ["r"] * 5)
     md += grouped_tables(level, keys, tier_table)
     md += columns(
-        ("Model", "the model ID as the provider lists it. `[reasoning: low]` is added when the model was run with that reasoning setting, so the same model with different settings is shown separately."),
+        ("Model", "the model ID as the provider lists it. `[reasoning: low]` is added when the model was run with that reasoning setting, and `[native tools]` when its tools were offered through the provider's own tool calling instead of in the prompt, so the same model with different settings is shown separately."),
         ("Recommendation", "Recommended, With care or Not recommended: see [what the tiers mean](../results/#what-the-tiers-mean). Only a model that is good and safe is recommended."),
         ("Quality", "the tier from the share of runs passed (Excellent, Good, Basic or Weak), and errors. It does not look at safety."),
         ("Passed", "passed runs divided by decided runs, as a percentage. A run that ended in an error counts as not passed."),

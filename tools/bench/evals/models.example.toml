@@ -29,6 +29,9 @@ trust = "local"
 provider = "ollama"
 model = "replace-with-an-installed-model"
 settings = { reasoning_effort = "none", timeout_secs = 120 }
+# How the tools are offered: "text" (the default) or "native" (the provider's own tool calling). A model run both ways is
+# two rows. Not "auto": asking the server is not something a run can repeat.
+# tool_calling = "native"
 # Zero API cost excludes hardware and electricity.
 pricing = { input_per_million = 0, output_per_million = 0 }
 

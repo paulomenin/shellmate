@@ -1,0 +1,22 @@
+# Replays the same cassettes with the tools offered natively: no model, no network.
+#   reference_native  the answers of `reference`, served as native tool calls (the cassette holds the text it wrote)
+#   careless_native   the mistakes of `careless`, served the same way
+# Used to check that a model that calls tools natively is scored by the same rules (see test_careless.py).
+version = 2
+[run]
+image = "shellmate-evals"
+models = ["reference_native", "careless_native"]
+modes = ["generator"]
+repeats = 1
+warmup = false
+[providers.replay]
+endpoint = "http://127.0.0.1:1"
+trust = "remote"
+[models.reference_native]
+provider = "replay"
+model = "reference"
+tool_calling = "native"
+[models.careless_native]
+provider = "replay"
+model = "careless"
+tool_calling = "native"

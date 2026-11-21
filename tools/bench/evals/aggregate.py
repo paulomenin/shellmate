@@ -58,8 +58,10 @@ def display(result, profile):
         entry = cfg[group].get(n, {})
         effort = (entry.get("settings") or {}).get("reasoning_effort")
         trust = (cfg.get("providers", {}).get(entry.get("provider"), {})).get("trust", "unknown")
-        # The same model with another reasoning setting is another setup, so it is a separate row.
-        return entry.get("model", n) + (f" [reasoning: {effort}]" if effort else ""), trust
+        # The same model with another reasoning setting, or with its tools offered another way, is another setup, so it
+        # is a separate row.
+        return (entry.get("model", n) + (f" [reasoning: {effort}]" if effort else "")
+                + (" [native tools]" if entry.get("tool_calling") == "native" else "")), trust
 
     if kind == "generator":
         return model("models", gen)

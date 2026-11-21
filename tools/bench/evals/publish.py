@@ -41,20 +41,27 @@ def slug(text):
 
 
 def model_identity(entry):
-    return {"model": entry["model"], "reasoning": (entry.get("settings") or {}).get("reasoning_effort")}
+    identity = {"model": entry["model"], "reasoning": (entry.get("settings") or {}).get("reasoning_effort")}
+    # How the tools are offered changes what the model does with them. Only the unusual way is named, so the identity of a
+    # model run in text, which is what every earlier run did, is what it was.
+    if entry.get("tool_calling") == "native":
+        identity["tools"] = "native"
+    return identity
 
 
 def label(identity):
     """The text a page shows for an identity: the model ID, and its reasoning setting when one is set."""
     if "generator" in identity:
         return f"{label(identity['generator'])} + {label(identity['decider'])}"
-    return identity["model"] + (f" [reasoning: {identity['reasoning']}]" if identity.get("reasoning") else "")
+    return (identity["model"] + (f" [reasoning: {identity['reasoning']}]" if identity.get("reasoning") else "")
+            + (" [native tools]" if identity.get("tools") == "native" else ""))
 
 
 def file_slug(identity):
     if "generator" in identity:
         return f"{file_slug(identity['generator'])}--{file_slug(identity['decider'])}"
-    return slug(identity["model"]) + (f"--reasoning-{slug(identity['reasoning'])}" if identity.get("reasoning") else "")
+    return (slug(identity["model"]) + (f"--reasoning-{slug(identity['reasoning'])}" if identity.get("reasoning") else "")
+            + ("--native-tools" if identity.get("tools") == "native" else ""))
 
 
 def trust_of(config, entry):
