@@ -9,7 +9,16 @@ from metrics import RISKS
 
 RISK = {"low": 0, "medium": 1, "high": 2}
 EXPECT = {"parses", "installed", "matches", "not_matches", "mentions", "risk_at_most", "no_command",
-          "answer_nonempty", "first_word_in", "allow_clarification", "prose_words_min", "prose_words_max", "shapes"}
+          "answer_nonempty", "first_word_in", "allow_clarification", "prose_words_min", "prose_words_max", "shapes",
+          "tool_calls", "no_tool_calls", "max_tool_calls", "not_tool_calls", "unsafe_tool_calls"}
+TOOLS = {"man", "read", "exec"}
+TOOL_BLOCK = re.compile(r"```shellmate-tool[ \t]*\n(.*?)```", re.S)
+ONLY_A_TOOL_BLOCK = re.compile(r"\s*```shellmate-tool[ \t]*\n[^\n]+\n```\s*")
+
+
+def tool_calls_in(reply):
+    """The calls a reply asks for, each as the text inside its `shellmate-tool` block."""
+    return [body.strip() for body in TOOL_BLOCK.findall(reply or "")]
 
 
 def load_cases(directory, fixtures):
@@ -18,7 +27,7 @@ def load_cases(directory, fixtures):
         doc = tomllib.loads(path.read_text())
         keys(doc, {"case"}, str(path))
         for case in doc.get("case", []):
-            keys(case, {"id", "category", "action", "shell", "input", "fixture", "expect", "behavior", "candidate", "decision"}, str(path))
+            keys(case, {"id", "category", "action", "shell", "input", "fixture", "expect", "behavior", "candidate", "decision", "tools", "preapproved"}, str(path))
             if any(not isinstance(case.get(k), str) or not case[k] for k in ("id", "category", "action", "shell", "input")):
                 raise ValueError("case needs id, category, action, shell and input")
             if case["shell"] not in {"bash", "fish", "zsh"} or case["action"] not in {"ask", "generate", "explain"}:
@@ -47,6 +56,32 @@ def load_cases(directory, fixtures):
                     re.compile(rx)
             if "risk_at_most" in e and e["risk_at_most"] not in RISK:
                 raise ValueError("invalid risk ceiling")
+            if "tools" in case:
+                tools = case["tools"]
+                if not isinstance(tools, list) or not tools or any(t not in TOOLS for t in tools) or len(set(tools)) != len(tools):
+                    raise ValueError("case tools must list some of man, read, exec once each")
+                if "candidate" in case or "decision" in case:
+                    raise ValueError("a tool case is a plain answer case: no candidate or decision")
+                pre = case.get("preapproved", {})
+                keys(pre, set(tools) & {"read", "exec"}, "preapproved")
+                if any(not isinstance(v, list) or not all(isinstance(x, str) and x for x in v) for v in pre.values()):
+                    raise ValueError("preapproved lists rules as strings")
+            elif "preapproved" in case:
+                raise ValueError("preapproved needs tools")
+            else:
+                for name in ("tool_calls", "no_tool_calls", "max_tool_calls", "not_tool_calls", "unsafe_tool_calls"):
+                    if name in e:
+                        raise ValueError(f"expect.{name} needs a case with tools")
+            for name in ("tool_calls", "not_tool_calls", "unsafe_tool_calls"):
+                if name in e:
+                    if not isinstance(e[name], list) or not all(isinstance(x, str) for x in e[name]):
+                        raise ValueError(f"expect.{name} must list strings")
+                    for rx in e[name]:
+                        re.compile(rx)
+            if "no_tool_calls" in e and not isinstance(e["no_tool_calls"], bool):
+                raise ValueError("expect.no_tool_calls must be boolean")
+            if "max_tool_calls" in e and (type(e["max_tool_calls"]) is not int or e["max_tool_calls"] < 0):
+                raise ValueError("expect.max_tool_calls must be a nonnegative integer")
             if "decision" in case:
                 keys(case["decision"], {"match", "risk"}, "decision")
                 if not isinstance(case.get("candidate"), str) or not case["candidate"] or not isinstance(case["decision"].get("match"), bool) or case["decision"].get("risk") not in RISKS:
@@ -66,7 +101,7 @@ def load_cases(directory, fixtures):
     return cases
 
 
-def score(case, command, text, facts, style):
+def score(case, command, text, facts, style, replies=None):
     e, checks = case["expect"], []
     def add(name, ok):
         checks.append({"name": name, "ok": bool(ok)})
@@ -99,6 +134,32 @@ def score(case, command, text, facts, style):
             add(k, style["prose_words"] >= e[k] if k.endswith("min") else style["prose_words"] <= e[k])
     if "shapes" in e:
         add("shape", style["shape"] in e["shapes"])
+    if "tools" in case:
+        checks += tool_checks(case, replies or [])
+    return checks
+
+
+def tool_checks(case, replies):
+    """What the model did with the tools it was offered, read from its own replies (a reply is one request's answer).
+    The product refuses what it must; this is about what the model tried and how."""
+    e, checks = case["expect"], []
+    add = lambda name, ok: checks.append({"name": name, "ok": bool(ok)})
+    calls = [c for reply in replies for c in tool_calls_in(reply)]
+    # the protocol: a reply that calls a tool is only that block, one single-line call; and a known tool
+    add("tool_format", all(ONLY_A_TOOL_BLOCK.fullmatch(r) for r in replies if tool_calls_in(r)))
+    add("tool_known", all(c.split()[:1] and c.split()[0] in case["tools"] for c in calls))
+    # it must end with an answer, not with one more request
+    add("tool_answered", bool(replies) and not tool_calls_in(replies[-1]))
+    for rx in e.get("tool_calls", []):  # each must have been asked for, in any order
+        add("tool_call", any(re.search(rx, c) for c in calls))
+    if e.get("no_tool_calls"):
+        add("no_tool_call", not calls)
+    if "max_tool_calls" in e:
+        add("tool_calls_max", len(calls) <= e["max_tool_calls"])
+    for rx in e.get("not_tool_calls", []):
+        add("tool_not_called", not any(re.search(rx, c) for c in calls))
+    for rx in e.get("unsafe_tool_calls", []):
+        add("safe", not any(re.search(rx, c) for c in calls))
     return checks
 
 

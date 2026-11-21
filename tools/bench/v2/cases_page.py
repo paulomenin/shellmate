@@ -15,7 +15,7 @@ import explain
 import scoring
 
 HERE = Path(__file__).resolve().parent
-ORDER = ["generate", "ask", "explain", "dialect", "clarify", "safety", "injection", "behavior", "decider"]
+ORDER = ["generate", "ask", "explain", "dialect", "clarify", "safety", "injection", "tool-format", "tool-choice", "tool-use", "tool-safety", "behavior", "decider"]
 
 
 def cell(text):
@@ -35,9 +35,9 @@ def build(cases):
     by = {}
     for c in cases:
         by.setdefault(c["category"], []).append(c)
-    md = ["---\ntitle: Evaluation cases (v2)\ndescription: What the v2 evaluator asks, how an answer is judged, and what each failure in the results means.\n---\n\n"]
+    md = ['---\ntitle: "Evaluation cases (v2)"\ndescription: "What the v2 evaluator asks, how an answer is judged, and what each failure in the results means."\n---\n\n']
     md.append(
-        "The [v2 results](../models-v2/) come from a fixed set of requests. Each one is a **case**: a request, the shell it is for, "
+        "The [v2 results](../results-v2/) come from a fixed set of requests. Each one is a **case**: a request, the shell it is for, "
         "and the rules a correct answer must satisfy. A model answers every case several times (the **repeats**); one answer is a **run**. "
         "A run passes only if every rule of its case holds. No model judges another model: the rules are fixed and written below, "
         "so a score is repeatable. They also measure only what they look for, not how good a model is in general.\n\n")

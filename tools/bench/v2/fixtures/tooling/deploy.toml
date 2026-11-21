@@ -1,0 +1,3 @@
+region = "eu-north-3"
+retries = 7
+timeout = "45s"

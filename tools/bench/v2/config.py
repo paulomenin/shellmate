@@ -42,13 +42,15 @@ def load(path):
     r = c.setdefault("run", {})
     keys(r, {"image", "repeats", "timeout_secs", "max_requests", "max_cost_usd", "max_output_tokens",
              "price_date", "cases", "fixtures", "models", "deciders", "modes", "warmup",
-             "retries", "retry_wait_secs", "retry_max_wait_secs", "reuse_container", "report_every"}, "run")
+             "retries", "retry_wait_secs", "retry_max_wait_secs", "reuse_container", "report_every", "machine"}, "run")
     for k, default in {"image": "shellmate-evals:v2", "repeats": 3, "timeout_secs": 120,
                        "max_requests": 1000, "max_output_tokens": 4096, "max_cost_usd": 1.0,
                        "modes": ["generator"], "deciders": [], "warmup": True,
                        "retries": 3, "retry_wait_secs": 5, "retry_max_wait_secs": 120,
                        "reuse_container": True, "report_every": 10}.items():
         r.setdefault(k, default)
+    if "machine" in r and (not isinstance(r["machine"], str) or not r["machine"].strip() or len(r["machine"]) > 200):
+        raise ValueError("run.machine must be a short text describing the hardware, e.g. \"RTX 4070 12 GB\"")
     for flag in ("warmup", "reuse_container"):
         if not isinstance(r[flag], bool):
             raise ValueError(f"run.{flag} must be a boolean")
@@ -94,7 +96,12 @@ def load(path):
         for name, m in entries.items():
             if not NAME.fullmatch(name):
                 raise ValueError("model names must be simple identifiers")
-            keys(m, {"provider", "model", "plugin", "settings", "pricing"}, f"{group}.{name}")
+            keys(m, {"provider", "model", "plugin", "settings", "pricing"} | ({"answers"} if group == "models" else set()), f"{group}.{name}")
+            if "answers" in m:
+                # recorded answers of this model (a cassette from an earlier run): see the composed mode
+                if not isinstance(m["answers"], str) or not m["answers"].strip():
+                    raise ValueError(f"{group}.{name}.answers must be the path of a recorded cassette")
+                m["answers"] = str((path.parent / Path(m["answers"]).expanduser()).resolve())
             if not isinstance(m.get("provider"), str) or m["provider"] not in providers or not isinstance(m.get("model"), str) or not m["model"]:
                 raise ValueError(f"{group}.{name} needs an existing provider and model ID")
             m.setdefault("plugin", "openai-compatible")
@@ -120,12 +127,19 @@ def load(path):
         selected = r[group]
         if not isinstance(selected, list) or any(not isinstance(x, str) or x not in c[group] for x in selected) or len(selected) != len(set(selected)):
             raise ValueError(f"run.{group} must list distinct configured names")
-    if not isinstance(r["modes"], list) or not r["modes"] or any(not isinstance(x, str) or x not in {"generator", "decider", "combined"} for x in r["modes"]) or len(set(r["modes"])) != len(r["modes"]):
-        raise ValueError("run.modes: choose generator, decider and/or combined")
+    if not isinstance(r["modes"], list) or not r["modes"] or any(not isinstance(x, str) or x not in {"generator", "decider", "combined", "composed"} for x in r["modes"]) or len(set(r["modes"])) != len(r["modes"]):
+        raise ValueError("run.modes: choose generator, decider, combined and/or composed")
     if any(x in r["modes"] for x in ("generator", "combined")) and not r["models"]:
         raise ValueError("generator/combined modes need models")
-    if any(x in r["modes"] for x in ("decider", "combined")) and not r["deciders"]:
-        raise ValueError("decider/combined modes need deciders")
+    if any(x in r["modes"] for x in ("decider", "combined", "composed")) and not r["deciders"]:
+        raise ValueError("decider/combined/composed modes need deciders")
+    if "composed" in r["modes"]:
+        recorded = [n for n in r["models"] if "answers" in c["models"][n]]
+        if not recorded:
+            raise ValueError("composed mode needs a model in run.models with `answers = \"path/to/cassette.json\"`")
+        for n in recorded:
+            if not Path(c["models"][n]["answers"]).is_file():
+                raise ValueError(f"models.{n}.answers: no such file")
     return c
 
 
@@ -150,9 +164,10 @@ def credentials(c, environ=None, prompt=getpass.getpass):
     """Resolve only providers needed by selected models. No keys enter containers."""
     environ = os.environ if environ is None else environ
     active = []
+    # the generator of a composed profile is replayed from a file, so only generator/combined need its provider
     if any(m in c["run"]["modes"] for m in ("generator", "combined")):
         active.append("models")
-    if any(m in c["run"]["modes"] for m in ("decider", "combined")):
+    if any(m in c["run"]["modes"] for m in ("decider", "combined", "composed")):
         active.append("deciders")
     names = {c[g][n]["provider"] for g in active for n in c["run"][g]}
     out, resolved = {}, {}

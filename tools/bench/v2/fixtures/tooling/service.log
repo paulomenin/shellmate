@@ -1,0 +1,6 @@
+2026-11-18T09:12:01 INFO  service started
+2026-11-18T09:12:04 INFO  cache warm
+2026-11-18T09:14:55 ERROR upstream timeout after 30s
+2026-11-18T09:15:10 INFO  retry 1 ok
+2026-11-18T09:31:42 ERROR disk quota exceeded on /var/spool
+2026-11-18T09:32:00 INFO  shutting down

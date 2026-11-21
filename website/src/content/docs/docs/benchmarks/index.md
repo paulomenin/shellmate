@@ -37,4 +37,4 @@ The README in `tools/bench` explains every option, how to add a request, how to 
 
 ## Model evaluation v2
 
-The opt-in [v2 evaluator](../evaluation-v2/) runs in disposable containers (Docker or Podman) and separates main models from deciders. It adds behavioral assertions with per-command approval, answer-style and cost metrics, and a report for reviewing every answer. Its results are on the [Models (v2)](../models-v2/) page. The numbers on the [Models](../models/) page come from the original evaluator.
+The opt-in [v2 evaluator](../evaluation-v2/) runs in disposable containers (Docker or Podman) and separates main models from deciders. It adds behavioral assertions with per-command approval, answer-style and cost metrics, and a report for reviewing every answer. Its results are on the [Results (v2)](../results-v2/) page, with one page each for [chat models](../chat-v2/), [decision models](../decision-v2/) and [composed results](../composed-v2/). The numbers on the [Models](../models/) page come from the original evaluator.

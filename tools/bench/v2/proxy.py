@@ -99,6 +99,7 @@ class Broker:
         self.routes, self.budget, self.timeout, self.replay = routes, budget, timeout, replay or {}
         self.replay_only = replay_only
         self.calls = []
+        self.served = {}
         self.lock = threading.Lock()
         self.keys = [r.get("key") for r in routes.values()]
         owner = self
@@ -138,8 +139,21 @@ class Broker:
             if not isinstance(body, dict) or body.get("model") != r["model"]:
                 raise ValueError("unexpected model")
             call["request_hash"] = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
+            # What came back to the model after its last answer (a tool's result, or why a call was refused): the
+            # request ends in a user message that follows an assistant one only when a tool ran.
+            messages = body.get("messages") if isinstance(body.get("messages"), list) else []
+            if len(messages) >= 3 and isinstance(messages[-2], dict) and messages[-2].get("role") == "assistant" and isinstance(messages[-1], dict):
+                call["tool_result"] = str(messages[-1].get("content", ""))[:4000]
             if name in self.replay:
-                raw = self.replay[name].encode()
+                replies = self.replay[name]
+                if isinstance(replies, list):
+                    # a case with tools takes several answers, one per request, in the order they were recorded
+                    with self.lock:
+                        position = self.served[name] = self.served.get(name, -1) + 1
+                    if position >= len(replies):
+                        raise ValueError("missing replay response")
+                    replies = replies[position]
+                raw = replies.encode()
                 call["replay"] = True
                 if body.get("stream"):
                     answer = reply_text(raw.decode())

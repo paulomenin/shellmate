@@ -1,0 +1,17 @@
+.TH QUOKKA.CONF 5 "2026-11-01" "quokka 2.4.1" "File Formats"
+.SH NAME
+quokka.conf \- configuration file of quokka
+.SH DESCRIPTION
+The file is read from the working directory. Each line is
+.IB key " = " value .
+.SH KEYS
+.TP
+.B max_entries
+The most entries the cache keeps. The default is 64.
+.TP
+.B retries
+How many times a failed sync is tried again. An integer from 0 to 5; larger values are refused. The default is 2.
+.TP
+.B cache_dir
+Where the entries are stored. The default is
+.IR .quokka/cache .

@@ -6,9 +6,11 @@
 #   make run-podman-behavior   as run-podman, and ask before running each behavioral candidate (-docker too)
 #   make run-podman-auto       as run-podman-behavior, but no questions: commands run unattended in the container
 #                              (never one the product rates high risk; those stay incomplete) (-docker too)
-#   make replay-podman       no model: replay the shipped reference cassette (plumbing check; -docker too)
-#   make aggregate           merge every run in reports/ into reports/summary.md (tiers, categories, speed, cost)
-#   make docs-page           the same as a documentation page: $(DOCS_PAGE), MACHINE="CPU, RAM, GPU" says what ran it
+#   make replay-podman       no model: replay the reference and careless cassettes (checks the evaluator itself; -docker too)
+#   make publish             add the runs in reports/ to the published results (REPORTS="reports/a reports/b" to pick)
+#   make published-status    what is published, and what needs a rerun
+#   make docs                write the four results pages and the cases page from the published results
+#   make aggregate           explore: merge every run in reports/ into reports/summary.md (not published)
 #   make docs-cases          write the page that describes every case, check and error ($(CASES_PAGE))
 #   make check-podman        build the image and run all the tests, including the replay of both cassettes (-docker too)
 #   make test                the unit tests (no container, no model)
@@ -24,14 +26,14 @@ OUT    ?= reports/$(STAMP)
 ROOT   := $(abspath ../../..)
 PYTHON ?= python3
 
-DOCS_PAGE ?= ../../../website/src/content/docs/docs/benchmarks/models-v2.md
+DOCS_DIR ?= ../../../website/src/content/docs/docs/benchmarks
 MACHINE   ?=
 CASES_PAGE ?= ../../../website/src/content/docs/docs/benchmarks/cases-v2.md
 
-.PHONY: aggregate docs-page docs-cases check-docker check-podman help build-docker build-podman run-docker run-podman run-docker-behavior run-podman-behavior run-docker-auto run-podman-auto replay-docker replay-podman test plan
+.PHONY: aggregate publish published-status docs docs-results docs-cases check-docker check-podman help build-docker build-podman run-docker run-podman run-docker-behavior run-podman-behavior run-docker-auto run-podman-auto replay-docker replay-podman test plan
 
 help:
-	@sed -n '2,18p' Makefile
+	@sed -n '2,20p' Makefile
 
 build-docker:
 	docker build -f Dockerfile -t $(IMAGE) $(ROOT)
@@ -71,8 +73,20 @@ replay-podman:
 aggregate:
 	$(PYTHON) aggregate.py reports $(if $(MACHINE),--machine "$(MACHINE)") -o reports/summary.md
 
-docs-page:
-	$(PYTHON) aggregate.py reports --docs-page $(if $(MACHINE),--machine "$(MACHINE)") -o $(DOCS_PAGE)
+# Add the runs of report directories to the published results (published/*/*.json, committed). The same model with
+# the same settings, prices, suite and shellmate binary is pooled; anything else replaces its entry.
+REPORTS ?= reports
+publish:
+	$(PYTHON) publish.py add $(REPORTS)
+
+published-status:
+	$(PYTHON) publish.py status
+
+# The documentation pages, made from the published results only.
+docs-results:
+	$(PYTHON) aggregate.py --published published --pages-dir $(DOCS_DIR) $(if $(MACHINE),--machine "$(MACHINE)")
+
+docs: docs-results docs-cases
 
 docs-cases:
 	$(PYTHON) cases_page.py -o $(CASES_PAGE)

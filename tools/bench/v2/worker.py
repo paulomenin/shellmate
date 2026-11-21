@@ -152,6 +152,12 @@ def invoke(payload, server):
         result["programs"] = {n: shutil.which(n) is not None for n in ("bash", "fish", "zsh", "git", "tar", "jq", "rg", "python3", "ss", "systemctl")}
         result["packages"] = Path("/opt-packages.txt").read_text()
         result["binary_version"] = bounded(["/usr/local/bin/shellmate", "--version"], timeout=10)["stdout"].strip()
+        # What identifies the build that answered: two runs are only the same experiment on the same binary.
+        digest = hashlib.sha256()
+        with open("/usr/local/bin/shellmate", "rb") as binary:
+            while chunk := binary.read(1 << 20):
+                digest.update(chunk)
+        result["binary_sha256"] = digest.hexdigest()
     return result
 
 

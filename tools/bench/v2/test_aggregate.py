@@ -5,6 +5,7 @@ from pathlib import Path
 
 import aggregate
 import explain
+import pages
 
 HERE = Path(__file__).resolve().parent
 
@@ -101,7 +102,7 @@ class Aggregate(unittest.TestCase):
         r = result(runs + [run("decider:d", "j", True, category="deciders", decision_metrics={"covered": True, "correct": True, "brier": .1,
                                                                                          "missed_destructive": False, "false_mismatch_alarm": False, "missed_mismatch": False})])
         text = aggregate.build([r], aggregate.merge([r]), "Models (v2)", True, "a test machine")
-        self.assertTrue(text.startswith("---\ntitle: Models (v2)\n"))
+        self.assertTrue(text.startswith('---\ntitle: "Models (v2)"\n'))
         for needle in ("## Suggested tier", "Unsupported", "## By category", "## Decision models", "a test machine", "model-one", "judge-one"):
             self.assertIn(needle, text)
         self.assertNotIn("a|b", text, "a pipe in a model answer must not break the table")
@@ -119,6 +120,60 @@ def profile_runs(profile, n_pass, n_fail, **extra):
     runs = [run(profile, f"c{i}", True) for i in range(n_pass)]
     runs += [run(profile, f"f{i}", False, checks=[{"name": "parses", "ok": False}], expect={"parses": True}, shell="bash", **extra) for i in range(n_fail)]
     return runs
+
+
+class Overview(unittest.TestCase):
+    """The pages built from several kinds of profiles: an overview and one page per kind."""
+
+    def data(self):
+        decision = {"covered": True, "correct": True, "brier": .04, "missed_destructive": False, "false_mismatch_alarm": False, "missed_mismatch": False}
+        runs = (profile_runs("generator:m", 19, 1) + [run("decider:d", f"j{i}", True, category="decider", decision_metrics=decision,
+                calls=[{"role": "checker", "wall_ms": 100, "cost_usd": 0}]) for i in range(4)]
+                + [run("combined:m+d", f"p{i}", i > 0, command="ls", decision={"match_probability": .1, "risk": "read_only"}, checks=[] if i > 0 else [{"name": "parses", "ok": False}]) for i in range(3)])
+        results = [result(runs)]
+        return results, aggregate.merge(results)
+
+    def test_there_is_an_overview_and_a_page_for_each_kind(self):
+        results, profiles = self.data()
+        written = pages.pages(results, profiles, None)
+        self.assertEqual(sorted(written), ["chat-v2", "composed-v2", "decision-v2", "results-v2"])
+        for slug, text in written.items():
+            self.assertTrue(text.startswith("---\ntitle:"), slug)
+        self.assertIn("## What the tiers mean", written["results-v2"])
+        self.assertIn("## How this was run", written["results-v2"])
+        self.assertIn("## At a glance", written["results-v2"])
+        self.assertIn("## Suggested tier", written["chat-v2"])
+        self.assertIn("## By category", written["chat-v2"])
+        self.assertIn("## Calibration", written["decision-v2"])
+        self.assertIn("## Does the checker help?", written["composed-v2"])
+        self.assertNotIn("What the tiers mean", written["chat-v2"], "the tiers are explained once, on the overview")
+        self.assertIn("../results-v2/#what-the-tiers-mean", written["chat-v2"])
+
+    def test_a_kind_without_results_has_no_page(self):
+        results = [result(profile_runs("generator:m", 3, 0))]
+        written = pages.pages(results, aggregate.merge(results), None)
+        self.assertEqual(sorted(written), ["chat-v2", "results-v2"])
+
+    def test_best_of_a_group_is_never_an_unsupported_model(self):
+        results = [result(profile_runs("generator:m", 1, 19))]
+        text = pages.pages(results, aggregate.merge(results), None)["results-v2"]
+        row = next(line for line in text.splitlines() if line.startswith("| [Chat models]"))
+        self.assertTrue(row.rstrip().endswith("| – | – |"), row)
+
+    def test_every_page_link_goes_to_a_page_that_exists(self):
+        import re
+        results, profiles = self.data()
+        written = pages.pages(results, profiles, None)
+        known = set(written) | {"cases-v2", "evaluation-v2"}
+        for slug, text in written.items():
+            for target in re.findall(r"\]\(\.\./([a-z0-9-]+)/", text):
+                self.assertIn(target, known, f"{slug} links to {target}")
+
+    def test_the_single_page_for_exploring_has_every_section_once(self):
+        results, profiles = self.data()
+        text = aggregate.build(results, profiles, "T", False, None)
+        for heading in ("## Chat models", "## Decision models", "## Pairs", "## What the tiers mean", "## How this was run"):
+            self.assertEqual(text.count(heading + "\n"), 1, heading)
 
 
 class Page(unittest.TestCase):
@@ -190,7 +245,8 @@ class Page(unittest.TestCase):
                            run("combined:m+d", "c", True, decision={"match_probability": .9, "risk": "read_only"}),
                            run("combined:m+d", "c2", True, command="ls")])]
         text = aggregate.build(results, aggregate.merge(results), "T", False, None)
-        for column in ("Correct", "Answered", "Missed destructive", "Missed mismatches", "False alarms", "Brier", "USD/1,000", "Decision returned"):
+        for column in ("Correct", "Runs", "Missed destructive", "Errors", "Answered", "Missed mismatches", "False alarms", "Brier",
+                       "Wrong answers flagged", "Unsafe answers flagged", "Right answers flagged", "Decision returned"):
             self.assertIn(f"- **{column}**", text, column)
         self.assertEqual(aggregate.decision_returned([run("p", "1", True, decision={"match_probability": 1, "risk": "x"}), run("p", "2", True)]), .5)
         self.assertIsNone(aggregate.decision_returned([run("p", "1", True, command="")]))

@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -25,11 +26,25 @@ import scoring
 HERE = Path(__file__).resolve().parent
 
 
-def model_config(generator, checker, providers):
+def tools_config(tools=(), preapproved=None):
+    """The `[tools.*]` tables: off, except the ones a case offers. Nothing runs without a person unless a rule
+    the case lists covers it, and there is no person in the container, so everything else is refused."""
+    q, text = json.dumps, []
+    for name in ("man", "exec", "read"):
+        text.append(f"[tools.{name}]")
+        if name not in tools:
+            text.append("enabled = false")
+        elif name in (preapproved or {}):
+            text += ['approval = "ask"', f"preapproved = {q(preapproved[name])}"]
+        elif name != "man":
+            text.append('approval = "ask"')
+    return text
+
+
+def model_config(generator, checker, providers, tools=(), preapproved=None):
     q = json.dumps
     text = ['version = 1', '[context]', 'default_level = 1', '[audit]', 'enabled = false',
-            '[conversation]', 'store = "none"', '[tools.man]', 'enabled = false',
-            '[tools.exec]', 'enabled = false', '[tools.read]', 'enabled = false']
+            '[conversation]', 'store = "none"'] + tools_config(tools, preapproved)
     for role, m in (("generator", generator), ("checker", checker)):
         if not m:
             continue
@@ -65,7 +80,13 @@ def matrix(c, cases):
     if "combined" in r["modes"]:
         for name in r["models"]:
             for decider in r["deciders"]:
-                yield f"combined:{name}+{decider}", name, decider, [x for x in cases if "candidate" not in x]
+                yield f"combined:{name}+{decider}", name, decider, [x for x in cases if "candidate" not in x and "tools" not in x]
+    if "composed" in r["modes"]:
+        # each checker judges the answers a generator gave in an earlier run: no new generator requests
+        for name in r["models"]:
+            if "answers" in c["models"][name]:
+                for decider in r["deciders"]:
+                    yield f"composed:{name}+{decider}", name, decider, [x for x in cases if "candidate" not in x and "tools" not in x]
 
 
 def parse_output(result, replay=False):
@@ -174,6 +195,8 @@ def evaluate(c, cases, image, secrets, replay, behavior, result, outdir, blind):
             if not generator:
                 generator = {"provider": "_fixed", "model": "fixed-candidate", "plugin": "openai-compatible", "settings": {}, "pricing": {"per_request": 0}}
             local = {**c, "providers": {**c["providers"], "_fixed": {"trust": "local", "endpoint": "http://127.0.0.1"}}}
+            composed = profile.startswith("composed:")
+            recorded = json.loads(Path(generator["answers"]).read_text()) if composed else {}
             broker_dir = tmp / "broker"
             broker_dir.mkdir(exist_ok=True)
             if session:
@@ -185,7 +208,7 @@ def evaluate(c, cases, image, secrets, replay, behavior, result, outdir, blind):
             scheduled = selected
             if r["warmup"] and replay is None:
                 first = selected[0]
-                scheduled = [{**first, "id": "warmup", "warmup": True}] + selected
+                scheduled = [{**first, "id": "warmup", "warmup": True, "answers_id": first["id"]}] + selected
             for case in scheduled:
                 for repeat in range(1 if case.get("warmup") else r["repeats"]):
                     identifier = hashlib.sha256(f"{result.get('evaluation_id', '')}:{result['suite_hash']}:{profile}:{case['id']}:{repeat}".encode()).hexdigest()[:24]
@@ -193,6 +216,8 @@ def evaluate(c, cases, image, secrets, replay, behavior, result, outdir, blind):
                            "category": case["category"], "action": case["action"], "shell": case["shell"], "input": case["input"],
                            "fixture": case["fixture"], "warmup": bool(case.get("warmup")), "passed": False, "checks": []}
                     row["expect"] = case["expect"]
+                    if "tools" in case:
+                        row["tool_case"], row["tools"] = True, case["tools"]
                     if "behavior" in case:
                         row["behavior_expect"] = case["behavior"]
                     if "decision" in case:
@@ -205,14 +230,26 @@ def evaluate(c, cases, image, secrets, replay, behavior, result, outdir, blind):
                         row["generator_name"], row["checker_name"] = gen_name, check_name
                         if not gen_name:
                             replay_routes["generator"] = cassette_reply(f"```shellmate-command\n{case['candidate']}\n```")
+                        if composed:
+                            answers = recorded.get("cases", {}).get(case.get("answers_id", case["id"]), [])
+                            if not answers:
+                                row["error"] = "case missing from the recorded answers"
+                            elif not isinstance(answers[repeat % len(answers)], list) or len(answers[repeat % len(answers)]) != 1 \
+                                    or not isinstance(answers[repeat % len(answers)][0], str):
+                                row["error"] = "recorded answers need exactly one generator reply per case"
+                            else:
+                                replay_routes["generator"] = cassette_reply(answers[repeat % len(answers)][0])
                         if replay is not None:
                             key = check_name if not gen_name else gen_name
                             cassette = replay.get(key, {})
                             answers = cassette.get("cases", {}).get(case["id"], [])
                             if gen_name and answers:
                                 replies = answers[repeat % len(answers)]
-                                if not isinstance(replies, list) or len(replies) != 1 or not isinstance(replies[0], str):
-                                    row["error"] = "cassette needs exactly one generator reply per case"
+                                if not isinstance(replies, list) or not replies or not all(isinstance(x, str) for x in replies) \
+                                        or len(replies) != 1 and "tools" not in case:
+                                    row["error"] = "cassette needs exactly one generator reply per case (one per request when it uses tools)"
+                                elif "tools" in case:
+                                    replay_routes["generator"] = [cassette_reply(x) for x in replies]
                                 else:
                                     replay_routes["generator"] = cassette_reply(replies[0])
                             elif gen_name:
@@ -232,17 +269,24 @@ def evaluate(c, cases, image, secrets, replay, behavior, result, outdir, blind):
                                     worker = run_invoke({"mode": "invoke", "fixture": case["fixture"],
                                         "action": case["action"], "input": case["input"], "shell": case["shell"],
                                         "environment": "environment" not in result,
-                                        "timeout": r["timeout_secs"], "config": model_config(generator, checker, local["providers"])})
+                                        "timeout": r["timeout_secs"], "config": model_config(generator, checker, local["providers"], case.get("tools", ()), case.get("preapproved"))})
                                 row["calls"] = broker.calls
-                                command, text, timing = parse_output(worker, replay is not None)
-                                raw = "\n".join(proxy.reply_text(x.get("response", "")) for x in broker.calls if x["role"] == "generator")
+                                command, text, timing = parse_output(worker, replay is not None or composed)
+                                replies = [proxy.reply_text(x.get("response", "")) for x in broker.calls if x["role"] == "generator"]
+                                # what the model said last is its answer; the calls before it were requests for tools
+                                raw = replies[-1] if "tools" in case and replies else "\n".join(replies)
                                 # Keep notes available for review; score the model prose independently.
                                 prose = "\n".join(x for x in text.splitlines() if not x.startswith(("check:", "note:")))
+                                if "tools" in case and replies:
+                                    # shellmate prints the tool notices and a command's own output above the answer;
+                                    # only the model's last reply is its answer
+                                    prose = scoring.TOOL_BLOCK.sub("", replies[-1]).strip()
                                 row.update({"command": command, "output": text, "raw_answer": raw,
                                             "timings": timing, "wall_ms": worker.get("wall_ms") if replay is None else None,
                                             "style": metrics.style(raw or prose, command, raw), "programs": worker.get("programs"), "facts": worker.get("facts")})
                                 if worker.get("packages") is not None:
-                                    result.setdefault("environment", {"packages": worker.get("packages"), "binary_version": worker.get("binary_version")})
+                                    result.setdefault("environment", {"packages": worker.get("packages"), "binary_version": worker.get("binary_version"),
+                                                                      "binary_sha256": worker.get("binary_sha256")})
                                 reason = invoke_failure(worker)
                                 if reason:
                                     row["error"] = reason
@@ -256,7 +300,10 @@ def evaluate(c, cases, image, secrets, replay, behavior, result, outdir, blind):
                                 priced = [x.get("cost_usd") for x in broker.calls if not x.get("replay")]
                                 row["cost_usd"] = sum(priced) if priced and all(x is not None for x in priced) else None
                                 if gen_name:
-                                    row["checks"] = scoring.score(case, command, prose, worker.get("facts"), row["style"])
+                                    row["checks"] = scoring.score(case, command, prose, worker.get("facts"), row["style"], replies)
+                                    if "tools" in case:
+                                        row["tool_calls"] = [c for reply in replies for c in scoring.tool_calls_in(reply)]
+                                        row["tool_results"] = [x["tool_result"] for x in broker.calls if x.get("tool_result")]
                                 else:
                                     row["checks"] = [{"name": "fixed_candidate", "ok": command == case["candidate"]}]
                                 if checker:
@@ -315,6 +362,8 @@ def write_recordings(result, directory):
         if row.get("warmup") or row.get("error"):
             continue
         for call in row.get("calls", []):
+            if call.get("replay"):
+                continue  # the generator's answers of a composed run come from a cassette that already exists
             name = row.get("generator_name" if call["role"] == "generator" else "checker_name")
             if not name or "response" not in call:
                 continue
@@ -324,11 +373,40 @@ def write_recordings(result, directory):
             replies = cassette[group].setdefault(row["case_id"], [])
             while len(replies) <= row["repeat"]:
                 replies.append(None)
-            replies[row["repeat"]] = [proxy.reply_text(call["response"])] if group == "cases" else call["response"]
+            if group == "decisions":
+                replies[row["repeat"]] = call["response"]
+            else:  # a tool case has one answer per request, in order
+                replies[row["repeat"]] = (replies[row["repeat"]] or []) + [proxy.reply_text(call["response"])]
     for (profile, name), cassette in recordings.items():
         destination = Path(directory) / "cassettes" / profile.replace(":", "-")
         destination.mkdir(parents=True, exist_ok=True)
         (destination / f"{name}.json").write_text(json.dumps(cassette, indent=2) + "\n")
+
+
+def host_info():
+    """The machine the models ran on, as far as it can be read. Speed figures mean nothing without it."""
+    info = {"cpu": None, "cores": os.cpu_count(), "memory_gib": None, "os": None, "engine": None}
+    try:
+        for line in Path("/proc/cpuinfo").read_text().splitlines():
+            if line.startswith("model name"):
+                info["cpu"] = line.split(":", 1)[1].strip()
+                break
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("MemTotal"):
+                info["memory_gib"] = round(int(line.split()[1]) / 1048576, 1)
+                break
+        for line in Path("/etc/os-release").read_text().splitlines():
+            if line.startswith("PRETTY_NAME="):
+                info["os"] = line.split("=", 1)[1].strip().strip('"')
+                break
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        done = subprocess.run([sandbox.engine(), "--version"], capture_output=True, text=True, timeout=10, env=sandbox.client_env())
+        info["engine"] = done.stdout.strip().splitlines()[0] if done.stdout.strip() else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+    return info
 
 
 def main():
@@ -375,6 +453,7 @@ def main():
         result = {"schema": 2, "suite_hash": suite_hash, "date": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
                   "evaluation_id": uuid.uuid4().hex,
                   "mode": "replay" if replay is not None else "live", "partial": True, "image": image,
+                  "host": host_info(), "answers": {n: hashlib.sha256(Path(m["answers"]).read_bytes()).hexdigest() for n, m in c["models"].items() if "answers" in m},
                   "configuration": c, "harness_hash": hashlib.sha256(b"".join(p.read_bytes() for p in sorted(HERE.glob("*.py")))).hexdigest(),
                   "runs": []}
         result["fixtures"] = {str(p.relative_to(c["run"]["fixtures"])): p.read_bytes()[:8192].decode(errors="replace")

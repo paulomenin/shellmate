@@ -1,0 +1,37 @@
+.TH QUOKKA 1 "2026-11-01" "quokka 2.4.1" "User Commands"
+.SH NAME
+quokka \- keep a small build cache warm
+.SH SYNOPSIS
+.B quokka
+.RB [ \-\-warm\-up
+.IR N ]
+.RB [ \-\-evict\-after
+.IR DURATION ]
+.I COMMAND
+.SH DESCRIPTION
+.B quokka
+keeps the entries of a build cache ready between runs. It is a made-up program, used to check that a
+model reads a manual page before it answers.
+.SH OPTIONS
+.TP
+.BI \-\-warm\-up " N"
+Load the
+.I N
+most recently used entries before the command starts. The default is 3.
+.TP
+.BI \-\-evict\-after " DURATION"
+Drop an entry that has been idle this long, for example 90s or 10m. The default is 90s.
+.TP
+.B \-\-frozen
+Never write to the cache. The command fails if an entry is missing.
+.SH COMMANDS
+.TP
+.B status
+Print the version and the state of the cache.
+.TP
+.B list
+Print every entry with its size.
+.SH EXIT STATUS
+0 on success, 2 for a usage error, 70 when
+.B \-\-frozen
+finds a missing entry.

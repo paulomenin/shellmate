@@ -47,7 +47,7 @@ class Configuration(unittest.TestCase):
     def test_example_and_matrix(self):
         c = config.load(HERE / "models.example.toml")
         cases = scoring.load_cases(c["run"]["cases"], c["run"]["fixtures"])
-        self.assertEqual([len(x[3]) for x in evals.matrix(c, cases)], [45, 6, 45])
+        self.assertEqual([len(x[3]) for x in evals.matrix(c, cases)], [69, 28, 45])
         self.assertEqual(len(scoring.fingerprint(cases, c["run"]["fixtures"])), 64)
 
     def test_rejects_unknown_fields_and_literal_keys(self):
@@ -202,6 +202,12 @@ class Scoring(unittest.TestCase):
             if "candidate" in case:
                 decision = metrics.parse_decision(cassette["decisions"][name][0], "openai-compatible")
                 self.assertTrue(metrics.decision_metrics(decision, case["decision"])["correct"], name)
+                continue
+            if "tools" in case:  # one reply per request; the last is the answer
+                replies = cassette["cases"][name][0]
+                answer = scoring.TOOL_BLOCK.sub("", replies[-1]).strip()
+                checks = scoring.score(case, "", answer, self.facts, metrics.style(answer, "", replies[-1]), replies)
+                self.assertTrue(all(x["ok"] for x in checks), (name, checks))
                 continue
             raw = cassette["cases"][name][0][0]
             blocks = re.findall(r"```shellmate-command\n(.*?)```", raw, re.S)

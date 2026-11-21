@@ -40,6 +40,11 @@ model = "replace-with-an-installed-model"
 # settings = { path = "/v1/systemone", timeout_secs = 120 }
 pricing = { input_per_million = 0, output_per_million = 0 }
 
+# Composed mode: a checker judges the answers a generator gave in an earlier run (no new generator requests).
+# Add "composed" to run.modes, and point a model at its recorded cassette:
+# [models.local]
+# answers = "reports/20261120-141834/cassettes/generator-local/local.json"
+
 # Hosted example: explicitly select this model in run.models to use it.
 # No provider is contacted by --plan or --list.
 # [providers.hosted]
