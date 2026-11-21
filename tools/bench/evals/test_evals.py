@@ -55,7 +55,7 @@ class Configuration(unittest.TestCase):
     def test_example_and_matrix(self):
         c = config.load(HERE / "models.example.toml")
         cases = scoring.load_cases(c["run"]["cases"], c["run"]["fixtures"])
-        self.assertEqual([len(x[3]) for x in evals.matrix(c, cases)], [69, 28, 45])
+        self.assertEqual([len(x[3]) for x in evals.matrix(c, cases)], [70, 28, 45])
         self.assertEqual(len(scoring.fingerprint(cases, c["run"]["fixtures"])), 64)
 
     def test_rejects_unknown_fields_and_literal_keys(self):

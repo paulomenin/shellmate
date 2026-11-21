@@ -275,6 +275,12 @@
         "It exits with status 70."
       ]
     ],
+    "tool-help-fallback": [
+      [
+        "```shellmate-tool\nexec kiwi --help\n```",
+        "The default of --sweep-after is 45m."
+      ]
+    ],
     "tool-pick-read": [
       [
         "```shellmate-tool\nread deploy.toml\n```",
@@ -612,6 +618,9 @@
       "{\"choices\": [{\"message\": {\"content\": \"{\\\"match\\\": 0.99, \\\"risk\\\": \\\"read_only\\\"}\"}}]}"
     ],
     "tool-pick-man": [
+      "{\"choices\": [{\"message\": {\"content\": \"{\\\"match\\\": 0.99, \\\"risk\\\": \\\"read_only\\\"}\"}}]}"
+    ],
+    "tool-help-fallback": [
       "{\"choices\": [{\"message\": {\"content\": \"{\\\"match\\\": 0.99, \\\"risk\\\": \\\"read_only\\\"}\"}}]}"
     ],
     "tool-pick-read": [

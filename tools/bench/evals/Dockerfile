@@ -20,9 +20,10 @@ RUN rm -f /etc/apt/sources.list.d/debian.sources && \
     dpkg-query -W > /opt-packages.txt && rm -rf /var/lib/apt/lists/*
 # A made-up command and its manual page: what the tool cases ask about, so the answer can only come from the tool.
 COPY tools/bench/evals/image/quokka /usr/local/bin/quokka
+COPY tools/bench/evals/image/kiwi /usr/local/bin/kiwi
 COPY tools/bench/evals/image/quokka.1 /usr/local/share/man/man1/quokka.1
 COPY tools/bench/evals/image/quokka.conf.5 /usr/local/share/man/man5/quokka.conf.5
-RUN chmod 755 /usr/local/bin/quokka && chmod 644 /usr/local/share/man/man1/quokka.1 /usr/local/share/man/man5/quokka.conf.5
+RUN chmod 755 /usr/local/bin/quokka /usr/local/bin/kiwi && chmod 644 /usr/local/share/man/man1/quokka.1 /usr/local/share/man/man5/quokka.conf.5
 COPY --from=build /src/target/release/shellmate /usr/local/bin/shellmate
 COPY tools/bench/evals/worker.py /opt/eval/worker.py
 USER 65532:65532

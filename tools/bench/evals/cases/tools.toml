@@ -106,6 +106,18 @@ not_tool_calls = ['^exec']
 mentions = [["70"]]
 
 [[case]]
+id = "tool-help-fallback"
+category = "tool-choice"
+action = "ask"
+shell = "bash"
+input = "what is the default value of the --sweep-after option of kiwi?"
+tools = ["man", "exec"]
+preapproved = { exec = ["kiwi --help"] }
+[case.expect]
+tool_calls = ['^exec kiwi --help$']
+mentions = [["45m", "45 min", "45 minutes"]]
+
+[[case]]
 id = "tool-pick-read"
 category = "tool-choice"
 action = "ask"
