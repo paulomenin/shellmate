@@ -275,6 +275,11 @@
         "It exits with status 70."
       ]
     ],
+    "tool-help-fallback": [
+      [
+        "The default of --sweep-after is 30m."
+      ]
+    ],
     "tool-pick-read": [
       [
         "```shellmate-tool\nexec cat deploy.toml\n```",
@@ -621,6 +626,9 @@
       "{\"choices\": [{\"message\": {\"role\": \"assistant\", \"content\": \"{\\\"match\\\": 0.9, \\\"risk\\\": \\\"read_only\\\"}\"}}]}"
     ],
     "tool-pick-man": [
+      "{\"choices\": [{\"message\": {\"role\": \"assistant\", \"content\": \"{\\\"match\\\": 0.9, \\\"risk\\\": \\\"read_only\\\"}\"}}]}"
+    ],
+    "tool-help-fallback": [
       "{\"choices\": [{\"message\": {\"role\": \"assistant\", \"content\": \"{\\\"match\\\": 0.9, \\\"risk\\\": \\\"read_only\\\"}\"}}]}"
     ],
     "tool-pick-read": [

@@ -1,0 +1,7 @@
+#!/bin/sh
+# A made-up command for the tool cases that has no manual page: the only place its options are written is
+# its own --help, so a model that answers about them has either called `exec kiwi --help` or guessed.
+case "$1" in
+  --help|-h) printf 'usage: kiwi [--sweep-after DURATION] [--keep N] COMMAND\nOptions:\n  --sweep-after DURATION  drop entries unused for DURATION (default 45m)\n  --keep N                keep at most N entries (default 12)\n' ;;
+  *)         echo "usage: kiwi [--sweep-after DURATION] [--keep N] COMMAND" >&2; exit 2 ;;
+esac
