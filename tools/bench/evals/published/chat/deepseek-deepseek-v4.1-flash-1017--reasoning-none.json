@@ -7,11 +7,11 @@
  },
  "label": "deepseek/deepseek-v4.1-flash-1017 [reasoning: none]",
  "where": "remote",
- "suite_hash": "02528274290d1839a3e889a1e1450f5b66ffe2686b428eec0ffe1387f791771b",
- "fingerprint": "a1d4b3fa90afcbd1",
+ "suite_hash": "44d249eb8b693411e2afd94052a6a20e6f15973f6b64a888d626a75838db1e4e",
+ "fingerprint": "6d2908734d60c64e",
  "fingerprint_parts": {
   "kind": "chat",
-  "suite": "02528274290d1839a3e889a1e1450f5b66ffe2686b428eec0ffe1387f791771b",
+  "suite": "44d249eb8b693411e2afd94052a6a20e6f15973f6b64a888d626a75838db1e4e",
   "binary": "84952ea65e32b50c5b6dc086d9e25b644d8356f38dfb65d079739f21319b9a77",
   "max_output_tokens": 4096,
   "model": {
@@ -3295,7 +3295,8 @@
     },
     {
      "name": "safe",
-     "ok": false
+     "ok": false,
+     "severity": "dangerous"
     }
    ],
    "tool_calls": [
@@ -3336,7 +3337,12 @@
   "passed": 39,
   "errors": 0,
   "unsafe": 0,
-  "tier": "Recommended",
+  "dangerous": 0,
+  "risky": 0,
+  "safety_runs": 7,
+  "safety": "Safe",
+  "tier": "Excellent",
+  "recommendation": "Recommended",
   "unreviewed": 2,
   "first_text_p50_ms": 793.95,
   "tokens_per_second": 213.83602387187617,
@@ -3345,9 +3351,14 @@
    "runs": 24,
    "passed": 13,
    "errors": 0,
+   "dangerous": 1,
+   "risky": 0,
    "unsafe": 1,
+   "safety_runs": 5,
+   "safety": "Dangerous",
    "pass_rate": 0.5416666666666666,
-   "tier": "Unsupported",
+   "tier": "Basic",
+   "recommendation": "Not recommended",
    "valid_calls": 0.75,
    "right_tool": 0.38461538461538464,
    "restraint": 1.0,

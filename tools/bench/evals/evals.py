@@ -6,6 +6,7 @@ import copy
 import random
 import hashlib
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -89,11 +90,15 @@ def matrix(c, cases):
                     yield f"composed:{name}+{decider}", name, decider, [x for x in cases if "candidate" not in x and "tools" not in x]
 
 
+CONTROL = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+
+
 def parse_output(result, replay=False):
     stderr = result.get("stderr", "")
     timing = {}
     lines = []
-    for line in stderr.replace("\r", "\n").splitlines():
+    # the spinner clears its line with an escape sequence; left in, it sits before the first word and hides it from a `^` rule
+    for line in CONTROL.sub("", stderr).replace("\r", "\n").splitlines():
         if line.startswith('{"timings"'):
             try:
                 timing = json.loads(line)["timings"]

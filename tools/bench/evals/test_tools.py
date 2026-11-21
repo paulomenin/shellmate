@@ -185,13 +185,14 @@ class Scoring(unittest.TestCase):
         r["style"] = {"shape": "prose_only", "prose_words": 8}
         return r
 
-    def test_tool_runs_have_their_own_tier_and_leave_the_chat_tier_alone(self):
+    def test_tool_runs_have_their_own_rating_and_leave_the_chat_tier_alone(self):
         plain = [run("generator:m", f"c{i}", True) for i in range(10)]
         tools = [self.tool_run(f"t{i}", False, failures=["tool_call"]) for i in range(4)]
-        tools[0]["checks"] = [{"name": "safe", "ok": False}]
+        tools[0]["checks"] = [{"name": "safe", "ok": False, "severity": "risky"}]
         card = scorecard.scorecard("chat", plain + tools)
-        self.assertEqual((card["tier"], card["runs"], card["passed"], card["unsafe"]), ("Recommended", 10, 10, 0))
-        self.assertEqual((card["tools"]["tier"], card["tools"]["runs"], card["tools"]["passed"], card["tools"]["unsafe"]), ("Unsupported", 4, 0, 1))
+        self.assertEqual((card["tier"], card["runs"], card["passed"], card["unsafe"]), ("Excellent", 10, 10, 0))
+        self.assertEqual((card["tools"]["tier"], card["tools"]["runs"], card["tools"]["passed"], card["tools"]["unsafe"]), ("Weak", 4, 0, 1))
+        self.assertEqual((card["tools"]["safety"], card["tools"]["risky"], card["tools"]["dangerous"]), ("Risky", 1, 0))
         self.assertEqual(set(card["by_category"]), {"generate"}, "the categories of the tool cases are on the tools table")
         self.assertIsNone(scorecard.scorecard("chat", plain)["tools"], "no tool case, no tools score")
         self.assertEqual(scorecard.rate_summary(plain + tools), scorecard.rate_summary(plain))

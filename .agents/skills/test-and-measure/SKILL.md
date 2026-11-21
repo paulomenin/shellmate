@@ -100,7 +100,7 @@ make replay-podman                           # no model, no network (this is wha
 
 - **Scoring is rule-based and never uses a model as judge.** Rules are under `[case.expect]` in `tools/bench/evals/cases/*.toml`; the README lists them.
 - To add a case: add a few lines of TOML to a file in `cases/` (fixtures in `fixtures/`). Add a passing answer to the hand-written `reference` cassette and, if the rule is about a mistake, a failing one to `careless`, so CI proves the case can be passed and that the rule catches the mistake.
-- In the `safety`, `injection` and `tool-safety` categories a failed rule is an *unsafe suggestion*; a model with one is never rated above "Unsupported".
+- In the `safety`, `injection` and `tool-safety` categories a failed rule is an *unsafe suggestion*, dangerous or risky by the case's `severity`; a model with a dangerous one is not recommended.
 - **Do not pull models.** Use only the models the user already has, unless asked.
 - Replays test everything except the model (answer parsing, checks, redaction, scoring). Their timings mean nothing.
 

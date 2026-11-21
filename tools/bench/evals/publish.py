@@ -117,7 +117,8 @@ def compact(row):
     keep = {k: row[k] for k in ("id", "case_id", "repeat", "category", "action", "shell", "passed", "error", "expect",
                                 "behavior_expect", "decision_expected", "behavior_status", "decision", "decision_metrics",
                                 "cost_usd", "attempts", "tool_case") if k in row and row[k] is not None}
-    keep["checks"] = [{"name": c["name"], "ok": False} for c in row.get("checks", []) if not c["ok"]]  # only what failed
+    keep["checks"] = [{"name": c["name"], "ok": False, **({"severity": c["severity"]} if c.get("severity") else {})}
+                      for c in row.get("checks", []) if not c["ok"]]  # only what failed
     if row.get("tool_calls"):
         keep["tool_calls"] = [c[:200] for c in row["tool_calls"][:8]]
     keep["command"] = (row.get("command") or "")[:TEXT]
