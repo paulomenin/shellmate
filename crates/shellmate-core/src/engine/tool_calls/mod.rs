@@ -32,7 +32,7 @@ pub(in crate::engine) struct ToolEnv<'a> {
 
 /// The offers of every tool that is available for `action`, in the order the prompt shows them: the order
 /// the tools were registered in.
-pub(in crate::engine) fn offers(plugged: &[Plugged], action: Action) -> Vec<String> {
+pub(in crate::engine) fn offers(plugged: &[Plugged], action: Action, host: &Host) -> Vec<String> {
     let api_action = match action {
         Action::Ask => Some(shellmate_api::ToolAction::Ask),
         Action::Generate => Some(shellmate_api::ToolAction::Generate),
@@ -41,7 +41,7 @@ pub(in crate::engine) fn offers(plugged: &[Plugged], action: Action) -> Vec<Stri
     };
     api_action
         .into_iter()
-        .flat_map(|a| plugged.iter().filter_map(move |p| p.offer(a)))
+        .flat_map(|a| plugged.iter().filter_map(move |p| p.offer(a, host)))
         .collect()
 }
 

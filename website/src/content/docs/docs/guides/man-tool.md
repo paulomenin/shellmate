@@ -27,7 +27,7 @@ Turn it off with `enabled = false`, or keep it enabled but refuse every call wit
 
 ## Requirements
 
-The `man` program must be installed (`man-db` or `mandoc`). `shellmate doctor` warns if it is not.
+The `man` program must be installed (`man-db` or `mandoc`). `shellmate doctor` warns if it is not. Without it on your `PATH`, the model is not told the tool exists, so it does not ask for pages it cannot get.
 
 ## Why it is safe
 

@@ -317,6 +317,13 @@ pub trait Tool: Send + Sync {
     /// two change together.
     fn offer(&self, action: ToolAction, settings: &ToolSettings) -> Option<String>;
 
+    /// Whether the tool can work on this machine now, for example because the program it runs is installed.
+    /// The core offers a tool only when this is true, so the model is not told about something that will
+    /// only fail. Keep it cheap: it runs on every request. The default is `true`.
+    fn usable(&self, _services: &dyn ToolServices) -> bool {
+        true
+    }
+
     /// Decide what a call needs. Reads and runs nothing.
     async fn assess(&self, call: &ToolCall, ctx: &ToolCtx<'_>) -> Assessment;
 

@@ -35,8 +35,13 @@ impl Plugged {
         self.settings.enabled && self.settings.approval != api::ApprovalSetting::Deny
     }
 
-    pub(in crate::engine) fn offer(&self, action: api::ToolAction) -> Option<String> {
-        self.available()
+    /// The instructions for `action`, when the tool is on and can work on this machine.
+    pub(in crate::engine) fn offer(
+        &self,
+        action: api::ToolAction,
+        host: &crate::ports::Host,
+    ) -> Option<String> {
+        (self.available() && self.tool.usable(&CoreServices::new(host)))
             .then(|| self.tool.offer(action, &self.settings))
             .flatten()
     }

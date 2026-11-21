@@ -56,6 +56,38 @@ fn env(action: &str, buffer: &str) -> Envelope {
     }
 }
 
+/// The real environment with a directory holding an executable `man` put first on `PATH`, so a test of the
+/// tool offers does not depend on the machine having manual pages installed.
+fn host_with_man() -> Host {
+    static DIR: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    let dir = DIR.get_or_init(|| {
+        use std::os::unix::fs::PermissionsExt;
+        let dir =
+            std::env::temp_dir().join(format!("shellmate-engine-test-man-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let man = dir.join("man");
+        std::fs::write(&man, "#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&man, std::fs::Permissions::from_mode(0o755)).unwrap();
+        dir.display().to_string()
+    });
+    Host::system().with_env(PathPlus(format!(
+        "{dir}:{}",
+        std::env::var("PATH").unwrap_or_default()
+    )))
+}
+
+/// The process environment, except for `PATH`.
+struct PathPlus(String);
+
+impl crate::ports::Env for PathPlus {
+    fn var(&self, name: &str) -> Option<String> {
+        match name {
+            "PATH" => Some(self.0.clone()),
+            _ => std::env::var(name).ok(),
+        }
+    }
+}
+
 fn engine(list: Vec<(&str, Arc<FakeProvider>, u8)>) -> Engine {
     Engine::with_providers(
         list.into_iter()
@@ -69,6 +101,7 @@ fn engine(list: Vec<(&str, Arc<FakeProvider>, u8)>) -> Engine {
         1,
     )
     .with_os("TestOS")
+    .with_host(host_with_man())
     .with_builtin_tools()
 }
 

@@ -29,7 +29,7 @@ The model replies with only a block labeled `shellmate-tool` whose body is **one
 
 ### Which tools are offered
 
-A tool is offered when it is enabled in the config **and** the action may use tools. Turning a tool off removes its instructions, so the model is not told it exists.
+A tool is offered when it is enabled in the config, the action may use tools, **and** the tool can work on this machine (`man` needs the `man` program on your `PATH`). Turning a tool off removes its instructions, so the model is not told it exists.
 
 | Tool | Offered for | Condition |
 |---|---|---|

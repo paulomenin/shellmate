@@ -236,6 +236,15 @@ fn it_is_offered_for_every_action_and_names_the_block_to_use() {
 }
 
 #[test]
+fn it_is_usable_only_where_man_is_installed() {
+    let t = man(100);
+    assert!(!t.usable(&FakeServices::default()));
+    assert!(t.usable(&FakeServices::default().with_program("man", "/usr/bin/man")));
+    // another program of the same kind does not stand in for it
+    assert!(!t.usable(&FakeServices::default().with_program("mandoc", "/usr/bin/mandoc")));
+}
+
+#[test]
 fn it_declares_what_it_needs() {
     let info = man(100).info();
     assert_eq!(info.name, "man");

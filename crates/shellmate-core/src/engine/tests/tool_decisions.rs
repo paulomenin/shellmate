@@ -56,7 +56,7 @@ fn offered(cfg: &Config, action: crate::action::Action) -> Vec<&'static str> {
     let e = engine(vec![("a", FakeProvider::replying("x"), 1)])
         .with_config(cfg.clone())
         .with_builtin_tools();
-    crate::engine::tool_calls::offers(&e.plugged, action)
+    crate::engine::tool_calls::offers(&e.plugged, action, &e.host)
         .iter()
         .map(|text| {
             if text.contains("manual page") {
@@ -110,11 +110,41 @@ fn every_offer_names_the_block_the_model_must_use_and_calls_results_data() {
     let e = engine(vec![("a", FakeProvider::replying("x"), 1)])
         .with_config(Config::defaults())
         .with_builtin_tools();
-    let all = crate::engine::tool_calls::offers(&e.plugged, crate::action::Action::Ask);
+    let all = crate::engine::tool_calls::offers(&e.plugged, crate::action::Action::Ask, &e.host);
     assert_eq!(all.len(), 3);
     for text in &all {
         assert!(text.contains(crate::response::TOOL_LABEL), "{text}");
         assert!(text.contains("reference data"), "{text}");
         assert!(text.ends_with('\n'), "each offer ends its own line");
     }
+}
+
+#[test]
+fn man_is_offered_only_where_man_is_installed() {
+    use crate::action::Action;
+    let with_path = |path: &str| {
+        let e = engine(vec![("a", FakeProvider::replying("x"), 1)])
+            .with_host(Host::system().with_env(MapEnv::new().with("PATH", path)))
+            .with_builtin_tools();
+        crate::engine::tool_calls::offers(&e.plugged, Action::Ask, &e.host)
+            .iter()
+            .map(|t| t.contains("manual page"))
+            .collect::<Vec<_>>()
+    };
+    // no `man` anywhere on PATH: only `exec` and `read` are offered, and the model is not told about man
+    assert_eq!(with_path("/nonexistent"), [false, false]);
+    // a relative PATH entry never counts
+    assert_eq!(with_path("."), [false, false]);
+    // with one, it comes first, as before
+    let dir = std::env::temp_dir().join(format!("shellmate-man-offer-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let man = dir.join("man");
+    std::fs::write(&man, "#!/bin/sh\n").unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&man, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(with_path(&dir.display().to_string()), [true, false, false]);
+    // a file that is not executable is not a program
+    std::fs::set_permissions(&man, std::fs::Permissions::from_mode(0o644)).unwrap();
+    assert_eq!(with_path(&dir.display().to_string()), [false, false]);
+    let _ = std::fs::remove_dir_all(&dir);
 }
