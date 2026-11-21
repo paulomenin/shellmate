@@ -90,9 +90,10 @@ pub fn config_show(explicit: Option<&Path>, p: &dyn Presenter) -> Result<String>
             .map(|(k, v)| secrets::show_setting(k, v, &SystemEnv))
             .collect();
         o.push_str(&format!(
-            "model {name}:  {} via {} {}\n",
+            "model {name}:  {} via {} tool_calling={} {}\n",
             m.plugin,
             m.provider,
+            m.tool_calling.as_str(),
             settings.join(" ")
         ));
     }

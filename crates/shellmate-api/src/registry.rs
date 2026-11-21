@@ -265,11 +265,7 @@ mod tests {
             }
         }
         async fn chat(&self, _: &ChatRequest) -> Result<ChatResponse, ProviderError> {
-            Ok(ChatResponse {
-                text: String::new(),
-                usage: None,
-                finish_reason: None,
-            })
+            Ok(ChatResponse::default())
         }
     }
 

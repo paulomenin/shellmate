@@ -9,9 +9,41 @@ A tool lets the model look at something before it answers: a manual page, the ou
 The tools are plugins that implement `shellmate_api::Tool`, and the first-party ones are in `shellmate-builtin`. The core runs every call and keeps the rules that protect you, whatever a tool says. The roadmap lists web search and MCP as later tools.
 :::
 
-## It is a text protocol
+## Native and text
 
-shellmate does **not** use a provider's native function-calling API. Tools are described in the system prompt as plain text, and the model asks for one by writing a fenced block. This works with any model that can follow instructions, including small local ones.
+A tool can be offered to a model in two ways, and every call ends up the same.
+
+- **Text.** The tools are described in the system prompt and the model asks for one by writing a fenced block. This works with any model that can follow instructions, including small local ones.
+- **Native.** The provider is sent the tools with the request (`tools`, each with a name, a description and a JSON schema for its arguments), and the model answers with calls in the provider's own protocol. Models are trained for this, so they follow it more reliably than a paragraph of instructions, and the prompt no longer has to describe the tools.
+
+`[models.<name>] tool_calling` chooses:
+
+| Value | What happens |
+|---|---|
+| `auto` (default) | Native when the server says this model takes tools, text when it says it does not or does not say. |
+| `native` | Always native. If the server refuses the request, that is an error, because you asked for it. |
+| `text` | Always text. |
+
+### How `auto` finds out
+
+The provider reads the server's model list (`GET /v1/models`). OpenRouter lists `supported_parameters` for each model, and a `tools` entry means function calling. An entry with a `capabilities` list is read too: `tool_use`, `tools` or `function_calling` means yes. Whether a given local server puts either on its `/v1/models` entries depends on the server and its version, and shellmate does not check. A server that says nothing, a model that is not in the list and a request that fails are all "not known", which is never read as "no" but also does not switch anything on: the tools are offered in the prompt, as before. A plain OpenAI-compatible server and `llama.cpp` give no signal that shellmate relies on (`llama.cpp` needs `--jinja` for tools, and what works depends on the model's chat template), so for those set `tool_calling = "native"` yourself if the model handles it.
+
+The answer is remembered in `$XDG_CACHE_HOME/shellmate/tool-support.json` (mode `0600`, only the plugin, the endpoint and the model name), because every request is a new process and asking each time would cost a round trip. A yes or a no is believed for a week, "not known" for an hour. The question is asked with a 2 second limit, carries only your credentials (no prompt, no context), and `--dry-run` never asks: it uses what is remembered.
+
+If a server says a model takes tools and then refuses a request that has them, and nothing has run yet, shellmate asks again in text, remembers the model as text-only and goes on. That correction is made only in `auto`.
+
+### What a native call goes through
+
+Nothing in the checks changes. The core takes the arguments the model sent, and each tool turns them into the same one-line call a model writes in text (`man tar`, `exec git status`). That line then goes through the same strict parser, classifier, approval, taint and audit as a call written in text, so a call is refused for the same reasons in both ways: `{"command": "ls | wc -l"}` is refused like `exec ls | wc -l`, and `{"page": "-P cat"}` like `man -P cat`. A tool only reads the arguments; it never judges what they mean.
+
+- **Arguments that are not a call** (not JSON, not an object, a key the schema does not list, a wrong type, too long, a tool that does not exist) are a tool error the model can read and recover from.
+- **One call at a time.** If a model makes several calls in one reply, the first is run and the others are answered with "not run", because a provider needs an answer for every call it sent.
+- **The last round answers in words.** When `max_tool_rounds` is reached, the request says `tool_choice: none`, so the turn still ends with an answer.
+- **Redaction covers the calls.** Arguments and results are redacted on the way out and restored on the way back, like text, so a secret in a command or its output never reaches a remote provider (INV-2).
+- **The conversation keeps the text form.** A call and its result are stored as the text block, whichever way they were made, so a later turn can be replayed to any model in either mode.
+- **A call written in text still works** in native mode, for a model that follows what it sees in the history.
+
+## The text form
 
 Each tool provides its own instructions through an `offer` function, kept next to the code that accepts the call. What the model is told and what the tool accepts change together. `exec` offers itself like this:
 

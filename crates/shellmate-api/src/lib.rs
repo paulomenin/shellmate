@@ -23,9 +23,9 @@ pub use duration::parse_duration;
 pub use endpoint::check_endpoint;
 pub use error::{Error, Result};
 pub use middleware::{Middleware, Next, Terminal};
-pub use models::parse_model_ids;
+pub use models::{parse_model_ids, parse_model_tool_support};
 pub use preset::{resolve_api_key, resolve_endpoint, Preset, PRESETS};
-pub use provider::{Provider, ProviderError, ProviderErrorKind, ProviderInfo};
+pub use provider::{Provider, ProviderError, ProviderErrorKind, ProviderInfo, ToolSupport};
 pub use registry::{
     DeciderCtor, LlmMiddlewareCtor, MiddlewareRole, ModelKind, ProviderBuilder, ProviderCtor,
     Registry, StoreCtor,
@@ -35,10 +35,13 @@ pub use store::{busy, ConversationInfo, ConversationLock, Current, Store};
 pub use stream::{
     collect, stream_from, stream_of_response, ChatStream, EventStream, StreamEvent, VecStream,
 };
+pub use tool::parse_arguments;
 pub use tool::{
     ApprovalKind, ApprovalMode, ApprovalNeed, ApprovalSetting, Assessment, CommandRisk, FileTarget,
     FileText, Granted, Mark, Permission, Prepared, ProcessEnv, ProcessOutput, ProcessSpec, Refusal,
     Risk, ToBuffer, Tone, Tool, ToolAction, ToolCall, ToolCtor, ToolCtx, ToolInfo, ToolNotice,
     ToolOutput, ToolServices, ToolSettings, TOOL_LABEL,
 };
-pub use types::{ChatRequest, ChatResponse, Message, Role, Usage};
+pub use types::{
+    ChatRequest, ChatResponse, Message, Role, ToolChoice, ToolRequest, ToolSpec, Usage,
+};

@@ -9,7 +9,7 @@
 use async_trait::async_trait;
 use shellmate_api::{
     ChatRequest, ChatResponse, ChatStream, Error, Provider, ProviderError, ProviderErrorKind,
-    ProviderInfo,
+    ProviderInfo, ToolSupport,
 };
 use std::sync::{Arc, OnceLock};
 
@@ -62,6 +62,13 @@ impl Provider for LazyProvider {
 
     async fn prepare(&self) -> Result<(), Error> {
         self.ready().await.map(|_| ())
+    }
+
+    async fn tool_support(&self) -> ToolSupport {
+        match self.ready().await {
+            Ok(p) => p.tool_support().await,
+            Err(_) => ToolSupport::Unknown,
+        }
     }
 
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, ProviderError> {

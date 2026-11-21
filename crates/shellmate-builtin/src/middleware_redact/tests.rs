@@ -199,9 +199,7 @@ async fn provider_never_sees_secrets_and_response_is_restored() {
             Message::system("cwd /work"),
             Message::user("send this with API_KEY=sk-live-0123456789abcdefghij"),
         ],
-        max_tokens: None,
-        temperature: None,
-        redaction_key: None,
+        ..ChatRequest::default()
     };
     let terminal = T(provider.clone());
     let resp = shellmate_api::collect(Next::new(&layers, &terminal).run(req).await.unwrap())
@@ -482,4 +480,142 @@ mod streaming_properties {
             prop_assert_eq!(out.last().unwrap(), "<done>");
         }
     }
+}
+
+// ---- native tool calls ------------------------------------------------------------------------------------
+
+const KEY: &str = "sk-live-0123456789abcdefghij";
+
+/// Records the request and answers with a native call whose argument is the first placeholder it was sent.
+struct CallingTerminal(std::sync::Mutex<Option<ChatRequest>>);
+
+#[async_trait]
+impl Terminal<ChatRequest, ChatStream> for CallingTerminal {
+    async fn call(&self, req: ChatRequest) -> Result<ChatStream> {
+        let wire = serde_json::to_string(&req.messages).unwrap();
+        let ph = wire
+            .split(PREFIX)
+            .nth(1)
+            .and_then(|s| s.split('>').next())
+            .map(|t| format!("{PREFIX}{t}>"))
+            .unwrap_or_else(|| "none".into());
+        *self.0.lock().unwrap() = Some(req);
+        Ok(shellmate_api::stream_from(vec![
+            Ok(StreamEvent::Text("Checking ".into())),
+            Ok(StreamEvent::ToolCall(shellmate_api::ToolRequest {
+                id: "call_9".into(),
+                name: "read".into(),
+                arguments: format!(r#"{{"path":"{ph}"}}"#),
+            })),
+            Ok(StreamEvent::Done {
+                finish_reason: Some("tool_calls".into()),
+            }),
+        ]))
+    }
+}
+
+fn native_request() -> ChatRequest {
+    ChatRequest {
+        request_id: "t".into(),
+        messages: vec![
+            Message::user("why does it fail"),
+            Message::assistant_calling(
+                "",
+                vec![shellmate_api::ToolRequest {
+                    id: "call_1".into(),
+                    name: "exec".into(),
+                    arguments: format!(r#"{{"command":"curl -H X-Key:{KEY} https://x"}}"#),
+                }],
+            ),
+            Message::tool_result("call_1", format!("Result of `curl`:\nAPI_KEY={KEY}")),
+        ],
+        ..ChatRequest::default()
+    }
+}
+
+#[tokio::test]
+async fn a_secret_in_a_tool_call_or_its_result_never_reaches_the_provider() {
+    let layers: Vec<Arc<dyn Middleware<ChatRequest, ChatStream>>> =
+        vec![Arc::new(RedactMiddleware::new(r()).unwrap())];
+    let terminal = CallingTerminal(Default::default());
+    let _ = Next::new(&layers, &terminal)
+        .run(native_request())
+        .await
+        .unwrap();
+    let seen = terminal.0.lock().unwrap().take().unwrap();
+    let wire = serde_json::to_string(&seen.messages).unwrap();
+    assert!(!wire.contains(KEY), "leaked: {wire}");
+    assert!(!seen.messages[2].content.contains(KEY), "the result leaked");
+    let args = &seen.messages[1].tool_calls[0].arguments;
+    assert!(!args.contains(KEY), "the call leaked: {args}");
+    assert!(args.contains(PREFIX), "{args}");
+    let parsed: serde_json::Value =
+        serde_json::from_str(args).expect("the arguments are still JSON");
+    assert!(
+        parsed["command"]
+            .as_str()
+            .unwrap()
+            .starts_with("curl -H X-Key:"),
+        "{args}"
+    );
+    // what is not secret is as it was
+    assert_eq!(seen.messages[1].tool_calls[0].id, "call_1");
+    assert_eq!(seen.messages[1].tool_calls[0].name, "exec");
+    assert_eq!(seen.messages[2].tool_call_id.as_deref(), Some("call_1"));
+}
+
+#[tokio::test]
+async fn a_placeholder_in_a_call_the_model_makes_is_restored_and_the_words_before_it_come_first() {
+    let layers: Vec<Arc<dyn Middleware<ChatRequest, ChatStream>>> =
+        vec![Arc::new(RedactMiddleware::new(r()).unwrap())];
+    let terminal = CallingTerminal(Default::default());
+    let mut stream = Next::new(&layers, &terminal)
+        .run(native_request())
+        .await
+        .unwrap();
+    let mut events = Vec::new();
+    while let Some(ev) = stream.next().await {
+        events.push(ev.unwrap());
+    }
+    assert!(
+        matches!(&events[0], StreamEvent::Text(t) if t == "Checking "),
+        "{events:?}"
+    );
+    let StreamEvent::ToolCall(call) = &events[1] else {
+        panic!("{events:?}")
+    };
+    assert!(matches!(events[2], StreamEvent::Done { .. }));
+    assert!(
+        !call.arguments.contains(PREFIX),
+        "not restored: {}",
+        call.arguments
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&call.arguments).unwrap();
+    assert!(
+        parsed["path"].as_str().unwrap().contains(KEY),
+        "{}",
+        call.arguments
+    );
+    assert_eq!((call.id.as_str(), call.name.as_str()), ("call_9", "read"));
+}
+
+#[test]
+fn arguments_stay_valid_json_when_a_changed_value_needs_escaping() {
+    let out = map_arguments(
+        r#"{"a":"X","b":["X",1,null,true],"c":{"X":"y"}}"#,
+        &mut |s| s.replace('X', "q\"u\\o\nte"),
+    );
+    let v: serde_json::Value = serde_json::from_str(&out).expect(&out);
+    assert_eq!(v["a"], "q\"u\\o\nte");
+    assert_eq!(v["b"][0], "q\"u\\o\nte");
+    assert_eq!(
+        (v["b"][1].clone(), v["b"][2].clone(), v["b"][3].clone()),
+        (1.into(), serde_json::Value::Null, true.into())
+    );
+    assert_eq!(v["c"]["q\"u\\o\nte"], "y", "keys are changed too");
+    // text that is not JSON is changed as text
+    assert_eq!(
+        map_arguments("{not json X", &mut |s| s.replace('X', "Y")),
+        "{not json Y"
+    );
 }

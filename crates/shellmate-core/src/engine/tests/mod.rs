@@ -6,6 +6,7 @@ mod context_report;
 mod exec;
 mod golden_tools;
 mod help;
+mod native;
 mod notices;
 mod read;
 mod run;
@@ -60,6 +61,16 @@ fn env(action: &str, buffer: &str) -> Envelope {
 /// The real environment with a directory holding an executable `man` and a program `helpme` (it prints a
 /// usage line for `--help`) put first on `PATH`, so a test of the tools does not depend on the machine.
 fn host_with_stubs() -> Host {
+    host_overlaid(vec![])
+}
+
+/// Like [`host_with_stubs`], with the cache directory (where answers about native tool calling are kept) in
+/// `cache` and the clock at `now`.
+fn host_with_cache(cache: &std::path::Path, now: &Arc<crate::ports::ManualClock>) -> Host {
+    host_overlaid(vec![("XDG_CACHE_HOME", cache.display().to_string())]).with_clock(now.clone())
+}
+
+fn host_overlaid(mut vars: Vec<(&'static str, String)>) -> Host {
     static DIR: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     let dir = DIR.get_or_init(|| {
         use std::os::unix::fs::PermissionsExt;
@@ -76,21 +87,23 @@ fn host_with_stubs() -> Host {
         }
         dir.display().to_string()
     });
-    Host::system().with_env(PathPlus(format!(
-        "{dir}:{}",
-        std::env::var("PATH").unwrap_or_default()
-    )))
+    vars.push((
+        "PATH",
+        format!("{dir}:{}", std::env::var("PATH").unwrap_or_default()),
+    ));
+    Host::system().with_env(Overlay(vars))
 }
 
-/// The process environment, except for `PATH`.
-struct PathPlus(String);
+/// The process environment, except for the variables it names.
+struct Overlay(Vec<(&'static str, String)>);
 
-impl crate::ports::Env for PathPlus {
+impl crate::ports::Env for Overlay {
     fn var(&self, name: &str) -> Option<String> {
-        match name {
-            "PATH" => Some(self.0.clone()),
-            _ => std::env::var(name).ok(),
-        }
+        self.0
+            .iter()
+            .find(|(k, _)| *k == name)
+            .map(|(_, v)| v.clone())
+            .or_else(|| std::env::var(name).ok())
     }
 }
 
@@ -102,6 +115,7 @@ fn engine(list: Vec<(&str, Arc<FakeProvider>, u8)>) -> Engine {
                 provider: p as Arc<dyn Provider>,
                 max_level: l,
                 trust: Trust::Local,
+                tool_calling: crate::config::ToolCalling::Text,
             })
             .collect(),
         1,
@@ -117,6 +131,7 @@ fn remote(p: Arc<FakeProvider>) -> Vec<ProviderSpec> {
         provider: p as Arc<dyn Provider>,
         max_level: 1,
         trust: Trust::Remote,
+        tool_calling: crate::config::ToolCalling::Text,
     }]
 }
 
@@ -190,6 +205,7 @@ fn engine_at_level(p: Arc<FakeProvider>, level: u8, mut cfg: Config) -> Engine {
             provider: p as Arc<dyn Provider>,
             max_level: 4,
             trust: Trust::Local,
+            tool_calling: crate::config::ToolCalling::Text,
         }],
         level,
     )

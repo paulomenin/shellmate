@@ -107,10 +107,7 @@ pub fn assemble(turns: &[Turn], provider_is_local: bool, cfg: &HistoryConfig) ->
                 }
                 _ => m.content.clone(),
             };
-            out.messages.push(Message {
-                role: m.role,
-                content,
-            });
+            out.messages.push(Message::new(m.role, content));
         }
     }
     out

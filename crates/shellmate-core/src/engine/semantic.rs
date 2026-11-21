@@ -105,9 +105,7 @@ impl Engine {
                 .iter()
                 .map(|(_, v)| Message::user(v.clone()))
                 .collect(),
-            max_tokens: None,
-            temperature: None,
-            redaction_key: None,
+            ..ChatRequest::default()
         };
         let recorder = Recorder::default();
         Next::new(&self.layers, &recorder).run(request).await?;
@@ -142,7 +140,7 @@ impl Engine {
             messages: validate::llm_messages(asked),
             max_tokens: Some(200),
             temperature: Some(0.0),
-            redaction_key: None,
+            ..ChatRequest::default()
         };
         spec.provider
             .prepare()

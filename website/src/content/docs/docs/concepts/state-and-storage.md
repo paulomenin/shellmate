@@ -15,6 +15,7 @@ shellmate has no daemon and keeps nothing in memory between requests, so everyth
 | Session pointers | `.../store/sess/<session>` | `builtin:store-tmpfs` | Logout |
 | Conversation locks | `.../store/conv/<id>.lock` | `builtin:store-tmpfs` | While a request holds it |
 | Captured output | `$XDG_RUNTIME_DIR/shellmate/capture/<session>` | `shellmate run` | Replaced by the next capture, or logout |
+| What is known about a model's tool calling | `$XDG_CACHE_HOME/shellmate/tool-support.json` (or `~/.cache/shellmate/...`) | The engine, in `auto` mode | A week for a yes or a no, an hour for "not known" |
 | Audit log | `$XDG_RUNTIME_DIR/shellmate/audit.jsonl`, or with `persist = true` `$XDG_STATE_HOME/shellmate/audit/audit.jsonl` | The engine | Logout, or the retention you set |
 | Shell rc block | Your shell's rc file | `install-shell` and `setup` | Until `install-shell --remove` |
 

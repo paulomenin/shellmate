@@ -2,6 +2,7 @@
 //! suggestion, record the turn.
 
 use super::attempt::TurnOptions;
+use super::native::ToolMode;
 use super::request::Convo;
 use super::turn::{micros_since, Sent, Timing};
 use super::{Action, Emit, Engine, Outcome, Report};
@@ -80,33 +81,47 @@ impl Engine {
         self.audit_request_started(&ctx, env, &convo);
         let started = Instant::now();
         let mut last_error = None;
-        for spec in &self.providers {
-            let mut built = self.build_request(action, env, spec, &convo, &gathered)?;
-            built.request.request_id = rid.clone();
-            let llm_started = Instant::now();
-            let attempt = match self
-                .attempt(
-                    spec,
-                    built.request,
-                    TurnOptions {
-                        show_text,
-                        tainted: built.tainted,
-                        cwd: &cwd,
-                        buffer_ok: action != Action::Explain,
-                    },
-                    on_text,
-                )
-                .await
-            {
-                Ok(a) => a,
-                Err(f) => {
-                    let fallback = !f.produced && f.error.allows_fallback();
-                    self.audit_call_failed(&ctx, spec, &f, llm_started, fallback);
-                    if fallback {
-                        last_error = Some(f.error);
-                        continue;
+        'providers: for spec in &self.providers {
+            let mut mode = self.tool_mode(spec, action, true).await;
+            let (built, attempt, llm_started) = loop {
+                let mut built = self.build_request(action, env, spec, &convo, &gathered, mode)?;
+                built.request.request_id = rid.clone();
+                let llm_started = Instant::now();
+                match self
+                    .attempt(
+                        spec,
+                        std::mem::take(&mut built.request),
+                        TurnOptions {
+                            show_text,
+                            tainted: built.tainted,
+                            cwd: &cwd,
+                            buffer_ok: action != Action::Explain,
+                        },
+                        on_text,
+                    )
+                    .await
+                {
+                    Ok(a) => break (built, a, llm_started),
+                    Err(f) => {
+                        // The server said this model takes tools, and then refused a request that had them:
+                        // it was wrong. Nothing was shown or run, so ask again in text mode, and remember.
+                        if mode.native
+                            && mode.learned
+                            && !f.produced
+                            && f.error.code == "provider.bad_request"
+                        {
+                            self.forget_native(spec);
+                            mode = ToolMode::TEXT;
+                            continue;
+                        }
+                        let fallback = !f.produced && f.error.allows_fallback();
+                        self.audit_call_failed(&ctx, spec, &f, llm_started, fallback);
+                        if fallback {
+                            last_error = Some(f.error);
+                            continue 'providers;
+                        }
+                        return Err(f.error);
                     }
-                    return Err(f.error);
                 }
             };
             let llm_us = micros_since(llm_started);

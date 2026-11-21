@@ -22,6 +22,7 @@ async fn report_at(level: u8, cap: u8, mut cfg: Config, e: &Envelope) -> Context
             provider: FakeProvider::replying("x") as Arc<dyn Provider>,
             max_level: cap,
             trust: Trust::Local,
+            tool_calling: crate::config::ToolCalling::Text,
         }],
         level,
     )
@@ -237,6 +238,7 @@ async fn every_provider_in_the_chain_gets_its_own_report() {
         provider: FakeProvider::replying("x") as Arc<dyn Provider>,
         max_level: cap,
         trust: Trust::Local,
+        tool_calling: crate::config::ToolCalling::Text,
     };
     let engine = Engine::with_providers(vec![mk("big", 4), mk("small", 1)], 3).with_os("TestOS");
     let reports = engine.context_report(&full_env()).await.unwrap();

@@ -45,6 +45,34 @@ pub(in crate::engine) fn offers(plugged: &[Plugged], action: Action, host: &Host
         .collect()
 }
 
+/// The native form of every tool that is available for `action`, in the same order as [`offers`].
+pub(in crate::engine) fn specs(
+    plugged: &[Plugged],
+    action: Action,
+    host: &Host,
+) -> Vec<shellmate_api::ToolSpec> {
+    let api_action = match action {
+        Action::Ask => Some(shellmate_api::ToolAction::Ask),
+        Action::Generate => Some(shellmate_api::ToolAction::Generate),
+        Action::Explain => Some(shellmate_api::ToolAction::Explain),
+        Action::NewConversation => None,
+    };
+    api_action
+        .into_iter()
+        .flat_map(|a| plugged.iter().filter_map(move |p| p.spec(a, host)))
+        .collect()
+}
+
+/// A native call whose arguments are not a call. It is a tool call that failed, so the model is told and the
+/// turn goes on.
+pub(in crate::engine) fn invalid_native_call(why: &str) -> ToolRun {
+    ToolRun::new(
+        Notice::new(Tone::Warning, Mark::Chevron, "(invalid tool call)"),
+        format!("Tool error: {why}"),
+        ToolDecision::Deny,
+    )
+}
+
 impl Engine {
     /// Returns what was shown to the user, what the model gets back, and what was decided.
     pub(super) async fn run_tool(

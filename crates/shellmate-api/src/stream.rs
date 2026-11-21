@@ -1,12 +1,15 @@
 //! Streaming responses. Runtime-agnostic: a hand-rolled async `next()` trait instead of a futures `Stream`.
 
-use crate::{ChatResponse, ProviderError, Usage};
+use crate::{ChatResponse, ProviderError, ToolRequest, Usage};
 use async_trait::async_trait;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StreamEvent {
     /// A piece of the answer text.
     Text(String),
+    /// A complete native tool call. Providers send it whole (they put the argument fragments together
+    /// first), after the text and before `Done`.
+    ToolCall(ToolRequest),
     Usage(Usage),
     /// End of the answer; `finish_reason` as reported by the provider.
     Done {
@@ -48,6 +51,9 @@ pub fn stream_of_response(r: ChatResponse) -> ChatStream {
     if !r.text.is_empty() {
         ev.push(Ok(StreamEvent::Text(r.text)));
     }
+    for call in r.tool_calls {
+        ev.push(Ok(StreamEvent::ToolCall(call)));
+    }
     if let Some(u) = r.usage {
         ev.push(Ok(StreamEvent::Usage(u)));
     }
@@ -61,12 +67,14 @@ pub fn stream_of_response(r: ChatResponse) -> ChatStream {
 pub async fn collect(mut stream: ChatStream) -> Result<ChatResponse, ProviderError> {
     let mut out = ChatResponse {
         text: String::new(),
+        tool_calls: Vec::new(),
         usage: None,
         finish_reason: None,
     };
     while let Some(ev) = stream.next().await {
         match ev? {
             StreamEvent::Text(t) => out.text.push_str(&t),
+            StreamEvent::ToolCall(c) => out.tool_calls.push(c),
             StreamEvent::Usage(u) => out.usage = Some(u),
             StreamEvent::Done { finish_reason } => out.finish_reason = finish_reason,
         }

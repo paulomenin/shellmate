@@ -1,5 +1,6 @@
 use crate::{stream_of_response, ChatRequest, ChatResponse, ChatStream, Error};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderInfo {
@@ -88,6 +89,16 @@ impl From<ProviderError> for Error {
     }
 }
 
+/// What a provider knows about native tool calling for its model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolSupport {
+    Yes,
+    No,
+    /// The server does not say. Never read as "no": it only means the answer is not known.
+    Unknown,
+}
+
 #[async_trait]
 pub trait Provider: Send + Sync {
     fn info(&self) -> ProviderInfo;
@@ -105,6 +116,13 @@ pub trait Provider: Send + Sync {
     /// [`parse_model_ids`](crate::parse_model_ids)). The default cannot list.
     async fn models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
+    }
+
+    /// Whether the model takes tools natively (`ChatRequest::tools`). Used when the user left the choice to
+    /// `auto`: the answer is cached, so a network call here happens rarely. A provider that cannot tell says
+    /// [`ToolSupport::Unknown`] (the default), and the tools are then offered in the prompt text.
+    async fn tool_support(&self) -> ToolSupport {
+        ToolSupport::Unknown
     }
 
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, ProviderError>;

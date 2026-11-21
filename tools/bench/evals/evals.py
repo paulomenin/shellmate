@@ -53,6 +53,10 @@ def model_config(generator, checker, providers, tools=(), preapproved=None):
         text += [f'[providers.{role}]', f'trust = {q(p["trust"])}', f'endpoint = "@BROKER@/{role}"',
                  'max_context_level = 1', f'[models.{role}]', f'provider = "{role}"',
                  f'plugin = "builtin:{m["plugin"]}"', f'model = {q(m["model"])}']
+        if role == "generator":
+            # The scorer reads calls written in text, so the generator is pinned to that. The default, `auto`, would ask
+            # the server (the broker) about the model and could change what is measured from one run to the next.
+            text.append('tool_calling = "text"')
         text += [f'{k} = {q(v)}' for k, v in m["settings"].items()]
     text += ['[llm]', 'chain = ["generator"]', '[validator]', f'enabled = {str(bool(checker)).lower()}',
              'chain = ["checker"]' if checker else 'chain = []', 'timeout = "120s"']

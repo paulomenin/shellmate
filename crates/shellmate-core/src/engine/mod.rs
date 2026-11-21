@@ -9,6 +9,7 @@
 mod attempt;
 mod context;
 mod lazy;
+mod native;
 mod preview;
 mod request;
 mod run;
@@ -275,6 +276,7 @@ impl Engine {
             provider,
             max_level: m.provider.effective_max_level(),
             trust: m.provider.trust,
+            tool_calling: m.model.tool_calling,
         })
     }
 

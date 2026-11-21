@@ -29,7 +29,9 @@ impl Engine {
         let gathered = self.prefetch(env).await;
         let mut out = Vec::new();
         for spec in &self.providers {
-            let built = self.build_request(action, env, spec, &convo, &gathered)?;
+            // a dry run sends nothing, so it only knows what was remembered about the model
+            let mode = self.tool_mode(spec, action, false).await;
+            let built = self.build_request(action, env, spec, &convo, &gathered, mode)?;
             let recorder = Recorder::default();
             Next::new(&self.layers, &recorder)
                 .run(built.request)

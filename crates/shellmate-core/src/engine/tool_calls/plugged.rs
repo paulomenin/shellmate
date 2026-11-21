@@ -46,6 +46,25 @@ impl Plugged {
             .flatten()
     }
 
+    /// The native form for `action`, under the same conditions as [`Plugged::offer`].
+    pub(in crate::engine) fn spec(
+        &self,
+        action: api::ToolAction,
+        host: &crate::ports::Host,
+    ) -> Option<api::ToolSpec> {
+        (self.available() && self.tool.usable(&CoreServices::new(host)))
+            .then(|| self.tool.spec(action, &self.settings))
+            .flatten()
+    }
+
+    /// The words of a native call, as the tool reads them from the arguments.
+    pub(in crate::engine) fn call_line(
+        &self,
+        arguments: &serde_json::Value,
+    ) -> Result<String, String> {
+        self.tool.call_line(arguments)
+    }
+
     /// Rules of the user's that are too broad, as `(rule, why)`, for `config check`.
     pub(in crate::engine) fn risky_rules(
         &self,

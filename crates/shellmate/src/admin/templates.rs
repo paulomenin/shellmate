@@ -91,6 +91,7 @@ impl Backend {
         );
         if plugin == "builtin:openai-compatible" {
             s.push_str("# reasoning_effort = \"none\"   # much faster with reasoning models\n");
+            s.push_str("# tool_calling = \"auto\"   # auto: native when the server says the model takes tools; native | text\n");
         }
         s
     }

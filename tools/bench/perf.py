@@ -35,7 +35,7 @@ def write_config(path: Path, url: str, level: int = 2) -> None:
         f'version = 1\n[context]\ndefault_level = {level}\n'
         '[providers.fake]\ntrust = "local"\n'
         f'endpoint = "{url}"\n'
-        '[models.fake]\nprovider = "fake"\nplugin = "builtin:openai-compatible"\nmodel = "bench"\n'
+        '[models.fake]\nprovider = "fake"\nplugin = "builtin:openai-compatible"\ntool_calling = "text"\nmodel = "bench"\n'
         '[llm]\nchain = ["fake"]\n[audit]\nenabled = false\n[conversation]\nstore = "none"\n'
     )
 

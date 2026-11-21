@@ -51,10 +51,11 @@ A model is **what you use from a connection**. One provider can offer several, o
 | `provider` | none | The `[providers.<name>]` the model is reached through. |
 | `plugin` | none | `builtin:openai-compatible` for a chat model, `builtin:systemone` for a decision model. The plugin says which kind the model is. |
 | `model` | none | The model's name, as the server lists it. |
+| `tool_calling` | `auto` | Chat models: how the model is offered the tools. `native` sends them with the request and the model answers with calls, `text` describes them in the prompt and the model writes a block, and `auto` asks the server whether the model takes tools natively and falls back to `text`. See [Tool calling](../../concepts/tool-calling/#native-and-text). |
 | `reasoning_effort` | | Chat models: `none` is much faster with reasoning models. |
 | `path` | `/v1/systemone` | Decision models: where the format is served below the endpoint. `openrouter` has its own default, `/alpha/decisions`. |
 
-The core keeps `provider` and `plugin`. A key is set on the provider or on the model, never both.
+The core keeps `provider`, `plugin` and `tool_calling`. A key is set on the provider or on the model, never both.
 
 ## `[llm]`
 

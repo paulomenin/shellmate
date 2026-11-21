@@ -2,8 +2,10 @@
 
 use super::{mapping::*, redactor::*, rules::*};
 use async_trait::async_trait;
+use serde_json::Value;
 use shellmate_api::{
     ChatRequest, ChatStream, EventStream, Middleware, Next, ProviderError, Result, StreamEvent,
+    ToolRequest,
 };
 use std::collections::VecDeque;
 
@@ -31,6 +33,11 @@ impl Middleware<ChatRequest, ChatStream> for RedactMiddleware {
         let mut map = Mapping::with_key(request.redaction_key);
         for m in &mut request.messages {
             m.content = self.redactor.redact(&m.content, &mut map);
+            // what the model asked a tool for is part of the conversation too
+            for call in &mut m.tool_calls {
+                call.arguments =
+                    map_arguments(&call.arguments, &mut |s| self.redactor.redact(s, &mut map));
+            }
         }
         let inner = next.run(request).await?;
         Ok(Box::new(RestoreStream {
@@ -39,6 +46,34 @@ impl Middleware<ChatRequest, ChatStream> for RedactMiddleware {
             held: String::new(),
             pending: VecDeque::new(),
         }))
+    }
+}
+
+/// Change every string in the JSON text `arguments` with `f`, and write the JSON again. The change is made
+/// to the strings, not to the text, so a value that gains characters that JSON escapes (a quote, a
+/// backslash) still gives valid JSON. Text that is not JSON is changed as it is.
+pub(crate) fn map_arguments(arguments: &str, f: &mut dyn FnMut(&str) -> String) -> String {
+    fn walk(v: &mut Value, f: &mut dyn FnMut(&str) -> String) {
+        match v {
+            Value::String(s) => *s = f(s),
+            Value::Array(items) => items.iter_mut().for_each(|i| walk(i, f)),
+            Value::Object(map) => {
+                // keys are the model's words for the schema, but a key can carry a value as well
+                let entries = std::mem::take(map);
+                for (k, mut v) in entries {
+                    walk(&mut v, f);
+                    map.insert(f(&k), v);
+                }
+            }
+            _ => {}
+        }
+    }
+    match serde_json::from_str::<Value>(arguments) {
+        Ok(mut v) => {
+            walk(&mut v, f);
+            v.to_string()
+        }
+        Err(_) => f(arguments),
     }
 }
 
@@ -99,6 +134,13 @@ impl EventStream for RestoreStream {
                 Some(Ok(done @ StreamEvent::Done { .. })) => {
                     self.flush();
                     self.pending.push_back(Ok(done));
+                }
+                Some(Ok(StreamEvent::ToolCall(call))) => {
+                    // the words before the call come first, then the call with its placeholders restored
+                    self.flush();
+                    let arguments = map_arguments(&call.arguments, &mut |s| self.map.restore(s));
+                    self.pending
+                        .push_back(Ok(StreamEvent::ToolCall(ToolRequest { arguments, ..call })));
                 }
                 Some(other) => return Some(other),
                 None => {

@@ -66,6 +66,7 @@ fn chat_check(name: &str, p: Arc<FakeProvider>) -> Check {
         provider: p as Arc<dyn Provider>,
         max_level: 1,
         trust: Trust::Local,
+        tool_calling: crate::config::ToolCalling::Text,
     })
 }
 
@@ -277,6 +278,7 @@ fn a_remote_chat_model_in_the_chain_needs_redaction() {
             provider: FakeProvider::replying("x") as Arc<dyn Provider>,
             max_level: 1,
             trust: Trust::Remote,
+            tool_calling: crate::config::ToolCalling::Text,
         },
     )]);
     let err = e.check_privacy().unwrap_err();
@@ -293,6 +295,7 @@ async fn a_remote_decider_is_not_asked_when_a_layer_swallows_the_record() {
             provider: FakeProvider::replying(DF) as Arc<dyn Provider>,
             max_level: 1,
             trust: Trust::Remote,
+            tool_calling: crate::config::ToolCalling::Text,
         }],
         1,
     )
@@ -544,6 +547,7 @@ async fn a_remote_decider_is_asked_through_the_redaction_chain() {
             provider: FakeProvider::replying(DF) as Arc<dyn Provider>,
             max_level: 1,
             trust: Trust::Remote,
+            tool_calling: crate::config::ToolCalling::Text,
         }],
         1,
     )

@@ -24,6 +24,7 @@ endpoint = "http://127.0.0.1:$PORT"
 [models.mock]
 provider = "mock"
 plugin = "builtin:openai-compatible"
+tool_calling = "text"
 model = "mock"
 [llm]
 chain = ["mock"]

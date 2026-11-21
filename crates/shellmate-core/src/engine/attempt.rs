@@ -1,13 +1,15 @@
 //! One provider's turn: stream the answer and, while the model asks for tools, run them and ask again.
 
 use super::terminals::ProviderTerminal;
-use super::tool_calls::ToolDecision;
+use super::tool_calls::{invalid_native_call, ToolDecision};
 use super::{Emit, Engine, ProviderSpec};
 use crate::config::Trust;
 use crate::conversation::{Kind, Stored};
 use crate::response;
 use crate::tools::ToolCall;
-use shellmate_api::{ChatRequest, Error, Message, Next, Role, StreamEvent, Usage};
+use shellmate_api::{
+    ChatRequest, Error, Message, Next, Role, StreamEvent, ToolChoice, ToolRequest, Usage,
+};
 use std::time::Instant;
 
 /// How the turn is run, the same for every provider that is tried.
@@ -51,6 +53,10 @@ impl Engine {
             produced: false,
         })?;
         loop {
+            // the last round answers in words, so a model that keeps calling tools still ends the turn
+            if rounds >= max_rounds && !request.tools.is_empty() {
+                request.tool_choice = ToolChoice::None;
+            }
             let fail = |error: Error, produced: bool| Failure { error, produced };
             let terminal = ProviderTerminal(spec.provider.as_ref());
             let mut stream = Next::new(&self.layers, &terminal)
@@ -58,6 +64,7 @@ impl Engine {
                 .await
                 .map_err(|e| fail(e, produced))?;
             let mut full = String::new();
+            let mut native_calls: Vec<ToolRequest> = Vec::new();
             let mut filter = response::DisplayFilter::default();
             loop {
                 match stream.next().await {
@@ -73,6 +80,7 @@ impl Engine {
                             on_text(Emit::Text(&shown));
                         }
                     }
+                    Some(Ok(StreamEvent::ToolCall(call))) => native_calls.push(call),
                     Some(Ok(StreamEvent::Usage(u))) => {
                         let sum = usage.unwrap_or_default();
                         usage = Some(Usage {
@@ -82,7 +90,10 @@ impl Engine {
                     }
                     Some(Ok(StreamEvent::Done { .. })) | None => break,
                     Some(Err(e)) => {
-                        return Err(fail(Error::from(e), produced || !full.is_empty()));
+                        return Err(fail(
+                            Error::from(e),
+                            produced || !full.is_empty() || !native_calls.is_empty(),
+                        ));
                     }
                 }
             }
@@ -91,9 +102,17 @@ impl Engine {
                 at_line_start = tail.ends_with('\n');
                 on_text(Emit::Text(&tail));
             }
-            produced |= !full.is_empty();
             let answer = response::parse(&full);
-            let Some(body) = answer.tool_calls.first().filter(|_| rounds < max_rounds) else {
+            // The call to run: one the provider carried natively, or one written in the text. Either way it
+            // is the same line from here on, so it meets the same parser, classifier and approval.
+            let pending: Option<Result<String, String>> = if rounds >= max_rounds {
+                None
+            } else if let Some(call) = native_calls.first() {
+                Some(self.native_line(call))
+            } else {
+                answer.tool_calls.first().map(|b| Ok(b.clone()))
+            };
+            let Some(pending) = pending else {
                 return Ok(Attempt {
                     text: full,
                     stored,
@@ -105,6 +124,8 @@ impl Engine {
                 });
             };
             rounds += 1;
+            // a tool is about to run (or be refused) for this turn, so another provider may not redo it
+            produced = true;
             let dest = format!(
                 "`{}` ({})",
                 spec.name,
@@ -114,29 +135,74 @@ impl Engine {
                     "remote, after redaction"
                 }
             );
-            let run = self
-                .run_tool(body, cwd.as_deref(), tainted, &dest, buffer_ok)
-                .await;
+            let run = match &pending {
+                Ok(body) => {
+                    self.run_tool(body, cwd.as_deref(), tainted, &dest, buffer_ok)
+                        .await
+                }
+                Err(why) => invalid_native_call(why),
+            };
             tainted |= run.untrusted;
             let (mut notice, result) = (run.notice, run.result);
             if run.to_buffer.is_some() {
                 to_buffer = run.to_buffer;
             }
             tools_used.push((
-                ToolCall::parse(body)
+                pending
+                    .as_ref()
+                    .ok()
+                    .and_then(|body| ToolCall::parse(body).ok())
                     .map(|c| c.display())
-                    .unwrap_or_else(|_| "invalid".into()),
+                    .unwrap_or_else(|| "invalid".into()),
                 run.decision,
             ));
             notice.gap = !at_line_start;
             on_text(Emit::Notice(&notice));
             at_line_start = true;
-            request.messages.push(Message::assistant(full.clone()));
-            request.messages.push(Message::user(result.clone()));
+            // What the conversation keeps is always the text form, so a turn can be replayed to any model, in
+            // either mode. What the provider is sent back is the form it speaks.
+            let kept = if native_calls.is_empty() {
+                request.messages.push(Message::assistant(full.clone()));
+                request.messages.push(Message::user(result.clone()));
+                full
+            } else {
+                for (i, call) in native_calls.iter().enumerate() {
+                    // every call needs an answer, or the provider refuses the next request; only the first runs
+                    let content = if i == 0 {
+                        result.clone()
+                    } else {
+                        "Not run: only one tool call is handled at a time. Ask again if you still need it."
+                            .to_string()
+                    };
+                    if i == 0 {
+                        request.messages.push(Message::assistant_calling(
+                            full.clone(),
+                            native_calls.clone(),
+                        ));
+                    }
+                    request
+                        .messages
+                        .push(Message::tool_result(call.id.clone(), content));
+                }
+                let line = match &pending {
+                    Ok(body) => body.clone(),
+                    Err(_) => format!(
+                        "{} {}",
+                        native_calls[0].name,
+                        native_calls[0].arguments.replace(['\n', '\r'], " ")
+                    ),
+                };
+                let said = if full.trim().is_empty() {
+                    String::new()
+                } else {
+                    format!("{}\n", full.trim_end())
+                };
+                format!("{said}```{}\n{line}\n```", crate::response::TOOL_LABEL)
+            };
             stored.push(Stored {
                 role: Role::Assistant,
                 kind: Kind::ToolCall,
-                content: full,
+                content: kept,
             });
             stored.push(Stored {
                 role: Role::User,

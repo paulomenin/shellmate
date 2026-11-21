@@ -8,7 +8,7 @@ use shellmate_testing::MockHttpServer;
 
 fn cfg(url: &str, key: &str) -> String {
     format!(
-        "version = 1\n[audit]\nenabled = false\n[providers.mock]\ntrust = \"local\"\nendpoint = \"{url}\"\napi_key = \"{key}\"\n[models.mock]\nprovider = \"mock\"\nplugin = \"builtin:openai-compatible\"\nmodel = \"m\"\n[llm]\nchain = [\"mock\"]\n"
+        "version = 1\n[audit]\nenabled = false\n[providers.mock]\ntrust = \"local\"\nendpoint = \"{url}\"\napi_key = \"{key}\"\n[models.mock]\nprovider = \"mock\"\nplugin = \"builtin:openai-compatible\"\ntool_calling = \"text\"\nmodel = \"m\"\n[llm]\nchain = [\"mock\"]\n"
     )
 }
 

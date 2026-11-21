@@ -17,7 +17,7 @@
 //! - A tool that declares [`ToolInfo::untrusted_output`] always taints the turn, whatever it returns.
 //! - Text a tool returns is raw. The core escapes it before it reaches a terminal.
 
-use crate::Error;
+use crate::{Error, ToolSpec};
 use async_trait::async_trait;
 use std::any::Any;
 use std::path::PathBuf;
@@ -307,6 +307,18 @@ pub struct ToolOutput {
     pub failed: bool,
 }
 
+/// The arguments of a native call read into `T`. They must be a JSON object: serde would also read a bare
+/// array into a struct by position, which is a shape no schema of ours allows. Give `T`
+/// `#[serde(deny_unknown_fields)]` so a key the schema does not list is refused as well.
+pub fn parse_arguments<T: serde::de::DeserializeOwned>(
+    arguments: &serde_json::Value,
+) -> Result<T, String> {
+    if !arguments.is_object() {
+        return Err("the arguments must be a JSON object".into());
+    }
+    serde_json::from_value(arguments.clone()).map_err(|e| e.to_string())
+}
+
 /// A tool the model can call.
 #[async_trait]
 pub trait Tool: Send + Sync {
@@ -316,6 +328,21 @@ pub trait Tool: Send + Sync {
     /// The core calls this only for a tool that is enabled. Keep it next to what the tool accepts, so the
     /// two change together.
     fn offer(&self, action: ToolAction, settings: &ToolSettings) -> Option<String>;
+
+    /// The tool as a model is told about it when the provider takes tools natively, or `None` when the tool is
+    /// text only (the default) or not for `action`. The same rules as [`Tool::offer`] apply. Native calls
+    /// come back through [`Tool::call_line`], so they meet the same parser as a call written in text.
+    fn spec(&self, _action: ToolAction, _settings: &ToolSettings) -> Option<ToolSpec> {
+        None
+    }
+
+    /// The words of a native call: the JSON arguments the model sent, turned into the text that follows the
+    /// tool's name in a call written in text (`man tar` is `tar`). The core builds the call from it and
+    /// checks it like any other, so this only has to read the arguments and refuse a shape it does not know,
+    /// never to judge what they mean. The default refuses every call.
+    fn call_line(&self, _arguments: &serde_json::Value) -> Result<String, String> {
+        Err("this tool cannot be called natively".into())
+    }
 
     /// Whether the tool can work on this machine now, for example because the program it runs is installed.
     /// The core offers a tool only when this is true, so the model is not told about something that will

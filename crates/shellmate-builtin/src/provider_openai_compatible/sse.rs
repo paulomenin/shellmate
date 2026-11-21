@@ -3,7 +3,10 @@
 use super::wire::*;
 use async_trait::async_trait;
 use serde::Deserialize;
-use shellmate_api::{EventStream, ProviderError, ProviderErrorKind, StreamEvent, Usage};
+use serde_json::Value;
+use shellmate_api::{
+    EventStream, ProviderError, ProviderErrorKind, StreamEvent, ToolRequest, Usage,
+};
 use std::collections::VecDeque;
 
 /// Server-sent events from `/chat/completions` with `stream: true`.
@@ -17,7 +20,27 @@ pub(crate) struct SseStream {
     pub(crate) buf: Vec<u8>,
     pub(crate) pending: VecDeque<Result<StreamEvent, ProviderError>>,
     pub(crate) finish_reason: Option<String>,
+    /// Calls being put together from the fragments of the deltas, in the order the server numbers them.
+    pub(crate) calls: Vec<PartialCall>,
     pub(crate) ended: bool,
+}
+
+/// One tool call whose id, name and arguments arrive in pieces.
+#[derive(Default)]
+pub(crate) struct PartialCall {
+    id: String,
+    name: String,
+    arguments: String,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct WireDeltaCall {
+    /// Which call the fragment belongs to. A server that leaves it out sends each call whole, or the
+    /// fragments of one call in a row.
+    index: Option<usize>,
+    id: Option<String>,
+    #[serde(default)]
+    function: WireFunction,
 }
 
 #[derive(Deserialize)]
@@ -36,6 +59,8 @@ pub(crate) struct WireChunkChoice {
 #[derive(Deserialize)]
 pub(crate) struct WireDelta {
     pub(crate) content: Option<String>,
+    #[serde(default)]
+    pub(crate) tool_calls: Vec<WireDeltaCall>,
 }
 
 impl SseStream {
@@ -72,12 +97,13 @@ impl SseStream {
             return; // unknown event shape: ignore rather than abort the answer
         };
         for choice in chunk.choices {
-            if let Some(text) = choice
-                .delta
-                .and_then(|d| d.content)
-                .filter(|t| !t.is_empty())
-            {
-                self.pending.push_back(Ok(StreamEvent::Text(text)));
+            if let Some(delta) = choice.delta {
+                for call in delta.tool_calls {
+                    self.add_fragment(call);
+                }
+                if let Some(text) = delta.content.filter(|t| !t.is_empty()) {
+                    self.pending.push_back(Ok(StreamEvent::Text(text)));
+                }
             }
             if choice.finish_reason.is_some() {
                 self.finish_reason = choice.finish_reason;
@@ -91,9 +117,59 @@ impl SseStream {
         }
     }
 
+    /// Put a fragment of a call with the others of the same call.
+    fn add_fragment(&mut self, f: WireDeltaCall) {
+        let starts_one = f.id.as_deref().is_some_and(|i| !i.is_empty())
+            || f.function.name.as_deref().is_some_and(|n| !n.is_empty());
+        let at = f.index.unwrap_or(if starts_one || self.calls.is_empty() {
+            self.calls.len()
+        } else {
+            self.calls.len() - 1
+        });
+        // a server's numbers are small; never let a hostile one allocate a long list
+        if at >= 16 {
+            return;
+        }
+        while self.calls.len() <= at {
+            self.calls.push(PartialCall::default());
+        }
+        let call = &mut self.calls[at];
+        if let Some(id) = f.id {
+            call.id = id;
+        }
+        if let Some(name) = f.function.name {
+            call.name.push_str(&name);
+        }
+        match f.function.arguments {
+            Some(Value::String(s)) => call.arguments.push_str(&s),
+            Some(Value::Null) | None => {}
+            // a server that sends the arguments as an object sends them whole
+            Some(other) => call.arguments = other.to_string(),
+        }
+    }
+
     pub(crate) fn end(&mut self) {
         if !self.ended {
             self.ended = true;
+            for (i, call) in std::mem::take(&mut self.calls).into_iter().enumerate() {
+                if call.name.is_empty() {
+                    continue; // fragments of something that never got a name are not a call
+                }
+                self.pending
+                    .push_back(Ok(StreamEvent::ToolCall(ToolRequest {
+                        id: if call.id.is_empty() {
+                            format!("call_{i}")
+                        } else {
+                            call.id
+                        },
+                        name: call.name,
+                        arguments: if call.arguments.is_empty() {
+                            "{}".into()
+                        } else {
+                            call.arguments
+                        },
+                    })));
+            }
             self.pending.push_back(Ok(StreamEvent::Done {
                 finish_reason: self.finish_reason.take(),
             }));

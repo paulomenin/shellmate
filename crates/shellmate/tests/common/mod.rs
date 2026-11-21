@@ -13,7 +13,7 @@ pub struct Run {
 
 pub fn config(url: &str) -> String {
     format!(
-        "version = 1\n[providers.mock]\ntrust = \"local\"\nendpoint = \"{url}\"\n[models.mock]\nprovider = \"mock\"\nplugin = \"builtin:openai-compatible\"\nmodel = \"test-model\"\n[llm]\nchain = [\"mock\"]\n"
+        "version = 1\n[providers.mock]\ntrust = \"local\"\nendpoint = \"{url}\"\n[models.mock]\nprovider = \"mock\"\nplugin = \"builtin:openai-compatible\"\ntool_calling = \"text\"\nmodel = \"test-model\"\n[llm]\nchain = [\"mock\"]\n"
     )
 }
 
@@ -43,6 +43,8 @@ pub fn run_with(args: &[&str], config_text: &str, stdin: &[u8], envs: &[(&str, &
         .env_remove("NO_COLOR")
         .env_remove("CLICOLOR")
         .env_remove("CLICOLOR_FORCE")
+        // what shellmate remembers about a model must never reach the developer's own cache
+        .env("XDG_CACHE_HOME", dir.join("cache"))
         .envs(envs.iter().copied())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -65,6 +67,14 @@ pub fn run_with(args: &[&str], config_text: &str, stdin: &[u8], envs: &[(&str, &
     }
 }
 
+/// A reply that is a native call to a tool, in the shape of the OpenAI API.
+pub fn native_completion(id: &str, name: &str, arguments: &str) -> String {
+    serde_json::json!({"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[
+        {"id": id, "type": "function", "function": {"name": name, "arguments": arguments}}
+    ]},"finish_reason":"tool_calls"}]})
+    .to_string()
+}
+
 pub fn completion(content: &str) -> String {
     serde_json::json!({"choices":[{"message":{"role":"assistant","content":content},"finish_reason":"stop"}]}).to_string()
 }
@@ -72,7 +82,7 @@ pub fn completion(content: &str) -> String {
 /// A config with one *remote* provider at the mock URL, allowed context level 2.
 pub fn remote_config(url: &str, extra: &str) -> String {
     format!(
-        "version = 1\n[context]\ndefault_level = 2\n[providers.cloud]\ntrust = \"remote\"\nmax_context_level = 2\nendpoint = \"{url}\"\n[models.cloud]\nprovider = \"cloud\"\nplugin = \"builtin:openai-compatible\"\nmodel = \"m\"\n[llm]\nchain = [\"cloud\"]\n{extra}"
+        "version = 1\n[context]\ndefault_level = 2\n[providers.cloud]\ntrust = \"remote\"\nmax_context_level = 2\nendpoint = \"{url}\"\n[models.cloud]\nprovider = \"cloud\"\nplugin = \"builtin:openai-compatible\"\ntool_calling = \"text\"\nmodel = \"m\"\n[llm]\nchain = [\"cloud\"]\n{extra}"
     )
 }
 

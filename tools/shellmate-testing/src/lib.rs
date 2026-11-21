@@ -7,15 +7,35 @@ pub use services::{output, FakeServices};
 pub use store::{assert_store_contract, MemoryStore};
 
 use async_trait::async_trait;
-use shellmate_api::{ChatRequest, ChatResponse, Provider, ProviderError, ProviderInfo};
+use shellmate_api::{
+    ChatRequest, ChatResponse, Provider, ProviderError, ProviderInfo, ToolRequest, ToolSupport,
+};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 /// A provider that returns canned replies and records the requests it saw.
 pub struct FakeProvider {
-    replies: Mutex<Vec<Result<String, ProviderError>>>,
+    replies: Mutex<Vec<Result<ChatResponse, ProviderError>>>,
     pub seen: Mutex<Vec<ChatRequest>>,
+    /// What it answers when asked whether the model takes tools natively. Default: not known.
+    says: Mutex<ToolSupport>,
+    /// How many times it was asked.
+    asked: AtomicUsize,
+}
+
+/// A reply that is a native call to a tool.
+pub fn native_call(id: &str, name: &str, arguments: &str) -> ChatResponse {
+    ChatResponse {
+        tool_calls: vec![ToolRequest {
+            id: id.into(),
+            name: name.into(),
+            arguments: arguments.into(),
+        }],
+        finish_reason: Some("tool_calls".into()),
+        ..ChatResponse::default()
+    }
 }
 
 impl FakeProvider {
@@ -23,10 +43,35 @@ impl FakeProvider {
         Self::with(vec![Ok(text.to_string())])
     }
     pub fn with(replies: Vec<Result<String, ProviderError>>) -> Arc<Self> {
+        Self::with_responses(
+            replies
+                .into_iter()
+                .map(|r| {
+                    r.map(|text| ChatResponse {
+                        text,
+                        finish_reason: Some("stop".into()),
+                        ..ChatResponse::default()
+                    })
+                })
+                .collect(),
+        )
+    }
+    /// Replies that can carry native tool calls (see [`native_call`]).
+    pub fn with_responses(replies: Vec<Result<ChatResponse, ProviderError>>) -> Arc<Self> {
         Arc::new(Self {
             replies: Mutex::new(replies.into_iter().rev().collect()),
             seen: Mutex::new(Vec::new()),
+            says: Mutex::new(ToolSupport::Unknown),
+            asked: AtomicUsize::new(0),
         })
+    }
+    /// What the provider will say when asked whether the model takes tools.
+    pub fn says_tools(&self, support: ToolSupport) {
+        *self.says.lock().unwrap() = support;
+    }
+    /// How many times it was asked whether the model takes tools.
+    pub fn times_asked_about_tools(&self) -> usize {
+        self.asked.load(Ordering::SeqCst)
     }
 }
 
@@ -39,19 +84,17 @@ impl Provider for FakeProvider {
             endpoint: None,
         }
     }
+    async fn tool_support(&self) -> ToolSupport {
+        self.asked.fetch_add(1, Ordering::SeqCst);
+        *self.says.lock().unwrap()
+    }
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, ProviderError> {
         self.seen.lock().unwrap().push(request.clone());
-        let next = self
-            .replies
+        self.replies
             .lock()
             .unwrap()
             .pop()
-            .expect("FakeProvider ran out of replies");
-        next.map(|text| ChatResponse {
-            text,
-            usage: None,
-            finish_reason: Some("stop".into()),
-        })
+            .expect("FakeProvider ran out of replies")
     }
 }
 
@@ -165,7 +208,44 @@ fn completion_as_sse(body: &str) -> String {
             serde_json::json!({"choices":[{"delta":{"content": delta}}]})
         ));
     }
-    out.push_str("data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n");
+    // native calls arrive as a first fragment with the id and the name, then the arguments in pieces
+    let calls = v["choices"][0]["message"]["tool_calls"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    for (index, call) in calls.iter().enumerate() {
+        let function = &call["function"];
+        out.push_str(&format!(
+            "data: {}\n\n",
+            serde_json::json!({"choices":[{"delta":{"tool_calls":[{
+                "index": index, "id": call["id"], "type": "function",
+                "function": {"name": function["name"], "arguments": ""},
+            }]}}]})
+        ));
+        let arguments: Vec<char> = function["arguments"]
+            .as_str()
+            .unwrap_or("")
+            .chars()
+            .collect();
+        for piece in arguments.chunks(7) {
+            let fragment: String = piece.iter().collect();
+            out.push_str(&format!(
+                "data: {}\n\n",
+                serde_json::json!({"choices":[{"delta":{"tool_calls":[{
+                    "index": index, "function": {"arguments": fragment},
+                }]}}]})
+            ));
+        }
+    }
+    let finish = if calls.is_empty() {
+        "stop"
+    } else {
+        "tool_calls"
+    };
+    out.push_str(&format!(
+        "data: {}\n\n",
+        serde_json::json!({"choices":[{"delta":{},"finish_reason":finish}]})
+    ));
     if let Some(u) = v.get("usage").filter(|u| !u.is_null()) {
         out.push_str(&format!(
             "data: {}\n\n",

@@ -4,8 +4,9 @@ use super::{settings::*, sse::*, wire::*, *};
 use crate::http::classify_status;
 use async_trait::async_trait;
 use shellmate_api::{
-    parse_model_ids, resolve_api_key, resolve_endpoint, ChatRequest, ChatResponse, ChatStream,
-    Error, Provider, ProviderError, ProviderErrorKind, ProviderInfo, Secret, Usage, PRESETS,
+    parse_model_ids, parse_model_tool_support, resolve_api_key, resolve_endpoint, ChatRequest,
+    ChatResponse, ChatStream, Error, Provider, ProviderError, ProviderErrorKind, ProviderInfo,
+    Secret, ToolSupport, Usage, PRESETS,
 };
 use std::collections::VecDeque;
 use std::time::Duration;
@@ -65,6 +66,38 @@ impl OpenAiCompatible {
 }
 
 impl OpenAiCompatible {
+    /// The body of `GET /v1/models`.
+    async fn fetch_models(&self) -> Result<String, ProviderError> {
+        let mut rb = self
+            .client
+            .get(&self.models_url)
+            .timeout(Duration::from_secs(10));
+        if let Some(k) = &self.api_key {
+            rb = rb.bearer_auth(k.expose());
+        }
+        // `without_url` keeps credentials that may be embedded in a URL out of messages.
+        let resp = rb.send().await.map_err(|e| {
+            let kind = if e.is_timeout() {
+                ProviderErrorKind::Timeout
+            } else {
+                ProviderErrorKind::Unavailable
+            };
+            ProviderError::new(kind, e.without_url().to_string())
+        })?;
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| {
+            ProviderError::new(ProviderErrorKind::Unavailable, e.without_url().to_string())
+        })?;
+        if !status.is_success() {
+            let mut msg = format!("HTTP {}: {}", status.as_u16(), error_message(&text));
+            if status.as_u16() == 404 {
+                msg.push_str(" (the endpoint should be a base URL without `/v1`)");
+            }
+            return Err(ProviderError::new(classify_status(status.as_u16()), msg));
+        }
+        Ok(text)
+    }
+
     pub(crate) fn build_request(
         &self,
         request: &ChatRequest,
@@ -72,9 +105,15 @@ impl OpenAiCompatible {
     ) -> reqwest::RequestBuilder {
         let mut body = serde_json::json!({
             "model": self.model,
-            "messages": request.messages,
+            "messages": wire_messages(&request.messages),
             "stream": stream,
         });
+        if !request.tools.is_empty() {
+            body["tools"] = wire_tools(&request.tools).into();
+            if let Some(choice) = wire_tool_choice(request.tool_choice) {
+                body["tool_choice"] = choice.into();
+            }
+        }
         if stream {
             body["stream_options"] = serde_json::json!({ "include_usage": true });
         }
@@ -136,34 +175,16 @@ impl Provider for OpenAiCompatible {
     }
 
     async fn models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let mut rb = self
-            .client
-            .get(&self.models_url)
-            .timeout(Duration::from_secs(10));
-        if let Some(k) = &self.api_key {
-            rb = rb.bearer_auth(k.expose());
+        Ok(Some(parse_model_ids(&self.fetch_models().await?)))
+    }
+
+    /// What the server's model list says about tools for this model. Any failure, and a list that does not
+    /// say, is `Unknown`: the answer is only used to prefer native calls, never to refuse a request.
+    async fn tool_support(&self) -> ToolSupport {
+        match self.fetch_models().await {
+            Ok(text) => parse_model_tool_support(&text, &self.model),
+            Err(_) => ToolSupport::Unknown,
         }
-        // `without_url` keeps credentials that may be embedded in a URL out of messages.
-        let resp = rb.send().await.map_err(|e| {
-            let kind = if e.is_timeout() {
-                ProviderErrorKind::Timeout
-            } else {
-                ProviderErrorKind::Unavailable
-            };
-            ProviderError::new(kind, e.without_url().to_string())
-        })?;
-        let status = resp.status();
-        let text = resp.text().await.map_err(|e| {
-            ProviderError::new(ProviderErrorKind::Unavailable, e.without_url().to_string())
-        })?;
-        if !status.is_success() {
-            let mut msg = format!("HTTP {}: {}", status.as_u16(), error_message(&text));
-            if status.as_u16() == 404 {
-                msg.push_str(" (the endpoint should be a base URL without `/v1`)");
-            }
-            return Err(ProviderError::new(classify_status(status.as_u16()), msg));
-        }
-        Ok(Some(parse_model_ids(&text)))
     }
 
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, ProviderError> {
@@ -180,8 +201,22 @@ impl Provider for OpenAiCompatible {
         let choice = wire.choices.into_iter().next().ok_or_else(|| {
             ProviderError::new(ProviderErrorKind::Other, "response has no choices")
         })?;
-        let content = choice.message.and_then(|m| m.content).unwrap_or_default();
-        if content.is_empty() && choice.finish_reason.as_deref() == Some("content_filter") {
+        let message = choice.message;
+        let content = message
+            .as_ref()
+            .and_then(|m| m.content.clone())
+            .unwrap_or_default();
+        let tool_calls: Vec<_> = message
+            .map(|m| m.tool_calls)
+            .unwrap_or_default()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, c)| c.into_request(i))
+            .collect();
+        if content.is_empty()
+            && tool_calls.is_empty()
+            && choice.finish_reason.as_deref() == Some("content_filter")
+        {
             return Err(ProviderError::new(
                 ProviderErrorKind::ContentFiltered,
                 "the provider filtered the response",
@@ -189,6 +224,7 @@ impl Provider for OpenAiCompatible {
         }
         Ok(ChatResponse {
             text: content,
+            tool_calls,
             usage: wire.usage.map(|u| Usage {
                 input_tokens: u.prompt_tokens.unwrap_or(0),
                 output_tokens: u.completion_tokens.unwrap_or(0),
@@ -204,6 +240,7 @@ impl Provider for OpenAiCompatible {
             buf: Vec::new(),
             pending: VecDeque::new(),
             finish_reason: None,
+            calls: Vec::new(),
             ended: false,
         }))
     }

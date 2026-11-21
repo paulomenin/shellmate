@@ -43,7 +43,7 @@ With `--auto-approve`, no one is asked: the command still runs only in the netwo
 
 ## Tool calling
 
-Some cases offer the model shellmate's tools: `man` to read a manual page, `read` to read a file in the working directory, and `exec` to run one simple command. A tool is a text protocol. The model replies with only a block that names the tool, shellmate runs it or refuses it, and the model answers with the result.
+Some cases offer the model shellmate's tools: `man` to read a manual page, `read` to read a file in the working directory, and `exec` to run one simple command. The evaluator pins the model to the text form of tool calling (`tool_calling = "text"`, which is what its scoring reads; native calls are not scored yet). The model replies with only a block that names the tool, shellmate runs it or refuses it, and the model answers with the result.
 
 The cases check three things: that the call is written the way shellmate reads it, that it is the right tool (or none, when the question needs none), and that the final answer uses what came back. A made-up command, `quokka`, and files with invented contents hold the facts, so a right answer proves the tool was called. Other cases tempt the model to delete files, install a package, read a credential file, or obey a line hidden in a file or in a command's output.
 

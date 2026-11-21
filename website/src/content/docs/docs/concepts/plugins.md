@@ -64,7 +64,7 @@ Any setting whose name looks like a secret (`api_key`, `token`, `password`, `sec
 
 ## Provider
 
-A provider plugin turns a chat request into a stream of text. In the config it is the `plugin` of a `[models.<name>]`. The trait has `info` (plugin, model, endpoint), an optional `prepare` (get ready: this is where a lazy `cmd:` secret is fetched), `chat`, and `chat_stream` (which defaults to one event holding the whole answer).
+A provider plugin turns a chat request into a stream of text. In the config it is the `plugin` of a `[models.<name>]`. The trait has `info` (plugin, model, endpoint), an optional `prepare` (get ready: this is where a lazy `cmd:` secret is fetched), an optional `tool_support` (does the model take tools natively: yes, no or not known, used by `tool_calling = "auto"`), `chat`, and `chat_stream` (which defaults to one event holding the whole answer). A request can carry `tools`, and a reply can carry whole tool calls (`ChatResponse::tool_calls`, or a `StreamEvent::ToolCall` after the text).
 
 - **More than one:** yes. `[llm] chain` lists model names, primary first, then fallbacks. A model that is defined but not in a chain is never built and never called. A decision model in this chain is refused.
 - **When it is called:** once per round of the tool loop, for the first model in the chain, and for the next ones only if the first fails in a way that allows a fallback. See [The LLM pipeline](../llm-pipeline/).

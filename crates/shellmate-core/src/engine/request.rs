@@ -1,5 +1,6 @@
 //! Building the payload for one provider, and the conversation a request continues.
 
+use super::native::ToolMode;
 use super::{Action, Engine, Gathered, ProviderSpec};
 use crate::config::Trust;
 use crate::conversation::{self, Turn};
@@ -52,6 +53,7 @@ impl Engine {
         spec: &ProviderSpec,
         convo: &Convo,
         gathered: &Gathered,
+        mode: ToolMode,
     ) -> Result<Built> {
         let level = self.default_level().min(spec.max_level);
         let history = conversation::assemble(
@@ -59,7 +61,18 @@ impl Engine {
             spec.trust == Trust::Local,
             &self.cfg.conversation.history,
         );
-        let tool_offers = super::tool_calls::offers(&self.plugged, action, &self.host);
+        // a model that takes its tools natively is sent them with the request, not told about them in the prompt
+        let (tool_offers, tools) = if mode.native {
+            (
+                Vec::new(),
+                super::tool_calls::specs(&self.plugged, action, &self.host),
+            )
+        } else {
+            (
+                super::tool_calls::offers(&self.plugged, action, &self.host),
+                Vec::new(),
+            )
+        };
         let extras = Extras {
             history: &history.messages,
             tool_offers: &tool_offers,
@@ -82,9 +95,10 @@ impl Engine {
             request: ChatRequest {
                 request_id: self.request_id(),
                 messages,
-                max_tokens: None,
+                tools,
                 temperature: Some(0.2),
                 redaction_key: convo.key,
+                ..ChatRequest::default()
             },
         })
     }

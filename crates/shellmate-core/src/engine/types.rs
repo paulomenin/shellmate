@@ -1,6 +1,6 @@
 //! The types a client sees: actions, outcomes, reports and the provider specs.
 
-use crate::config::Trust;
+use crate::config::{ToolCalling, Trust};
 use crate::present::{Notice, Remark};
 use shellmate_api::{ChatRequest, Decider, Provider};
 use std::sync::Arc;
@@ -87,6 +87,8 @@ pub struct ProviderSpec {
     /// Highest context level this provider may receive.
     pub max_level: u8,
     pub trust: Trust,
+    /// How the model is offered the tools. `Auto` is settled per request (see `engine/native.rs`).
+    pub tool_calling: ToolCalling,
 }
 
 /// A decision-model backend with the fact the privacy rules need.
