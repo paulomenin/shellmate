@@ -302,6 +302,8 @@ idle_timeout = "30m"       # a conversation idle this long is replaced by a new 
 # approval = "deny" turns the tool off.
 approval = "ask"
 # preapproved = ["ls *", "pwd", "git status", "systemctl status *"]
+# Let the model read a program's help without asking (name each program; a bare `*` is not accepted):
+# preapproved = ["git --help", "git * --help", "docker --help", "docker * --help"]
 
 [tools.read]
 # With `ask`, the model may ask to read ONE text file in the working directory (a config, a log, source).
