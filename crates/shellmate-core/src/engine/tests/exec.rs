@@ -80,7 +80,7 @@ async fn a_tainted_turn_suspends_user_rules() {
             .with_builtin_tools()
             .with_approver(a.clone());
         let run = e
-            .run_tool("exec echo hi", None, tainted, "`a` (local)")
+            .run_tool("exec echo hi", None, tainted, "`a` (local)", true)
             .await;
         assert_eq!(a.count(), asked, "tainted={tainted}");
         assert_eq!(
@@ -156,7 +156,36 @@ async fn to_buffer_places_the_command_in_the_input_line() {
 }
 
 #[tokio::test]
-async fn exec_can_be_turned_off_and_is_only_offered_to_ask() {
+async fn the_prompt_offers_the_input_line_only_where_a_command_can_go_there() {
+    for (action, can_buffer, buffer) in [
+        ("ask", true, Some("git status")),
+        ("generate", true, Some("git status")),
+        // `explain` never puts a command in the line, so "to your prompt" is not on offer, and asking
+        // for it anyway is a plain denial
+        ("explain", false, None),
+    ] {
+        let a = FakeApprover::new(Choice::ToBuffer);
+        let p = FakeProvider::with(vec![
+            Ok(exec_call("git status")),
+            Ok("Run it yourself.".to_string()),
+        ]);
+        let out = engine(vec![("a", p.clone(), 1)])
+            .with_approver(a.clone())
+            .run(&env(action, "git"))
+            .await
+            .unwrap();
+        let asked = a.asked.lock().unwrap();
+        assert_eq!(asked.len(), 1, "{action}");
+        assert_eq!(asked[0].can_buffer, can_buffer, "{action}");
+        assert_eq!(out.buffer.as_deref(), buffer, "{action}");
+        if !can_buffer {
+            assert!(second_request(&p).contains("was denied"), "{action}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn exec_can_be_turned_off_and_is_offered_to_every_action() {
     let mut cfg = Config::defaults();
     tool(&mut cfg, "exec").approval = Some(crate::config::ToolApproval::Deny);
     let a = FakeApprover::new(Choice::Run);
@@ -178,7 +207,7 @@ async fn exec_can_be_turned_off_and_is_only_offered_to_ask() {
         .run(&env("generate", "list"))
         .await
         .unwrap();
-    assert!(!p.seen.lock().unwrap()[0].messages[0]
+    assert!(p.seen.lock().unwrap()[0].messages[0]
         .content
         .contains("exec <command>"));
     let p = FakeProvider::replying("hi");

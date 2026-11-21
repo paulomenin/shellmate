@@ -184,7 +184,7 @@ async fn ask_offers_the_three_tools_in_order_after_the_command_rules() {
 }
 
 #[tokio::test]
-async fn generate_and_explain_offer_only_man() {
+async fn generate_and_explain_offer_every_tool() {
     for (action, addendum) in [
         (
             "generate",
@@ -199,11 +199,11 @@ async fn generate_and_explain_offer_only_man() {
         let _ = e.run(&env(action, "ls -la")).await;
         let system = system_prompt(&p);
         assert!(
-            system.contains(&format!("{RULES_END}{MAN_OFFER}{addendum}")),
+            system.contains(&format!(
+                "{RULES_END}{MAN_OFFER}{EXEC_OFFER}{READ_OFFER}{addendum}"
+            )),
             "{action}: {system}"
         );
-        assert!(!system.contains("run one simple command"), "{action}");
-        assert!(!system.contains("read one text file"), "{action}");
     }
 }
 

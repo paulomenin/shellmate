@@ -128,17 +128,20 @@ impl Plugged {
             cwd: need.cwd,
             risk: need.risk,
             reasons: need.reasons,
+            can_buffer: env.buffer_ok && need.to_buffer.is_some(),
         };
         match env.approver.map(|a| a.approve(&request)) {
             Some(Choice::Run) => Ok((need.prepared, api::Granted::Person, ToolDecision::Approved)),
-            Some(Choice::ToBuffer) => Err(Box::new(match need.to_buffer {
-                Some(tb) => {
-                    let mut run = refused_as(tb.refusal, ToolDecision::ToBuffer);
-                    run.to_buffer = Some(tb.buffer);
-                    run
-                }
-                None => refused_as(need.denied, ToolDecision::DeniedByUser),
-            })),
+            Some(Choice::ToBuffer) => {
+                Err(Box::new(match need.to_buffer.filter(|_| env.buffer_ok) {
+                    Some(tb) => {
+                        let mut run = refused_as(tb.refusal, ToolDecision::ToBuffer);
+                        run.to_buffer = Some(tb.buffer);
+                        run
+                    }
+                    None => refused_as(need.denied, ToolDecision::DeniedByUser),
+                }))
+            }
             Some(Choice::Deny) => Err(Box::new(refused_as(
                 need.denied,
                 ToolDecision::DeniedByUser,

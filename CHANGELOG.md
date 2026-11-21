@@ -4,6 +4,7 @@
 
 First public development version.
 
+- Changed: `exec` and `read` are now offered for `generate` and `explain` as well as `ask`. Every call still asks you first. In `explain` the approval prompt does not offer "put it in my prompt", because that action never fills your input line.
 - Docs: the `exec` guide and the config that `setup` writes show how to pre-approve a program's `--help` (`git --help`, `git * --help`), so the model can read help without a prompt.
 - Changed: the `man` tool's instructions no longer say to use it only when unsure. The model is told to check an exact option, flag or subcommand instead of relying on memory, and the `exec` instructions point to `exec <program> --help` when a program has no man page. Models were answering from memory and rarely called a tool.
 - `setup` is a guided conversation. It looks at the machine first (which hosted services have their key variable set, by name only, and which local servers answer on their default port), lists the providers as local or remote with what it found, confirms a local port, asks where the key is (`env:NAME` or `file:PATH`; a pasted key is refused and never echoed), asks the server for its models to confirm the address and the key, and asks for the model name, which is never guessed. It does the same for an optional checker, listing only the ones found. A remote service needs your agreement before anything is contacted.

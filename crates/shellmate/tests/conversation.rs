@@ -467,10 +467,7 @@ async fn the_man_tool_can_be_turned_off() {
     assert!(!dir.path("man.log").exists());
     let first = server.last_request().await;
     // the tool is not even offered when it is off (the second request, if any, carries the denial)
-    assert!(
-        !first.contains("reply with only a block labeled"),
-        "{first}"
-    );
+    assert!(!first.contains("manual page"), "{first}");
 }
 
 #[tokio::test]

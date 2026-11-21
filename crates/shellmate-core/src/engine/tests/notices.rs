@@ -12,7 +12,7 @@ async fn notice_of(call: &str, approver: Option<Arc<FakeApprover>>) -> Notice {
     if let Some(a) = approver {
         e = e.with_approver(a);
     }
-    e.run_tool(call, None, false, "`a`").await.notice
+    e.run_tool(call, None, false, "`a`", true).await.notice
 }
 
 #[tokio::test]

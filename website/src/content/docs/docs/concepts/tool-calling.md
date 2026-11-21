@@ -34,8 +34,8 @@ A tool is offered when it is enabled in the config **and** the action may use to
 | Tool | Offered for | Condition |
 |---|---|---|
 | `man` | `ask`, `generate`, `explain` | `[tools.man] enabled` and `approval = "allow"` |
-| `exec` | `ask` only | `[tools.exec] enabled` and `approval = "ask"` |
-| `read` | `ask` only | `[tools.read] enabled` and `approval = "ask"` |
+| `exec` | `ask`, `generate`, `explain` | `[tools.exec] enabled` and `approval = "ask"` |
+| `read` | `ask`, `generate`, `explain` | `[tools.read] enabled` and `approval = "ask"` |
 
 They appear in the prompt in that order, after the rules for suggesting a command.
 

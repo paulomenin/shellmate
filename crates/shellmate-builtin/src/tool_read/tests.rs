@@ -264,13 +264,14 @@ fn a_rule_that_covers_every_file_is_reported() {
 }
 
 #[test]
-fn it_is_offered_for_ask_only() {
+fn it_is_offered_for_every_action() {
     let t = tool();
     let text = t.offer(ToolAction::Ask, &settings()).unwrap();
     assert!(text.contains("```shellmate-tool\nread Cargo.toml\n```"));
     assert!(text.contains("Credentials, keys and binary files are never available"));
-    assert_eq!(t.offer(ToolAction::Generate, &settings()), None);
-    assert_eq!(t.offer(ToolAction::Explain, &settings()), None);
+    for action in [ToolAction::Generate, ToolAction::Explain] {
+        assert_eq!(t.offer(action, &settings()), Some(text.clone()));
+    }
 }
 
 #[test]

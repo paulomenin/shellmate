@@ -85,8 +85,8 @@ impl Tool for Read {
         }
     }
 
-    fn offer(&self, action: ToolAction, _settings: &ToolSettings) -> Option<String> {
-        (action == ToolAction::Ask).then(|| {
+    fn offer(&self, _action: ToolAction, _settings: &ToolSettings) -> Option<String> {
+        Some({
             format!(
                 "You can read one text file in the working directory before answering (a config, a log, source). \
                  To do so, reply with only a block labeled `{TOOL_LABEL}` containing `read <path>`, like:\n\

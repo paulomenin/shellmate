@@ -269,17 +269,26 @@ fn render(req: &ApprovalRequest, width: usize, utf8: bool, p: &dyn Presenter) ->
         ));
         o.push_str(&format!("{bl_s} choice (n): "));
     } else if req.risk == Risk::High {
+        let buffer = if req.can_buffer {
+            ", b + Enter to put it in your prompt"
+        } else {
+            ""
+        };
         o.push_str(&format!(
-            "{v_s}  type {} + Enter to run it, b + Enter to put it in your prompt; anything else denies\r\n",
+            "{v_s}  type {} + Enter to run it{buffer}; anything else denies\r\n",
             p.label(Tone::Error, "yes")
         ));
         o.push_str(&format!("{bl_s} answer: "));
     } else {
+        let buffer = if req.can_buffer {
+            format!("   {} put it in my prompt", key(Tone::Info, "[b]"))
+        } else {
+            String::new()
+        };
         o.push_str(&format!(
-            "{v_s}  {} run   {} deny   {} put it in my prompt (Enter, Esc and Ctrl-C deny)\r\n",
+            "{v_s}  {} run   {} deny{buffer} (Enter, Esc and Ctrl-C deny)\r\n",
             key(Tone::Success, "[y]"),
-            key(Tone::Error, "[n]"),
-            key(Tone::Info, "[b]")
+            key(Tone::Error, "[n]")
         ));
         o.push_str(&format!("{bl_s} choice (n): "));
     }
@@ -313,7 +322,7 @@ impl Approver for TtyApprover {
                     Key::Enter => {
                         break match typed.as_str() {
                             "yes" => Choice::Run,
-                            "b" => Choice::ToBuffer,
+                            "b" if req.can_buffer => Choice::ToBuffer,
                             _ => Choice::Deny,
                         }
                     }
@@ -325,7 +334,9 @@ impl Approver for TtyApprover {
             loop {
                 match read_key(&t, deadline) {
                     Key::Char(b'y') => break Choice::Run,
-                    Key::Char(b'b') if req.kind == ApprovalKind::Run => break Choice::ToBuffer,
+                    Key::Char(b'b') if req.kind == ApprovalKind::Run && req.can_buffer => {
+                        break Choice::ToBuffer
+                    }
                     Key::Ignored => continue,
                     _ => break Choice::Deny,
                 }
@@ -366,6 +377,7 @@ mod tests {
             cwd: Some("/home/u/x".into()),
             risk,
             reasons: vec!["`rm` modifies or destroys files".into()],
+            can_buffer: true,
         }
     }
 
@@ -379,6 +391,7 @@ mod tests {
             reasons: vec![
                 "120 bytes; the text is sent to `cloud` (remote, after redaction)".into(),
             ],
+            can_buffer: false,
         };
         let out = render(&r, 80, true, &plain());
         assert!(
@@ -426,6 +439,34 @@ mod tests {
             .map(|l| l.matches('x').count())
             .sum();
         assert_eq!(in_command, 300, "never truncated");
+    }
+
+    #[test]
+    fn the_input_line_is_offered_only_when_a_command_can_go_there() {
+        for risk in [Risk::Low, Risk::High] {
+            let with = render(&req("ls", risk), 80, true, &plain());
+            assert!(with.contains("prompt"), "{risk:?}: {with}");
+            let without = render(
+                &ApprovalRequest {
+                    can_buffer: false,
+                    ..req("ls", risk)
+                },
+                80,
+                true,
+                &plain(),
+            );
+            assert!(
+                !without.contains("[b]")
+                    && !without.contains("b + Enter")
+                    && !without.contains("prompt"),
+                "{risk:?}: {without}"
+            );
+            // what remains is still a prompt that can be answered
+            assert!(
+                without.contains("[y] run") || without.contains("type yes"),
+                "{without}"
+            );
+        }
     }
 
     #[test]

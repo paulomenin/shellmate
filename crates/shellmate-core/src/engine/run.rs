@@ -1,6 +1,7 @@
 //! The lifecycle of one request: resolve the conversation, try the providers in order, check the
 //! suggestion, record the turn.
 
+use super::attempt::TurnOptions;
 use super::request::Convo;
 use super::turn::{micros_since, Sent, Timing};
 use super::{Action, Emit, Engine, Outcome, Report};
@@ -84,7 +85,17 @@ impl Engine {
             built.request.request_id = rid.clone();
             let llm_started = Instant::now();
             let attempt = match self
-                .attempt(spec, built.request, show_text, built.tainted, &cwd, on_text)
+                .attempt(
+                    spec,
+                    built.request,
+                    TurnOptions {
+                        show_text,
+                        tainted: built.tainted,
+                        cwd: &cwd,
+                        buffer_ok: action != Action::Explain,
+                    },
+                    on_text,
+                )
                 .await
             {
                 Ok(a) => a,

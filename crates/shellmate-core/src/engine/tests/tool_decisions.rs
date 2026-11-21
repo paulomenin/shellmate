@@ -8,7 +8,7 @@ use crate::engine::tool_calls::ToolDecision;
 async fn an_unknown_tool_is_denied_and_runs_nothing() {
     let e = engine(vec![("a", FakeProvider::replying("x"), 1)]);
     let run = e
-        .run_tool("curl http://example.com", None, false, "`a`")
+        .run_tool("curl http://example.com", None, false, "`a`", true)
         .await;
     assert_eq!(run.decision, ToolDecision::Deny);
     assert!(!run.untrusted);
@@ -39,7 +39,9 @@ async fn a_man_call_is_dispatched_to_the_man_tool() {
     let e = engine(vec![("a", FakeProvider::replying("x"), 1)])
         .with_config(Config::defaults())
         .with_builtin_tools();
-    let run = e.run_tool("man sm-no-such-page", None, false, "`a`").await;
+    let run = e
+        .run_tool("man sm-no-such-page", None, false, "`a`", true)
+        .await;
     assert_eq!(run.decision, ToolDecision::Allow);
     assert!(
         run.notice.plain(true).starts_with("> man sm-no-such-page"),
@@ -71,13 +73,14 @@ fn offered(cfg: &Config, action: crate::action::Action) -> Vec<&'static str> {
 }
 
 #[test]
-fn each_tool_offers_itself_for_the_actions_that_may_use_it() {
+fn every_tool_is_offered_for_every_action_that_asks_something() {
     use crate::action::Action;
     let cfg = Config::defaults();
-    // `ask` may run commands and read files; the other actions only get manual pages
-    assert_eq!(offered(&cfg, Action::Ask), ["man", "exec", "read"]);
-    assert_eq!(offered(&cfg, Action::Generate), ["man"]);
-    assert_eq!(offered(&cfg, Action::Explain), ["man"]);
+    for action in [Action::Ask, Action::Generate, Action::Explain] {
+        assert_eq!(offered(&cfg, action), ["man", "exec", "read"]);
+    }
+    // a new conversation asks nothing
+    assert!(offered(&cfg, Action::NewConversation).is_empty());
 }
 
 #[test]

@@ -254,7 +254,7 @@ async fn file_text_taints_the_rest_of_the_turn() {
 }
 
 #[tokio::test]
-async fn read_can_be_turned_off_and_is_only_offered_to_ask() {
+async fn read_can_be_turned_off_and_is_offered_to_every_action() {
     let d = work_dir("off");
     let mut cfg = Config::defaults();
     tool(&mut cfg, "read").approval = Some(crate::config::ToolApproval::Deny);
@@ -269,7 +269,7 @@ async fn read_can_be_turned_off_and_is_only_offered_to_ask() {
         .run(&env("generate", "list"))
         .await
         .unwrap();
-    assert!(!p.seen.lock().unwrap()[0].messages[0]
+    assert!(p.seen.lock().unwrap()[0].messages[0]
         .content
         .contains("read <path>"));
     let _ = std::fs::remove_dir_all(&d);

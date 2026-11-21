@@ -321,13 +321,14 @@ fn the_result_text_labels_each_part_and_ends_every_stream_with_a_newline() {
 }
 
 #[test]
-fn it_is_offered_for_ask_only_and_says_how_to_call_it() {
+fn it_is_offered_for_every_action_and_says_how_to_call_it() {
     let t = exec();
     let text = t.offer(ToolAction::Ask, &settings()).unwrap();
     assert!(text.contains("```shellmate-tool\nexec git status\n```"));
     assert!(text.contains("The user is asked to approve each command"));
-    assert_eq!(t.offer(ToolAction::Generate, &settings()), None);
-    assert_eq!(t.offer(ToolAction::Explain, &settings()), None);
+    for action in [ToolAction::Generate, ToolAction::Explain] {
+        assert_eq!(t.offer(action, &settings()), Some(text.clone()));
+    }
 }
 
 #[test]

@@ -80,7 +80,7 @@ max_output = 16384      # bytes kept for stdout and for stderr
 env = "sanitized"       # or "inherit" to pass your whole environment
 ```
 
-`exec` is offered to `ask` only. `generate` and `explain` do not get it.
+`exec` is offered to `ask`, `generate` and `explain`. Every command still asks you first. In `explain` the prompt has no "put it in my prompt" choice, because that action never places a command in your input line.
 
 ## What is not covered
 

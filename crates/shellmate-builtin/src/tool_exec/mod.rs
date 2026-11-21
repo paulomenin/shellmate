@@ -101,8 +101,8 @@ impl Tool for Exec {
         }
     }
 
-    fn offer(&self, action: ToolAction, _settings: &ToolSettings) -> Option<String> {
-        (action == ToolAction::Ask).then(|| {
+    fn offer(&self, _action: ToolAction, _settings: &ToolSettings) -> Option<String> {
+        Some({
             format!(
                 "You can run one simple command to look at this machine before answering (for example `git status`, \
                  `ls`, `systemctl status x`). To do so, reply with only a block labeled `{TOOL_LABEL}` containing \

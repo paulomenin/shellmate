@@ -10,6 +10,17 @@ use crate::tools::ToolCall;
 use shellmate_api::{ChatRequest, Error, Message, Next, Role, StreamEvent, Usage};
 use std::time::Instant;
 
+/// How the turn is run, the same for every provider that is tried.
+pub(super) struct TurnOptions<'a> {
+    /// Show the model's own words as they arrive (`generate` does not).
+    pub(super) show_text: bool,
+    /// The request carries text written by others.
+    pub(super) tainted: bool,
+    pub(super) cwd: &'a Option<String>,
+    /// A command may be sent to the input line (not for `explain`).
+    pub(super) buffer_ok: bool,
+}
+
 impl Engine {
     /// One provider's turn: stream the answer, and while the model asks for tools, run them (through
     /// the classifier and the policy) and ask again.
@@ -17,11 +28,15 @@ impl Engine {
         &self,
         spec: &ProviderSpec,
         mut request: ChatRequest,
-        show_text: bool,
-        mut tainted: bool,
-        cwd: &Option<String>,
+        turn: TurnOptions<'_>,
         on_text: &mut (dyn FnMut(Emit<'_>) + Send),
     ) -> std::result::Result<Attempt, Failure> {
+        let TurnOptions {
+            show_text,
+            mut tainted,
+            cwd,
+            buffer_ok,
+        } = turn;
         let max_rounds = self.cfg.conversation.max_tool_rounds;
         let (mut rounds, mut produced, mut at_line_start) = (0usize, false, true);
         let mut stored = Vec::new();
@@ -99,7 +114,9 @@ impl Engine {
                     "remote, after redaction"
                 }
             );
-            let run = self.run_tool(body, cwd.as_deref(), tainted, &dest).await;
+            let run = self
+                .run_tool(body, cwd.as_deref(), tainted, &dest, buffer_ok)
+                .await;
             tainted |= run.untrusted;
             let (mut notice, result) = (run.notice, run.result);
             if run.to_buffer.is_some() {

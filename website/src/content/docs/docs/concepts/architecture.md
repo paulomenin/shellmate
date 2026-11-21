@@ -52,8 +52,8 @@ The core is small: the pipeline, the config, the invariants. Providers (chat and
 | `builtin:redact` | Middleware | Replaces secrets with placeholders on the way out and restores them on the way back. |
 | `builtin:store-tmpfs` | Store | Keeps conversations on tmpfs. |
 | `man` | Tool (in the core) | Shows the model a manual page. Accepts only `man [section] page`. |
-| `exec` | Tool (in the core) | Runs one simple command to look at your machine, after your approval. `ask` only. |
-| `read` | Tool (in the core) | Reads one text file from the working directory or `[tools.read] roots`, after your approval. `ask` only. |
+| `exec` | Tool (in the core) | Runs one simple command to look at your machine, after your approval. |
+| `read` | Tool (in the core) | Reads one text file from the working directory or `[tools.read] roots`, after your approval. |
 
 Each tool is one self-contained piece of the core. It carries what is specific to it: how it decides whether a call may go ahead (`exec` and `read` ask you first), how it runs, and the instructions that tell the model it exists. Turning a tool off in the config also removes its instructions from the prompt.
 

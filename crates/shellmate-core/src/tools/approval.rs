@@ -15,6 +15,9 @@ pub struct ApprovalRequest {
     pub risk: Risk,
     /// Why the classifier wants a human to look at it.
     pub reasons: Vec<String>,
+    /// The person may send the command to their input line instead. Not so when the line already holds
+    /// what the request is about (`explain`), because nothing would be put there.
+    pub can_buffer: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

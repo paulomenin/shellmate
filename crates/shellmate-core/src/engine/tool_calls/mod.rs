@@ -26,6 +26,8 @@ pub(in crate::engine) struct ToolEnv<'a> {
     pub(in crate::engine) tainted: bool,
     /// Where a result will be sent, for the approval prompt (`read` says so).
     pub(in crate::engine) dest: &'a str,
+    /// A command may be sent to the input line: false for `explain`, which never puts one there.
+    pub(in crate::engine) buffer_ok: bool,
 }
 
 /// The offers of every tool that is available for `action`, in the order the prompt shows them: the order
@@ -51,6 +53,7 @@ impl Engine {
         cwd: Option<&str>,
         tainted: bool,
         dest: &str,
+        buffer_ok: bool,
     ) -> ToolRun {
         let call = match ToolCall::parse(body) {
             Ok(c) => c,
@@ -68,6 +71,7 @@ impl Engine {
             cwd,
             tainted,
             dest,
+            buffer_ok,
         };
         if let Some(p) = self.plugged.iter().find(|p| p.name() == call.name) {
             return p.run(&call, &env).await;
