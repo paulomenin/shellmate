@@ -6,9 +6,9 @@ description: How fast shellmate is, and how well different models drive it. How 
 Two kinds of numbers, kept apart on purpose.
 
 - **[Performance](../performance/)** is how long the shellmate process takes by itself: starting up, building a request, checking and drawing the answer. A fake model that answers instantly stands in for the real one, so the figures do not depend on any model or network.
-- **[Models](../models/)** is how good and how fast different models are at the job, on a fixed set of requests. Every answer goes through the real binary and is scored by fixed rules, not by another model.
+- **[Results](../results/)** is how good and how fast different models are at the job, on a fixed set of requests. Every answer goes through the real binary in a disposable container and is scored by fixed rules, not by another model. There is one page each for [chat models](../chat/), [decision models](../decision/) and [composed results](../composed/).
 
-Both pages are generated from result files by the tools in [`tools/bench`](https://github.com/paulomenin/shellmate/tree/main/tools/bench), so a page can be refreshed whenever a new model or release is tested.
+The performance page is generated from result files by the tools in [`tools/bench`](https://github.com/paulomenin/shellmate/tree/main/tools/bench). The model pages are generated from the published results kept in [`tools/bench/evals/published`](https://github.com/paulomenin/shellmate/tree/main/tools/bench/evals/published), so a page can be refreshed whenever a new model or release is tested.
 
 ## What the model scores mean
 
@@ -29,12 +29,9 @@ The rules look for specific things, so a score says how a model does on these re
 # performance (builds the release binary first)
 tools/bench/perf.py
 
-# a model, through your own Ollama
-tools/bench/evals.py --ollama --model qwen --repeats 3
+# a model evaluation (needs Docker or Podman): see what would run, then run it
+python3 tools/bench/evals/evals.py --config tools/bench/evals/models.toml --plan
+python3 tools/bench/evals/evals.py --config tools/bench/evals/models.toml --out /tmp/model-eval
 ```
 
-The README in `tools/bench` explains every option, how to add a request, how to compare two releases, and how to record a model's answers so the scoring can be replayed without it.
-
-## Model evaluation v2
-
-The opt-in [v2 evaluator](../evaluation-v2/) runs in disposable containers (Docker or Podman) and separates main models from deciders. It adds behavioral assertions with per-command approval, answer-style and cost metrics, and a report for reviewing every answer. Its results are on the [Results (v2)](../results-v2/) page, with one page each for [chat models](../chat-v2/), [decision models](../decision-v2/) and [composed results](../composed-v2/). The numbers on the [Models](../models/) page come from the original evaluator.
+The [evaluator page](../evaluation/) describes the environment, the profiles, the checks and the review report. The README in `tools/bench` covers the performance tool, and the one in `tools/bench/evals` covers the evaluator.

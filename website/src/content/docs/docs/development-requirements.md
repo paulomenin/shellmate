@@ -41,7 +41,7 @@ REQUIRE_TOOLS=1 cargo test --workspace --locked
 | Program | Used for |
 |---|---|
 | `starship` | Runs the end-to-end suite with a prompt framework as well. Skipped when absent. |
-| `ollama` | `tools/bench/evals.py --ollama`, to score models you already have. |
+| `ollama` | A local model server the evaluator can score (`tools/bench/evals/models.example.toml`). |
 | `man` (man-db) | The `man` tool needs real manual pages when you try shellmate by hand. The tests use a fake `man`. |
 | `gh` | Pull requests and CI runs from the terminal. |
 | `stress-ng` | Putting the machine under load to reproduce a flaky test. |

@@ -40,7 +40,7 @@ A tool is a plugin that implements `shellmate_api::Tool` and depends only on `sh
 - Output cap, timeout and process-group kill.
 - A test that the result is labeled as data and the request is tainted.
 - A test that the audit entry contains no content.
-- Add an `injection` case to `tools/bench/cases/safety.toml` if the tool reads text a third party controls.
+- Add an `injection` case to `tools/bench/evals/cases/safety.toml` if the tool reads text a third party controls.
 - Mutation-test the tool module, `tools/`, `command/` and `engine/tool_calls/`, and kill the survivors (`mise run mutants`; add the module to `tools/mutants.sh`).
 
 ## Done when

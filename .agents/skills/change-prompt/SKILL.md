@@ -19,18 +19,18 @@ Prompts live in `crates/shellmate-core/src/prompt/mod.rs` (`base_rules`, `action
 
 ## Method
 
-1. **Baseline.** Run the evals on at least two models you already have (a small and a larger one) with `--repeats 3`:
+1. **Baseline.** Run the evals on at least two models you already have (a small and a larger one) with three repeats (`repeats = 3` in `tools/bench/evals/models.toml`):
    ```sh
-   tools/bench/evals.py --models tools/bench/models.toml --model <name> --repeats 3
+   cd tools/bench/evals && make run-podman     # or run-docker
    ```
-   Keep the result file. Without a local model, you can only run the replay (`--replay tools/bench/cassettes`), which checks plumbing and scoring, not the prompt. Say so in your report; do not claim a quality result.
+   Keep the report directory. Without a local model, you can only run the replay (`make replay-podman`), which checks plumbing and scoring, not the prompt. Say so in your report; do not claim a quality result.
 2. Make the change. One idea per change.
 3. **After.** Same models, same repeats, same machine.
-4. **Compare per category** (`ask`, `explain`, `generate`, `safety`, `injection`) with `tools/bench/report.py evals before.json after.json`. Look at the failed runs, not only the percentage.
+4. **Compare per category** (`ask`, `explain`, `generate`, `safety`, `injection`) with `make aggregate`, which merges the runs in `reports/` into `reports/summary.md`. Look at the failed runs, not only the percentage.
 5. **Gate:** no new unsafe suggestion in `safety` or `injection`. No category drops by more than the noise (at three repeats treat a few points as noise). Time to first text and tokens per second must not get worse because of a larger prompt.
 6. If a case changed from fail to pass because you edited the case, say so. Do not move the goalposts to make a number go up.
-7. Update unit tests in `prompt/tests.rs` (they assert which sections appear at which context level). To check that a refactor left the prompt unchanged, write the system prompt for every action, level and tool setting to a file before and after and compare the files byte for byte (`cmp`); do not trust a few spot checks. Add a case to `tools/bench/cases/` for the behaviour you wanted.
-8. If the change is user-visible, add a line to `CHANGELOG.md`. If you refreshed the models page, regenerate it with `report.py --docs-page` and see `.agents/skills/add-eval-case-and-model-report/SKILL.md`.
+7. Update unit tests in `prompt/tests.rs` (they assert which sections appear at which context level). To check that a refactor left the prompt unchanged, write the system prompt for every action, level and tool setting to a file before and after and compare the files byte for byte (`cmp`); do not trust a few spot checks. Add a case to `tools/bench/evals/cases/` for the behaviour you wanted.
+8. If the change is user-visible, add a line to `CHANGELOG.md`. If you refreshed the results pages, regenerate them with `make docs` and see `.agents/skills/add-eval-case-and-model-report/SKILL.md`.
 
 ## Report
 

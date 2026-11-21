@@ -38,7 +38,7 @@ These hold regardless of configuration. A change must not weaken them, and any c
 | `crates/shells/` | Glue templates for fish, zsh, bash |
 | `tools/shellmate-testing` | Mock HTTP/SSE servers, a `FakeProvider` and an in-memory conversation store, `MemoryStore` (dev-dependency) |
 | `tools/e2e` | Real fish, zsh, bash in tmux against a mock provider |
-| `tools/bench` | `perf.py` (process performance), `evals.py` (model quality), `report.py` |
+| `tools/bench` | `perf.py` (process performance) and `report.py`; `evals/` is the model evaluator |
 | `tools/mutants.sh` | Mutation testing |
 | `website/` | The documentation site |
 | `docs/` | **Git-ignored** internal design notes. They may be missing in a fresh clone. Code comments that cite `docs/...` refer to them. The public docs are the source of truth. |
@@ -55,7 +55,8 @@ tools/e2e/run-all.sh                           # when you touch glue, keys or te
 cargo cov                                      # coverage, HTML in target/llvm-cov/html
 cargo mut -p shellmate-core -f 'crates/shellmate-core/src/command/*.rs'   # mutation testing, one file
 mise run mutants                               # the security modules, about 30 minutes
-python3 -I -m unittest discover -s tools/bench # benchmark tooling tests
+python3 -m unittest discover -s tools/bench          # performance tooling tests
+python3 -I -m unittest discover -s tools/bench/evals  # model evaluator tests (needs the image: see its README)
 (cd website && pnpm install && pnpm build)     # docs site
 ```
 

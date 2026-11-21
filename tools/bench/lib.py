@@ -1,5 +1,5 @@
 """Shared helpers for the shellmate benchmarks: statistics, running the binary with timing and peak memory,
-fake / recording LLM servers, and facts about the machine. Standard library only (Python 3.11+)."""
+a fake LLM server, and facts about the machine. Standard library only (Python 3.11+)."""
 from __future__ import annotations
 
 import json
@@ -13,8 +13,7 @@ import subprocess
 import tempfile
 import threading
 import time
-import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -346,72 +345,6 @@ class FakeLLM:
             h.wfile.write(b"0\r\n\r\n")
         except (BrokenPipeError, ConnectionResetError):
             pass
-
-
-class RecordingProxy:
-    """Forwards requests to a real endpoint untouched and keeps the text of each reply (`replies`), so a live
-    run can be saved as a cassette. Timings through a proxy are not representative: do not report them."""
-
-    def __init__(self, upstream: str):
-        self.upstream = upstream.rstrip("/")
-        self.replies: list[str] = []
-        self._srv = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
-        self._srv.owner = self  # type: ignore[attr-defined]
-        self._srv.daemon_threads = True
-        self._thread = threading.Thread(target=self._srv.serve_forever, daemon=True)
-
-    @property
-    def url(self) -> str:
-        return f"http://127.0.0.1:{self._srv.server_address[1]}"
-
-    def __enter__(self):
-        self._thread.start()
-        return self
-
-    def __exit__(self, *exc):
-        self._srv.shutdown()
-        self._srv.server_close()
-
-    def handle_chat(self, h: BaseHTTPRequestHandler, body: dict):
-        req = urllib.request.Request(
-            self.upstream + "/v1/chat/completions", data=json.dumps(body).encode(), method="POST",
-            headers={"Content-Type": "application/json",
-                     **({"Authorization": h.headers["Authorization"]} if h.headers.get("Authorization") else {})})
-        try:
-            with urllib.request.urlopen(req, timeout=300) as r:
-                raw = r.read()
-                ctype = r.headers.get("Content-Type", "application/json")
-                status = r.status
-        except urllib.error.HTTPError as e:
-            raw, ctype, status = e.read(), e.headers.get("Content-Type", "text/plain"), e.code
-        except OSError as e:
-            raw, ctype, status = str(e).encode(), "text/plain", 502
-        self.replies.append(reply_text(raw.decode(errors="replace")))
-        h.send_response(status)
-        h.send_header("Content-Type", ctype)
-        h.send_header("Content-Length", str(len(raw)))
-        h.end_headers()
-        h.wfile.write(raw)
-
-
-def reply_text(raw: str) -> str:
-    """The assistant text inside a chat-completions response, streamed (SSE) or not."""
-    out = []
-    stripped = raw.lstrip()
-    if stripped.startswith("{"):
-        try:
-            return json.loads(stripped)["choices"][0]["message"]["content"] or ""
-        except (ValueError, KeyError, IndexError, TypeError):
-            return ""
-    for line in raw.splitlines():
-        if line.startswith("data:") and "[DONE]" not in line:
-            try:
-                ch = json.loads(line[5:])["choices"]
-                if ch:
-                    out.append(ch[0].get("delta", {}).get("content") or "")
-            except (ValueError, KeyError, TypeError):
-                continue
-    return "".join(out)
 
 
 # --------------------------------------------------------------------------------------------- misc

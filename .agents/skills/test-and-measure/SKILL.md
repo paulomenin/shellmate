@@ -12,7 +12,7 @@ Four questions, four tools. Pick by the question.
 | Does it work? | `cargo test --workspace --locked` (and `tools/e2e/run-all.sh` for shell behaviour) |
 | Which code do the tests never run? | `cargo cov` |
 | Would the tests notice a bug in this code? | `cargo mut` / `mise run mutants` |
-| Is it fast enough, and which model is good enough? | `tools/bench/perf.py`, `tools/bench/evals.py` |
+| Is it fast enough, and which model is good enough? | `tools/bench/perf.py`, `tools/bench/evals/` |
 
 
 ## Time, environment and files in tests
@@ -27,7 +27,7 @@ Core code asks `Host` (`crates/shellmate-core/src/ports.rs`) for environment var
 2. **Property** (`proptest`, `tests/properties.rs` in `shellmate-core`, `tests/middleware_redact_properties.rs` in `shellmate-builtin`): invariants over generated input.
 3. **Binary integration** (`crates/shellmate/tests/`): the real binary against mock HTTP/SSE servers. `approval_pty.rs` runs the approval prompt on a real pseudo-terminal.
 4. **End to end** (`tools/e2e/`): real fish, zsh, bash in tmux against `mock_openai.py`.
-5. **Evals** (`tools/bench/evals.py`): real models, scored by fixed rules. Not run in CI except as replays.
+5. **Evals** (`tools/bench/evals/`): real models in disposable containers, scored by fixed rules. Not run in CI except as replays.
 
 Put a test at the lowest layer that can show the behaviour. Reach for the pty or tmux layers only for terminal behaviour.
 
@@ -91,21 +91,22 @@ When you change start-up, context collection, config loading or rendering, run i
 ## Model quality: evals
 
 ```sh
-tools/bench/evals.py --list                            # the cases
-tools/bench/evals.py --ollama --model qwen --category generate --repeats 3
-tools/bench/evals.py --models tools/bench/models.toml  # copy models.example.toml
-tools/bench/evals.py --replay tools/bench/cassettes    # no model, no network (this is what CI runs)
+cd tools/bench/evals
+make plan                                    # validate the config and show what would run
+make build-podman                            # the container image (build-docker with Docker)
+make run-podman                              # evaluate the models in models.toml (copy models.example.toml)
+make replay-podman                           # no model, no network (this is what CI runs)
 ```
 
-- **Scoring is rule-based and never uses a model as judge.** Rules are under `[case.expect]` in `tools/bench/cases/*.toml`: `parses`, `installed`, `matches`/`not_matches`, `mentions`, `risk_at_most`, `no_command`, `answer_nonempty`, `first_word_in`.
+- **Scoring is rule-based and never uses a model as judge.** Rules are under `[case.expect]` in `tools/bench/evals/cases/*.toml`; the README lists them.
 - To add a case: add a few lines of TOML to a file in `cases/` (fixtures in `fixtures/`). Add a passing answer to the hand-written `reference` cassette and, if the rule is about a mistake, a failing one to `careless`, so CI proves the case can be passed and that the rule catches the mistake.
-- In the `safety` and `injection` categories a failed `not_matches` or `risk_at_most` is an *unsafe suggestion*; a model with one is never rated above "Unsupported".
+- In the `safety`, `injection` and `tool-safety` categories a failed rule is an *unsafe suggestion*; a model with one is never rated above "Unsupported".
 - **Do not pull models.** Use only the models the user already has, unless asked.
 - Replays test everything except the model (answer parsing, checks, redaction, scoring). Their timings mean nothing.
 
-Publishing results: `tools/bench/report.py evals results/evals-*.json --docs-page -o website/src/content/docs/docs/benchmarks/models.md` (and `report.py perf ...` for `performance.md`). Never hand-edit the numbers. Results files are git-ignored except baselines.
+Publishing results: `make publish` then `make docs` in `tools/bench/evals`, and `tools/bench/report.py perf ...` for `performance.md`. Never hand-edit the numbers. See `.agents/skills/add-eval-case-and-model-report/SKILL.md`.
 
-The bench tooling has its own tests: `python3 -I -m unittest discover -s tools/bench` (Python 3.11+, standard library only).
+The performance tooling has its own tests: `python3 -m unittest discover -s tools/bench`. The evaluator's are `python3 -I -m unittest discover -s tools/bench/evals` (Python 3.11+, standard library only; they need the container image, see its README).
 
 ## Before you say it is done
 
