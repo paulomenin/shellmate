@@ -305,6 +305,14 @@ approval = "ask"
 # Let the model read a program's help without asking (name each program; a bare `*` is not accepted):
 # preapproved = ["git --help", "git * --help", "docker --help", "docker * --help"]
 
+[tools.help]
+# With `ask`, the model may ask for the --help text of a program that has no man page (`help git commit`
+# runs `git commit --help`; it cannot pass anything else). Every call asks you first unless a rule names the
+# program. The classifier can still force a question, and the text counts as untrusted.
+# approval = "deny" turns the tool off.
+approval = "ask"
+# preapproved = ["git", "docker", "cargo"]
+
 [tools.read]
 # With `ask`, the model may ask to read ONE text file in the working directory (a config, a log, source).
 # Each file asks first, and the prompt says where the text goes. Credentials and binary files are never read.

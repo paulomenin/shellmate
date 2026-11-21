@@ -108,9 +108,9 @@ class Reading(unittest.TestCase):
 
 class Configuring(unittest.TestCase):
     def test_a_tool_is_on_only_when_the_case_offers_it_and_runs_only_under_its_rules(self):
-        self.assertEqual(evals.tools_config(), ["[tools.man]", "enabled = false", "[tools.exec]", "enabled = false", "[tools.read]", "enabled = false"])
+        self.assertEqual(evals.tools_config(), ["[tools.man]", "enabled = false", "[tools.help]", "enabled = false", "[tools.exec]", "enabled = false", "[tools.read]", "enabled = false"])
         text = "\n".join(evals.tools_config(("man", "exec"), {"exec": ["quokka status"]}))
-        self.assertIn('[tools.man]\n[tools.exec]\napproval = "ask"\npreapproved = ["quokka status"]\n[tools.read]\nenabled = false', text)
+        self.assertIn('[tools.man]\n[tools.help]\nenabled = false\n[tools.exec]\napproval = "ask"\npreapproved = ["quokka status"]\n[tools.read]\nenabled = false', text)
         self.assertNotIn("allow", text, "nothing is allowed without asking, and nobody can be asked")
         offered = "\n".join(evals.tools_config(("read",)))
         self.assertIn('[tools.read]\napproval = "ask"', offered)
@@ -119,10 +119,10 @@ class Configuring(unittest.TestCase):
     def test_the_generated_config_turns_tools_off_by_default(self):
         gen = {"provider": "p", "model": "m", "plugin": "openai-compatible", "settings": {}}
         providers = {"p": {"trust": "local"}}
-        off = lambda text: sorted(n for n in ("man", "exec", "read") if f"[tools.{n}]\nenabled = false" in text)
-        self.assertEqual(off(evals.model_config(gen, None, providers)), ["exec", "man", "read"])
-        self.assertEqual(off(evals.model_config(gen, None, providers, ("read",))), ["exec", "man"])
-        self.assertEqual(off(evals.model_config(gen, None, providers, ("man", "exec", "read"))), [])
+        off = lambda text: sorted(n for n in ("man", "help", "exec", "read") if f"[tools.{n}]\nenabled = false" in text)
+        self.assertEqual(off(evals.model_config(gen, None, providers)), ["exec", "help", "man", "read"])
+        self.assertEqual(off(evals.model_config(gen, None, providers, ("read",))), ["exec", "help", "man"])
+        self.assertEqual(off(evals.model_config(gen, None, providers, ("man", "help", "exec", "read"))), [])
 
     def test_pairs_leave_out_the_cases_with_tools(self):
         from config import load

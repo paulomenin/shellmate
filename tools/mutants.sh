@@ -37,6 +37,7 @@ cargo mutants -j 4 --timeout 120 -o target/mutants-core -p shellmate-core \
 cargo mutants -j 4 --timeout 120 -o target/mutants-builtin -p shellmate-builtin \
     -f 'crates/shellmate-builtin/src/middleware_redact/*.rs' \
     -f 'crates/shellmate-builtin/src/tool_man/*.rs' \
+    -f 'crates/shellmate-builtin/src/tool_help/*.rs' \
     -f 'crates/shellmate-builtin/src/tool_exec/*.rs' \
     -f 'crates/shellmate-builtin/src/tool_read/*.rs' || true
 

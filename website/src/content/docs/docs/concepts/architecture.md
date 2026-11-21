@@ -43,7 +43,7 @@ A run takes about 8 ms before any network traffic (p50, with a 30 ms budget enfo
 
 ## Plugins and tools
 
-The core is small: the pipeline, the config, the invariants. Providers (chat and decision models), middleware (such as redaction) and conversation stores are plugins that depend only on the plugin API crate. The first-party ones are compiled into the binary as modules of one crate, `shellmate-builtin`, and registered through cargo features, using the same API an outside plugin would. The tools (`man`, `exec`, `read`) are plugins too, but the core runs them: it keeps approval, pre-approval, taint and escaping, so a tool cannot skip them. [Plugins](../plugins/) explains when each kind is called and how many of each you can have.
+The core is small: the pipeline, the config, the invariants. Providers (chat and decision models), middleware (such as redaction) and conversation stores are plugins that depend only on the plugin API crate. The first-party ones are compiled into the binary as modules of one crate, `shellmate-builtin`, and registered through cargo features, using the same API an outside plugin would. The tools (`man`, `help`, `exec`, `read`) are plugins too, but the core runs them: it keeps approval, pre-approval, taint and escaping, so a tool cannot skip them. [Plugins](../plugins/) explains when each kind is called and how many of each you can have.
 
 | Plugin | Kind | What it does |
 |---|---|---|
@@ -52,6 +52,7 @@ The core is small: the pipeline, the config, the invariants. Providers (chat and
 | `builtin:redact` | Middleware | Replaces secrets with placeholders on the way out and restores them on the way back. |
 | `builtin:store-tmpfs` | Store | Keeps conversations on tmpfs. |
 | `man` | Tool (in the core) | Shows the model a manual page. Accepts only `man [section] page`. |
+| `help` | Tool (in the core) | Runs `program [subcommand] --help` and shows the model the text, after your approval or a rule you wrote for that program. |
 | `exec` | Tool (in the core) | Runs one simple command to look at your machine, after your approval. |
 | `read` | Tool (in the core) | Reads one text file from the working directory or `[tools.read] roots`, after your approval. |
 

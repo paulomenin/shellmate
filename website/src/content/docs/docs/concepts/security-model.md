@@ -10,7 +10,7 @@ A tool that sends your shell to an LLM and suggests commands deserves a clear th
 The language model can be wrong, can be manipulated by text it reads, and can hallucinate. shellmate never lets it decide anything security-relevant. These are the rules the code enforces, not hopes about the model's behavior:
 
 1. **Nothing the model produces is executed without you (INV-1).** Suggested commands go into your input line and you press Enter. When the model asks to run a command with the `exec` tool, you approve it at a prompt only a human can answer, unless you wrote a rule for it yourself, and a classifier can overrule your rule. See [Letting the model run commands](../../guides/exec-tool/).
-2. **Tools are validated, behind a classifier and a policy.** `man` accepts only `man [section] page`. `exec` accepts only one simple command, run directly and never through a shell.
+2. **Tools are validated, behind a classifier and a policy.** `man` accepts only `man [section] page`. `help` accepts only a program name and plain subcommand words and always adds `--help` itself. `exec` accepts only one simple command, run directly and never through a shell.
 3. **Remote providers need redaction (INV-2).** A `trust = "remote"` provider is refused unless a redaction layer is active.
    The one thing that leaves outside that chain is the connection check of `setup`, which asks a server for its list of models. It carries no prompt, context or command, only the key, goes only to the address you just gave, and in interactive setup only after you agreed to use a remote service.
 4. **Untrusted content is framed as data.** Manual pages and other tool output are given to the model as reference data, never as instructions.
@@ -49,7 +49,7 @@ The [validator](../../guides/validator/) only adds notes. It can never approve o
 
 ## Tainted requests
 
-A request is **tainted** when it carries content a program or a remote party wrote, and a tainted request suspends your `exec` pre-approvals (INV-4). That covers output you captured with `shellmate run`, the text of a file the model read, the output of a command it ran, and commit subjects when you enable them. From the moment such content enters a request, `read` and `exec` pre-approvals stop applying to it. Web search and MCP results will taint a turn the same way once those tools exist. See [Status and roadmap](../roadmap/).
+A request is **tainted** when it carries content a program or a remote party wrote, and a tainted request suspends your `exec`, `help` and `read` pre-approvals (INV-4). That covers output you captured with `shellmate run`, the text of a file the model read, the output of a command it ran, the help text of a program, and commit subjects when you enable them. From the moment such content enters a request, `read`, `help` and `exec` pre-approvals stop applying to it. Web search and MCP results will taint a turn the same way once those tools exist. See [Status and roadmap](../roadmap/).
 
 ## Reporting a vulnerability
 

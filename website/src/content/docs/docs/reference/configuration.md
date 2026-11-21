@@ -127,6 +127,18 @@ Every tool has a table. The core reads `enabled`, `approval` and `preapproved`, 
 | `approval` | `allow` | `allow` or `deny`. |
 | `max_bytes` | `8192` | Longest page text sent to the model. |
 
+## `[tools.help]`
+
+See [Letting the model read a program's help](../../guides/help-tool/).
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Whether the model may ask for a program's `--help`. |
+| `approval` | `ask` | `ask` or `deny`. `allow` does not exist: use `preapproved`. |
+| `preapproved` | `[]` | Program names (`"git"`, `"docker*"`) whose help runs without a prompt. The classifier can still force a prompt. |
+| `timeout` | `5s` | A program running longer is stopped. |
+| `max_bytes` | `8192` | Longest help text sent to the model. |
+
 ## `[tools.exec]`
 
 See [Letting the model run commands](../../guides/exec-tool/).

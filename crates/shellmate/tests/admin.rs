@@ -149,7 +149,7 @@ fn config_show_lists_the_tools_of_this_build_with_or_without_a_table() {
         .map(|l| l.split_whitespace().next().unwrap())
         .collect();
     // every built-in tool once, in registration order, whether or not it has a table
-    assert_eq!(tools, ["man", "exec", "read"], "{}", r.stdout);
+    assert_eq!(tools, ["man", "help", "exec", "read"], "{}", r.stdout);
     let exec = r
         .stdout
         .lines()

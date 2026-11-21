@@ -34,6 +34,7 @@ A tool is offered when it is enabled in the config, the action may use tools, **
 | Tool | Offered for | Condition |
 |---|---|---|
 | `man` | `ask`, `generate`, `explain` | `[tools.man] enabled` and `approval = "allow"` |
+| `help` | `ask`, `generate`, `explain` | `[tools.help] enabled` and `approval = "ask"` |
 | `exec` | `ask`, `generate`, `explain` | `[tools.exec] enabled` and `approval = "ask"` |
 | `read` | `ask`, `generate`, `explain` | `[tools.read] enabled` and `approval = "ask"` |
 

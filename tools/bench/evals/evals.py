@@ -31,7 +31,7 @@ def tools_config(tools=(), preapproved=None):
     """The `[tools.*]` tables: off, except the ones a case offers. Nothing runs without a person unless a rule
     the case lists covers it, and there is no person in the container, so everything else is refused."""
     q, text = json.dumps, []
-    for name in ("man", "exec", "read"):
+    for name in ("man", "help", "exec", "read"):
         text.append(f"[tools.{name}]")
         if name not in tools:
             text.append("enabled = false")

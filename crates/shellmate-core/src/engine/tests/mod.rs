@@ -5,6 +5,7 @@ mod context;
 mod context_report;
 mod exec;
 mod golden_tools;
+mod help;
 mod notices;
 mod read;
 mod run;
@@ -56,18 +57,23 @@ fn env(action: &str, buffer: &str) -> Envelope {
     }
 }
 
-/// The real environment with a directory holding an executable `man` put first on `PATH`, so a test of the
-/// tool offers does not depend on the machine having manual pages installed.
-fn host_with_man() -> Host {
+/// The real environment with a directory holding an executable `man` and a program `helpme` (it prints a
+/// usage line for `--help`) put first on `PATH`, so a test of the tools does not depend on the machine.
+fn host_with_stubs() -> Host {
     static DIR: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     let dir = DIR.get_or_init(|| {
         use std::os::unix::fs::PermissionsExt;
         let dir =
             std::env::temp_dir().join(format!("shellmate-engine-test-man-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let man = dir.join("man");
-        std::fs::write(&man, "#!/bin/sh\n").unwrap();
-        std::fs::set_permissions(&man, std::fs::Permissions::from_mode(0o755)).unwrap();
+        for (name, body) in [
+            ("man", "#!/bin/sh\n"),
+            ("helpme", "#!/bin/sh\necho \"usage: helpme [--fast]\"\n"),
+        ] {
+            let path = dir.join(name);
+            std::fs::write(&path, body).unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
         dir.display().to_string()
     });
     Host::system().with_env(PathPlus(format!(
@@ -101,7 +107,7 @@ fn engine(list: Vec<(&str, Arc<FakeProvider>, u8)>) -> Engine {
         1,
     )
     .with_os("TestOS")
-    .with_host(host_with_man())
+    .with_host(host_with_stubs())
     .with_builtin_tools()
 }
 

@@ -63,7 +63,7 @@ preapproved = ["ls *", "pwd", "git status", "systemctl status *"]
 - A rule matches the whole command word by word. `git status` matches only `git status`, not `git status -s`. A trailing `*` matches any remaining arguments, including none.
 - The program must be a plain name found in `PATH`. `./ls` never matches.
 - **The classifier keeps its veto.** If you write `rm *` and the model asks for `rm file`, you are still asked. A rule only skips the prompt for commands the classifier has no objection to.
-- To let the model read a program's help without asking, name the program: `git --help` and `git * --help` cover `git --help` and `git commit --help`. A rule such as `* --help` is not accepted, because the program must be named. The help text was written by the program, so it counts as untrusted: once a command's output is in the request, the remaining calls of that turn ask again.
+- To let the model read a program's help without asking, the [help tool](../help-tool/) is simpler: `preapproved = ["git"]` there covers `git --help` and its subcommands. With `exec`, name the program: `git --help` and `git * --help` cover `git --help` and `git commit --help`. A rule such as `* --help` is not accepted, because the program must be named. The help text was written by the program, so it counts as untrusted: once a command's output is in the request, the remaining calls of that turn ask again.
 - A pre-approved run is never silent: you see `✔ ran (pre-approved: git status)` and it is recorded in the audit log.
 
 `shellmate config check` warns about rules that are too broad, such as `*` or `sh *`.

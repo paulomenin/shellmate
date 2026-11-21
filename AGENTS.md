@@ -33,7 +33,7 @@ These hold regardless of configuration. A change must not weaken them, and any c
 |---|---|
 | `crates/shellmate-api` | The plugin API: traits, types, `Registry`. Plugins depend only on this. |
 | `crates/shellmate-core` | Engine (`engine/`, one file per concern; the host that runs a tool and enforces approval, taint and escaping is `engine/tool_calls/`), config, prompts, conversations, tools, classifier (`command/`), validator, audit, rendering, and the ports for env, clock and files (`ports.rs`), and the presenter that turns answers, notices, notes and errors into terminal bytes (`present/`) |
-| `crates/shellmate-builtin` | The first-party plugins, one module each behind a cargo feature: `provider_openai_compatible`, `decider_systemone`, `middleware_redact`, `store_tmpfs`, and the tools `tool_man`, `tool_exec`, `tool_read`. Registers them. |
+| `crates/shellmate-builtin` | The first-party plugins, one module each behind a cargo feature: `provider_openai_compatible`, `decider_systemone`, `middleware_redact`, `store_tmpfs`, and the tools `tool_man`, `tool_help`, `tool_exec`, `tool_read`. Registers them. |
 | `crates/shellmate` | The binary: `cli.rs`, one module per command in `commands/`, setup, doctor and other admin commands in `admin/`, init, approval prompt, tty |
 | `crates/shells/` | Glue templates for fish, zsh, bash |
 | `tools/shellmate-testing` | Mock HTTP/SSE servers, a `FakeProvider` and an in-memory conversation store, `MemoryStore` (dev-dependency) |

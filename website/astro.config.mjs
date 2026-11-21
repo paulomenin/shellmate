@@ -59,6 +59,7 @@ export default defineConfig({
 						{ label: 'Choosing a local model', slug: 'docs/guides/local-models' },
 						{ label: 'Privacy and redaction', slug: 'docs/guides/privacy' },
 						{ label: 'The man tool', slug: 'docs/guides/man-tool' },
+						{ label: 'Letting the model read a program\'s help', slug: 'docs/guides/help-tool' },
 						{ label: 'Letting the model run commands', slug: 'docs/guides/exec-tool' },
 						{ label: 'Letting the model read files', slug: 'docs/guides/read-tool' },
 						{ label: "Asking about a command's output", slug: 'docs/guides/capture' },

@@ -61,6 +61,8 @@ fn offered(cfg: &Config, action: crate::action::Action) -> Vec<&'static str> {
         .map(|text| {
             if text.contains("manual page") {
                 "man"
+            } else if text.contains("help text of a program") {
+                "help"
             } else if text.contains("run one simple command") {
                 "exec"
             } else if text.contains("read one text file") {
@@ -77,7 +79,7 @@ fn every_tool_is_offered_for_every_action_that_asks_something() {
     use crate::action::Action;
     let cfg = Config::defaults();
     for action in [Action::Ask, Action::Generate, Action::Explain] {
-        assert_eq!(offered(&cfg, action), ["man", "exec", "read"]);
+        assert_eq!(offered(&cfg, action), ["man", "help", "exec", "read"]);
     }
     // a new conversation asks nothing
     assert!(offered(&cfg, Action::NewConversation).is_empty());
@@ -88,18 +90,19 @@ fn a_tool_that_is_off_or_cannot_ask_is_not_offered() {
     use crate::action::Action;
     let mut no_man = Config::defaults();
     man_off(&mut no_man);
-    assert_eq!(offered(&no_man, Action::Ask), ["exec", "read"]);
+    assert_eq!(offered(&no_man, Action::Ask), ["help", "exec", "read"]);
     let mut no_exec = Config::defaults();
     tool(&mut no_exec, "exec").enabled = false;
-    assert_eq!(offered(&no_exec, Action::Ask), ["man", "read"]);
+    assert_eq!(offered(&no_exec, Action::Ask), ["man", "help", "read"]);
     let mut exec_denied = Config::defaults();
     tool(&mut exec_denied, "exec").approval = Some(crate::config::ToolApproval::Deny);
-    assert_eq!(offered(&exec_denied, Action::Ask), ["man", "read"]);
+    assert_eq!(offered(&exec_denied, Action::Ask), ["man", "help", "read"]);
     let mut read_denied = Config::defaults();
     tool(&mut read_denied, "read").approval = Some(crate::config::ToolApproval::Deny);
-    assert_eq!(offered(&read_denied, Action::Ask), ["man", "exec"]);
+    assert_eq!(offered(&read_denied, Action::Ask), ["man", "help", "exec"]);
     let mut none = Config::defaults();
     man_off(&mut none);
+    tool(&mut none, "help").enabled = false;
     tool(&mut none, "exec").enabled = false;
     tool(&mut none, "read").enabled = false;
     assert!(offered(&none, Action::Ask).is_empty());
@@ -111,7 +114,7 @@ fn every_offer_names_the_block_the_model_must_use_and_calls_results_data() {
         .with_config(Config::defaults())
         .with_builtin_tools();
     let all = crate::engine::tool_calls::offers(&e.plugged, crate::action::Action::Ask, &e.host);
-    assert_eq!(all.len(), 3);
+    assert_eq!(all.len(), 4);
     for text in &all {
         assert!(text.contains(crate::response::TOOL_LABEL), "{text}");
         assert!(text.contains("reference data"), "{text}");
@@ -131,10 +134,10 @@ fn man_is_offered_only_where_man_is_installed() {
             .map(|t| t.contains("manual page"))
             .collect::<Vec<_>>()
     };
-    // no `man` anywhere on PATH: only `exec` and `read` are offered, and the model is not told about man
-    assert_eq!(with_path("/nonexistent"), [false, false]);
+    // no `man` anywhere on PATH: only `help`, `exec` and `read` are offered, and the model is not told about man
+    assert_eq!(with_path("/nonexistent"), [false, false, false]);
     // a relative PATH entry never counts
-    assert_eq!(with_path("."), [false, false]);
+    assert_eq!(with_path("."), [false, false, false]);
     // with one, it comes first, as before
     let dir = std::env::temp_dir().join(format!("shellmate-man-offer-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -142,9 +145,12 @@ fn man_is_offered_only_where_man_is_installed() {
     std::fs::write(&man, "#!/bin/sh\n").unwrap();
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(&man, std::fs::Permissions::from_mode(0o755)).unwrap();
-    assert_eq!(with_path(&dir.display().to_string()), [true, false, false]);
+    assert_eq!(
+        with_path(&dir.display().to_string()),
+        [true, false, false, false]
+    );
     // a file that is not executable is not a program
     std::fs::set_permissions(&man, std::fs::Permissions::from_mode(0o644)).unwrap();
-    assert_eq!(with_path(&dir.display().to_string()), [false, false]);
+    assert_eq!(with_path(&dir.display().to_string()), [false, false, false]);
     let _ = std::fs::remove_dir_all(&dir);
 }

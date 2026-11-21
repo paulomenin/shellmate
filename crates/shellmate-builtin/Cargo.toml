@@ -8,12 +8,13 @@ repository.workspace = true
 publish.workspace = true
 
 [features]
-default = ["provider-openai-compatible", "decider-systemone", "middleware-redact", "store-tmpfs", "tool-man", "tool-exec", "tool-read"]
+default = ["provider-openai-compatible", "decider-systemone", "middleware-redact", "store-tmpfs", "tool-man", "tool-help", "tool-exec", "tool-read"]
 provider-openai-compatible = ["dep:reqwest", "dep:tokio", "dep:async-trait", "dep:serde", "dep:serde_json"]
 decider-systemone = ["dep:reqwest", "dep:async-trait", "dep:serde", "dep:serde_json"]
 middleware-redact = ["dep:regex", "dep:sha2", "dep:async-trait", "dep:serde", "dep:serde_json"]
 store-tmpfs = ["dep:libc", "dep:serde", "dep:serde_json"]
 tool-man = ["dep:async-trait", "dep:serde", "dep:serde_json"]
+tool-help = ["dep:async-trait", "dep:serde", "dep:serde_json"]
 tool-exec = ["dep:async-trait", "dep:serde", "dep:serde_json"]
 tool-read = ["dep:async-trait", "dep:serde", "dep:serde_json"]
 

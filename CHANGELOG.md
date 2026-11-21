@@ -4,6 +4,7 @@
 
 First public development version.
 
+- New tool `help`: the model can ask for `program [subcommand] --help` when a program has no man page. It asks you first like `exec`; a rule that names a program (`[tools.help] preapproved = ["git"]`) skips the prompt, the classifier keeps its veto, and the text taints the turn. It takes only plain words, never options or paths. It is offered for `ask`, `generate` and `explain`.
 - Changed: the model is only told about the `man` tool when `man` is installed. Plugin API: `Tool::usable` (default `true`) lets a tool say it cannot work on this machine, and then it is not offered.
 - Changed: `exec` and `read` are now offered for `generate` and `explain` as well as `ask`. Every call still asks you first. In `explain` the approval prompt does not offer "put it in my prompt", because that action never fills your input line.
 - Docs: the `exec` guide and the config that `setup` writes show how to pre-approve a program's `--help` (`git --help`, `git * --help`), so the model can read help without a prompt.

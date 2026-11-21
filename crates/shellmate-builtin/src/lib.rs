@@ -15,6 +15,8 @@ pub mod provider_openai_compatible;
 pub mod store_tmpfs;
 #[cfg(feature = "tool-exec")]
 pub mod tool_exec;
+#[cfg(feature = "tool-help")]
+pub mod tool_help;
 #[cfg(feature = "tool-man")]
 pub mod tool_man;
 #[cfg(feature = "tool-read")]
@@ -33,6 +35,8 @@ pub fn registry() -> Registry {
     store_tmpfs::register(&mut r);
     #[cfg(feature = "tool-man")]
     tool_man::register(&mut r);
+    #[cfg(feature = "tool-help")]
+    tool_help::register(&mut r);
     #[cfg(feature = "tool-exec")]
     tool_exec::register(&mut r);
     #[cfg(feature = "tool-read")]
