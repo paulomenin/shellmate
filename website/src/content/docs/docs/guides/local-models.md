@@ -16,7 +16,7 @@ Model lineups change quickly. This page was checked in November 2026 against the
 - **Follows the output format.** shellmate asks for exactly one command in a fenced block. Models that ramble or add extra blocks give worse results.
 - **Reasoning off.** "Thinking" models spend most of their time reasoning silently before the first word. For short shell answers, switch it off with `reasoning_effort = "none"` (see [Providers](../providers/)).
 - **Native tool support is optional.** By default shellmate describes the tools in the prompt and the model writes a block, so a model does not need native tool support. A server that says a model takes tools natively is used that way (`tool_calling = "auto"`), and you can set `native` or `text` on the model. See [Tool calling](../../concepts/tool-calling/#native-and-text).
-- **Keep it loaded.** The first request after Ollama loads a model can take a long time (see below). Setting `OLLAMA_KEEP_ALIVE` on the server (for example `1h`) avoids reloads.
+- **Keep it loaded.** The first request after a server loads a model can take a long time (see below). Keep the model loaded between requests with your server's setting for it (with Ollama, `OLLAMA_KEEP_ALIVE`, for example `1h`).
 
 ## Candidates
 

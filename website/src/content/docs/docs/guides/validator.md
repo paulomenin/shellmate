@@ -98,10 +98,10 @@ Timing: a decision model answers in about 150 ms once loaded. A model that Ollam
 
 ### Keeping the decision model loaded
 
-Ollama unloads a model when it is idle, and by default keeps only one model loaded at a time, so using your LLM can evict the decision model between two checks. On a small GPU that makes nearly every first check slow. Two ways out:
+Many model servers unload a model when it is idle, and some keep only one model loaded at a time, so using your LLM can evict the decision model between two checks. On a small GPU that makes nearly every first check slow. Two ways out:
 
 - Give the check time to load the model: `[validator] timeout = "20s"`.
-- Keep both models in memory (if they fit): start Ollama with `OLLAMA_KEEP_ALIVE=1h OLLAMA_MAX_LOADED_MODELS=2`.
+- Keep both models in memory (if they fit) with your server's settings for how long a model stays loaded and how many are loaded at once. With Ollama, start it with `OLLAMA_KEEP_ALIVE=1h OLLAMA_MAX_LOADED_MODELS=2`.
 
 `shellmate doctor` checks that each decision model's endpoint accepts a connection (a TCP connect; nothing is sent, and the model is not loaded by the check) and warns when a decision model is configured with a `timeout` under 15 seconds.
 
