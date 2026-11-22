@@ -10,7 +10,7 @@ shellmate doctor
 ```
 
 ```text
-OK    version        shellmate 0.0.1
+OK    version        shellmate 0.1.0
 OK    config         ~/.config/shellmate/config.toml is valid
 WARN  provider       ollama: cannot connect to localhost:11434
       -> start the server (for Ollama, `ollama serve`) or check the endpoint
