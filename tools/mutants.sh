@@ -10,6 +10,9 @@
 set -eu
 cd "$(dirname "$0")/.."
 
+jobs=2
+timeout=240
+
 if ! cargo mutants --version >/dev/null 2>&1; then
     echo "cargo-mutants is not installed. Run:" >&2
     echo "  mise install" >&2
@@ -20,10 +23,10 @@ fi
 export SHELLMATE_TIME_SCALE="${SHELLMATE_TIME_SCALE:-5}"
 
 if [ $# -gt 0 ]; then
-    exec cargo mutants -j 4 --timeout 120 "$@"
+  exec cargo mutants -j $jobs --timeout $timeout "$@"
 fi
 
-cargo mutants -j 4 --timeout 120 -o target/mutants-core -p shellmate-core \
+cargo mutants -j $jobs --timeout $timeout -o target/mutants-core -p shellmate-core \
     -f 'crates/shellmate-core/src/command/*.rs' \
     -f 'crates/shellmate-core/src/tools/*.rs' \
     -f 'crates/shellmate-core/src/engine/tool_calls/*.rs' \
@@ -34,7 +37,7 @@ cargo mutants -j 4 --timeout 120 -o target/mutants-core -p shellmate-core \
     -f 'crates/shellmate-core/src/secret_cmd.rs' \
     -f 'crates/shellmate-core/src/secrets.rs' \
     -f 'crates/shellmate-core/src/validate/*.rs' || true
-cargo mutants -j 4 --timeout 120 -o target/mutants-builtin -p shellmate-builtin \
+cargo mutants -j $jobs --timeout $timeout -o target/mutants-builtin -p shellmate-builtin \
     -f 'crates/shellmate-builtin/src/middleware_redact/*.rs' \
     -f 'crates/shellmate-builtin/src/tool_man/*.rs' \
     -f 'crates/shellmate-builtin/src/tool_help/*.rs' \
