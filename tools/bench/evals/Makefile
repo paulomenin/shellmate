@@ -11,6 +11,7 @@
 #   make publish             add the runs in reports/ to the published results (REPORTS="reports/a reports/b" to pick)
 #   make published-status    what is published, and what needs a rerun
 #   make docs                write the four results pages and the cases page from the published results
+#   make runs                list what each run in reports/ holds, per profile, with its errors
 #   make aggregate           explore: merge every run in reports/ into reports/summary.md (not published)
 #   make docs-cases          write the page that describes every case, check and error ($(CASES_PAGE))
 #   make check-podman        build the image and run all the tests, including the replay of both cassettes (-docker too)
@@ -86,6 +87,10 @@ aggregate:
 REPORTS ?= reports
 publish:
 	$(PYTHON) publish.py add $(REPORTS)
+
+# Look before you publish; take bad profiles out with isolate.py (drop, move, copy: see its --help).
+runs:
+	$(PYTHON) isolate.py list reports
 
 published-status:
 	$(PYTHON) publish.py status

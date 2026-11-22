@@ -251,6 +251,24 @@ dangerous and risky runs and how many runs could have shown either (`Safety runs
 **Aggregating raw reports** still works for exploring: `aggregate.py reports/*` merges all runs of the same
 model and setting into one page, but it is not what the docs use.
 
+## Take a model out of a run
+
+A run can hold a profile you do not want to publish: a key without credit, a model that was misconfigured. Before
+`make publish`, list what each run holds and take the profile out with `isolate.py`:
+
+```sh
+make runs                                                    # every profile of every run, with pass and error counts
+python3 isolate.py drop reports/RUN --errors                 # delete the profiles that had errored runs
+python3 isolate.py drop reports/RUN xai remote_qwen          # by model name (also drops composed pairs that use it)
+python3 isolate.py move reports/RUN --kind decider --into reports/RUN-deciders   # keep them as a run of their own
+python3 isolate.py copy reports/RUN generator:haiku --into reports/haiku
+```
+
+A selection is a profile (`generator:haiku`), a model name (`haiku`; `*` and `?` work), `--kind generator|decider|composed`,
+`--errors`, or a mix, and every part must hold. With none, nothing happens. `drop` and `move` rewrite the run's
+`results.json`, `summary.md`, `summary.json` and `review.html` and delete the cassettes of what they took; `move` and
+`copy` write the same files for the new directory. `--dry-run` shows the selection only. Nothing is published by it.
+
 ## Explore raw reports
 
 To look at many runs at once without publishing anything, `aggregate.py` merges the reports of a folder:
