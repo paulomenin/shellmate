@@ -216,7 +216,8 @@ def complete(result, profile, runs, suite, cases):
     is not the current one the cases cannot be counted, so the report's own flag decides."""
     if result["suite_hash"] != suite:
         return not result.get("partial")
-    wanted = sum(1 for c in cases if ("candidate" in c) == profile.startswith("decider:"))
+    kind = profile.partition(":")[0]
+    wanted = sum(1 for c in cases if ("candidate" in c) == (kind == "decider") and not (kind in ("combined", "composed") and "tools" in c))  # pairs skip tool cases
     return len(runs) >= wanted * result["configuration"]["run"]["repeats"]
 
 

@@ -176,6 +176,16 @@ class Completeness(unittest.TestCase):
         decisions = [run("decider:d", c["id"], True) for c in self.cases if "candidate" in c for _ in range(2)]
         self.assertTrue(publish.complete(r, "decider:d", decisions, self.suite, self.cases), "a decision profile has fewer cases")
 
+    def test_a_pair_is_complete_without_the_tool_cases_it_does_not_run(self):
+        r = evaluation("a", suite=self.suite)
+        r["configuration"]["run"]["repeats"] = 2
+        pair = [c for c in self.generator_cases if "tools" not in c]
+        self.assertLess(len(pair), len(self.generator_cases))
+        for profile in ("composed:m+d", "combined:m+d"):
+            runs = [run(profile, c["id"], True) for c in pair for _ in range(2)]
+            self.assertTrue(publish.complete(r, profile, runs, self.suite, self.cases), profile)
+            self.assertFalse(publish.complete(r, profile, runs[:-1], self.suite, self.cases), profile)
+
     def test_on_another_suite_the_report_own_flag_decides(self):
         r = evaluation("a", suite="old" * 20)
         r["partial"] = True
