@@ -11,7 +11,7 @@ jobs:
   rust:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -29,7 +29,7 @@ jobs:
     # needs the newer toolchain in mise.toml because of dev-only dependencies (proptest).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: toolchain below matches rust-version
         run: |
           want=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)
@@ -44,7 +44,7 @@ jobs:
     # the real fish, zsh and bash in tmux, with and without starship, against a mock provider
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: sudo apt-get update && sudo apt-get install -y fish zsh tmux python3 curl
@@ -54,7 +54,7 @@ jobs:
   perf:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release -q -p shellmate
@@ -64,7 +64,7 @@ jobs:
       - run: python3 tools/bench/perf.py --no-build --runs 50 --markdown perf.md
       - run: cat perf.md >> "$GITHUB_STEP_SUMMARY"
         if: always()
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: perf
@@ -73,7 +73,7 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
@@ -87,7 +87,7 @@ jobs:
           REQUIRE_TOOLS: 1
       - run: |
           { echo '### Coverage'; echo '```'; cargo llvm-cov report --ignore-filename-regex 'tools/shellmate-testing|/tests/' --summary-only | awk 'NR==1 || /TOTAL/ {print $1, $4, $10}' ; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: lcov.info
@@ -95,5 +95,5 @@ jobs:
   supply-chain:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
