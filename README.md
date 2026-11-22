@@ -1,6 +1,6 @@
 # shellmate
 
-shellmate is an open-source command-line assistant for fish, zsh, and bash. Type a question at your shell prompt and press a shortcut to get a streaming answer. When shellmate suggests a command, it puts it in your input line so you can review, edit, and run it yourself.
+shellmate is an open-source command-line companion for your shell (fish, zsh, and bash). Type a question at your shell prompt and press a shortcut to get a streaming answer. When shellmate suggests a command, it puts it in your input line so you can review, edit, and run it yourself.
 
 See the [documentation on GitHub Pages](https://paulomenin.github.io/shellmate/) for installation, configuration, and usage guides.
 
