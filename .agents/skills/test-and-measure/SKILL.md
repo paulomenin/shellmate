@@ -52,7 +52,7 @@ See `crates/shellmate/tests/approval_pty.rs`. The child gets the pty as its cont
 ## Coverage
 
 ```sh
-cargo install --locked cargo-llvm-cov --version 0.9.1
+mise install                                # installs cargo-llvm-cov at the version pinned in mise.toml
 cargo cov                                   # HTML in target/llvm-cov/html
 cargo llvm-cov report --ignore-filename-regex 'tools/shellmate-testing|/tests/' --summary-only
 ```

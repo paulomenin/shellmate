@@ -64,7 +64,7 @@ The opt-in [model evaluator](../benchmarks/evaluation/) compares generators and 
 Line coverage says code ran. Mutation testing says a test would notice if the code were wrong.
 
 ```sh
-cargo install --locked cargo-llvm-cov --version 0.9.1
+mise install                    # installs cargo-llvm-cov at the pinned version (a prebuilt binary)
 cargo cov                       # HTML report in target/llvm-cov/html (or: mise run coverage, which also prints a summary)
 
 mise install                    # installs cargo-mutants at the pinned version
