@@ -42,7 +42,7 @@ def load(path):
     r = c.setdefault("run", {})
     keys(r, {"image", "repeats", "timeout_secs", "max_requests", "max_cost_usd", "max_output_tokens",
              "price_date", "cases", "fixtures", "models", "deciders", "modes", "warmup",
-             "retries", "retry_wait_secs", "retry_max_wait_secs", "reuse_container", "report_every", "machine"}, "run")
+             "retries", "retry_wait_secs", "retry_max_wait_secs", "reuse_container", "report_every", "machine", "answers_from"}, "run")
     for k, default in {"image": "shellmate-evals", "repeats": 3, "timeout_secs": 120,
                        "max_requests": 1000, "max_output_tokens": 4096, "max_cost_usd": 1.0,
                        "modes": ["generator"], "deciders": [], "warmup": True,
@@ -137,10 +137,21 @@ def load(path):
         raise ValueError("generator/combined modes need models")
     if any(x in r["modes"] for x in ("decider", "combined", "composed")) and not r["deciders"]:
         raise ValueError("decider/combined/composed modes need deciders")
+    if "answers_from" in r:
+        # a finished run: each model of run.models that has a cassette in it is replayed from there, unless it names its own
+        if not isinstance(r["answers_from"], str) or not r["answers_from"].strip():
+            raise ValueError("run.answers_from must be the path of a report directory")
+        r["answers_from"] = str((path.parent / Path(r["answers_from"]).expanduser()).resolve())
+        if not (Path(r["answers_from"]) / "cassettes").is_dir():
+            raise ValueError("run.answers_from: no cassettes directory in it")
+        for n in r["models"]:
+            found = Path(r["answers_from"]) / "cassettes" / f"generator-{n}" / f"{n}.json"
+            if "answers" not in c["models"][n] and found.is_file():
+                c["models"][n]["answers"] = str(found)
     if "composed" in r["modes"]:
         recorded = [n for n in r["models"] if "answers" in c["models"][n]]
         if not recorded:
-            raise ValueError("composed mode needs a model in run.models with `answers = \"path/to/cassette.json\"`")
+            raise ValueError("composed mode needs a model in run.models with `answers = \"path/to/cassette.json\"`, or run.answers_from = a report directory that holds its cassette")
         for n in recorded:
             if not Path(c["models"][n]["answers"]).is_file():
                 raise ValueError(f"models.{n}.answers: no such file")

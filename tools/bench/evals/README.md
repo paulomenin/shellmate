@@ -54,7 +54,9 @@ The four modes are independent:
 - `combined`: every selected generator/checker pair answers the generator cases. A checker is called
   only if there is a suggested command. Its output remains advisory, as in the app.
 - `composed`: each checker judges the answers a generator gave in an **earlier run**, replayed from its cassette
-  (`[models.NAME] answers = "reports/<run>/cassettes/generator-NAME/NAME.json"`). Only the checker is called live, so
+  (`[models.NAME] answers = "reports/<run>/cassettes/generator-NAME/NAME.json"`), or all at once with
+  `[run] answers_from = "reports/<run>"`, which gives each model in `run.models` the cassette it finds in that run
+  (a model with no cassette there is left out, and one with its own `answers` keeps it). Only the checker is called live, so
   a new checker costs only its own requests and a new generator brings its answers with it. Set `repeats` to the number
   of answers recorded per case. The pages show what the checker flagged among the right and the wrong answers.
 

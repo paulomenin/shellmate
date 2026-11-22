@@ -49,6 +49,30 @@ class Configuration(unittest.TestCase):
                 config.load(composed_config(d, answers="missing.json"))
             self.assertIn("no such file", str(e.exception))
 
+    def test_answers_from_a_run_finds_each_models_cassette(self):
+        with tempfile.TemporaryDirectory() as d:
+            run = Path(d) / "run" / "cassettes" / "generator-reference"
+            run.mkdir(parents=True)
+            (run / "reference.json").write_text((HERE / "cassettes" / "reference.json").read_text())
+            path = composed_config(d, answers=None)
+            text = path.read_text().replace("[run]\n", '[run]\nanswers_from = "run"\n', 1)
+            path.write_text(text)
+            c = config.load(path)
+            self.assertEqual(c["models"]["reference"]["answers"], str(run / "reference.json"))
+            self.assertEqual(c["run"]["answers_from"], str((Path(d) / "run").resolve()))
+            # a model's own `answers` wins
+            path.write_text(text.replace("[models.reference]\n", '[models.reference]\nanswers = "reference.json"\n'))
+            self.assertEqual(config.load(path)["models"]["reference"]["answers"], str((Path(d) / "reference.json").resolve()))
+            # a run that lacks the model's cassette, or is not a run, is an error
+            path.write_text(text)
+            (run / "reference.json").unlink()
+            with self.assertRaises(ValueError) as e:
+                config.load(path)
+            self.assertIn("answers_from", str(e.exception))
+            path.write_text(text.replace('"run"', '"nowhere"'))
+            with self.assertRaises(ValueError):
+                config.load(path)
+
     def test_answers_belong_to_generators_not_to_checkers(self):
         with tempfile.TemporaryDirectory() as d:
             path = composed_config(d)

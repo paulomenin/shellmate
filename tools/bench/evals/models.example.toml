@@ -47,6 +47,8 @@ pricing = { input_per_million = 0, output_per_million = 0 }
 # Add "composed" to run.modes, and point a model at its recorded cassette:
 # [models.local]
 # answers = "reports/20261120-141834/cassettes/generator-local/local.json"
+# Or take every model's cassette from one run: in [run], answers_from = "reports/20261120-141834"
+# (each model in run.models that has a cassette there is replayed; a model's own `answers` wins).
 
 # Hosted example: explicitly select this model in run.models to use it.
 # No provider is contacted by --plan or --list.
