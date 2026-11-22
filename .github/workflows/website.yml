@@ -40,8 +40,10 @@ jobs:
       - name: Build
         run: pnpm build
         env:
-          # the public URL of the site (repository variable), for canonical links and the sitemap
-          SITE: ${{ vars.SITE }}
+          # the public URL and base path (repository variables), for canonical links, the sitemap and asset URLs.
+          # Defaults serve from https://paulomenin.github.io/shellmate; for a custom domain set SITE and BASE=/
+          SITE: ${{ vars.SITE || 'https://paulomenin.github.io' }}
+          BASE: ${{ vars.BASE || '/shellmate' }}
       - name: Setup Pages
         uses: actions/configure-pages@v5
         if: github.event_name != 'pull_request'

@@ -20,7 +20,7 @@ pnpm preview       # serve dist/
 
 ## Deployment
 
-The site is served from the root of a domain.
+Locally, the site is built for the root of a domain.
 
 ```sh
 SITE=https://example.org pnpm build
@@ -28,4 +28,4 @@ SITE=https://example.org pnpm build
 
 `SITE` is the public URL; without it canonical links and the sitemap are skipped. To serve from a sub-path instead (for example GitHub Pages without a custom domain) also set `BASE=/shellmate`.
 
-`.github/workflows/website.yml` builds and deploys to GitHub Pages when `website/` changes on `main`. In the repository settings, set Pages to "GitHub Actions", add your domain under Pages, and create a repository variable `SITE` with the public URL.
+`.github/workflows/website.yml` builds and deploys to GitHub Pages when `website/` changes on `main`. In the repository settings, set Pages to "GitHub Actions". By default the workflow builds for `https://paulomenin.github.io/shellmate` (`SITE=https://paulomenin.github.io`, `BASE=/shellmate`). To serve from a custom domain, add the domain under Pages and create the repository variables `SITE` with the public URL and `BASE` with `/`.

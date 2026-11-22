@@ -15,7 +15,7 @@ shellmate config show     # print the effective settings (secrets only as refere
 
 - **TOML.** Comments are welcome.
 - **Strict.** Unknown keys are errors, so typos fail loudly.
-- **Secrets are references**, never values: `env:NAME`, `file:/path` (the file must be mode 0600 or tighter), `keyring:service/account` (the system keyring) or `cmd:program args` (a program prints the key; see [Providers](/docs/guides/providers/#ask-a-program-for-the-key)). The loader rejects inline secrets, and `config show` never prints resolved values.
+- **Secrets are references**, never values: `env:NAME`, `file:/path` (the file must be mode 0600 or tighter), `keyring:service/account` (the system keyring) or `cmd:program args` (a program prints the key; see [Providers](../../guides/providers/#ask-a-program-for-the-key)). The loader rejects inline secrets, and `config show` never prints resolved values.
 - **No project-local config.** A file found in the current directory is never loaded. A config can enable tools, and loading one from a cloned repository would be a trust problem.
 - **Durations** need a unit: `30s`, `5m`, `2h`, `7d`.
 
@@ -172,7 +172,7 @@ How `cmd:` references run.
 | Key | Default | Meaning |
 |---|---|---|
 | `cmd_timeout` | `"5s"` | How long a `cmd:` program may take, between `1s` and `120s`. |
-| `pass_env` | `[]` | Names of environment variables to hand to a `cmd:` program, besides the fixed list in the [Providers guide](/docs/guides/providers/#ask-a-program-for-the-key). |
+| `pass_env` | `[]` | Names of environment variables to hand to a `cmd:` program, besides the fixed list in the [Providers guide](../../guides/providers/#ask-a-program-for-the-key). |
 
 ```toml
 [secrets]
