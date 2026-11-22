@@ -290,7 +290,7 @@ fn deciders(ctx: &Ctx<'_>) -> Vec<Check> {
                 "decider",
                 Status::Warn,
                 format!("validator timeout is {}; a decision model that has to be loaded first often needs longer", cfg.validator.timeout),
-                Some("set [validator] timeout = \"20s\", or keep the model loaded (Ollama: OLLAMA_KEEP_ALIVE=1h, OLLAMA_MAX_LOADED_MODELS=2)"),
+                Some("set [validator] timeout = \"20s\", or keep the model loaded in your model server so it is not unloaded between requests"),
             ));
         }
     }

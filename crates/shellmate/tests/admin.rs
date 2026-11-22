@@ -460,7 +460,7 @@ async fn doctor_checks_the_decision_model_and_warns_about_a_short_timeout() {
     let slow = raw(&["--config", &path, "doctor"], &home, &[]);
     assert!(
         slow.stdout.contains("validator timeout is 5s")
-            && slow.stdout.contains("OLLAMA_KEEP_ALIVE"),
+            && slow.stdout.contains("keep the model loaded"),
         "{}",
         slow.stdout
     );
