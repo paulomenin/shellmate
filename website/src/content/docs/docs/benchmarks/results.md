@@ -9,10 +9,11 @@ Results of the [evaluator](../evaluation/): the real shellmate binary in a contr
 
 |  | Rated | Recommended | With care | Not recommended | Best local | Best hosted |
 | :--- | ---: | ---: | ---: | ---: | :--- | :--- |
-| [Chat models](../chat/) | 13 | 3 | 0 | 10 | – | x-ai/grok-4.7 [reasoning: low] |
-| [Decision models](../decision/) | 8 | 5 | 1 | 2 | – | baseten/mammoth-1 |
+| [Chat models](../chat/) | 12 | 0 | 0 | 12 | – | – |
+| [Decision models](../decision/) | 8 | 4 | 1 | 3 | – | baseten/mammoth-1 |
+| [Pairs](../composed/) | 6 | – | – | – | – | deepseek/deepseek-v4.1-flash-1017 [reasoning: low] + baseten/mammoth-1 |
 
-**Chat models** answer the request: 69 requests each. **Decision models** judge a command that is given to them: 28 commands each. **Pairs** are a chat model with a decision model judging its answers.
+**Chat models** answer the request: 70 requests each. **Decision models** judge a command that is given to them: 28 commands each. **Pairs** are a chat model with a decision model judging its answers.
 
 ## What the tiers mean
 
@@ -58,32 +59,37 @@ The same rules apply to **decision models**. A run passes when the checker's ver
 
 |  |  |
 | :--- | :--- |
-| Dates | 2026-11-20 to 2026-11-21 |
-| Suite | 97 requests, hash `44d249eb8b69` |
-| Evaluations | 22 |
+| Dates | 2026-11-21 |
+| Suite | 98 requests, hash `30acf8b5a9e0` |
+| Evaluations | 27 |
 | Repeats | 1 |
 | Binary | shellmate 0.0.1 |
-| Image | `6bdf6d6114a661c9ce2`, 159 packages |
+| Image | `a6ca290c66cba142669`, 159 packages |
 | Machine | AMD Ryzen 5 1600X Six-Core Processor, 12 threads, 15.6 GiB |
 | Prices as of | 2026-11-20 |
-| `laya-llama-cpp` | decision, local, 56 runs from 2 evaluations, measured 2026-11-21, on AMD Ryzen 5 1600X Six-Core Processor, 12 threads, 15.6 GiB |
-| `baseten/joey-1` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-20 |
-| `baseten/mammoth-1` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-20 |
-| `google/gemini-decision-1` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-20 |
-| `microsoft/microsoft-decision-1.1` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-20 |
-| `openai/gpt-6-luna-decisions` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-20 |
-| `perplexity/pplx-decider-v1.3:free` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-20 |
-| `typesafe/jev-1.14` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-20 |
-| `anthropic/claude-haiku-5.5 [reasoning: none]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-20 |
-| `deepseek/deepseek-v4.1-flash-1017 [reasoning: none]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-20 |
-| `google/gemini-4-hydrogen [reasoning: low]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-20 |
-| `google/gemma-4-26b-a4b-it [reasoning: none]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-20 |
-| `minimax/minimax-m3.1-flash [reasoning: low]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-20 |
-| `mistral/mistral-large-4-0 [reasoning: none]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-20 |
-| `mistral/mistral-small-2603 [reasoning: none]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-20 |
-| `mistralai/mistral-large-4-0 [reasoning: low]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-21 |
-| `openai/gpt-6-luna [reasoning: none]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-20 |
-| `openrouter/free [reasoning: low]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-20 |
-| `qwen/qwen3.8-flash [reasoning: none]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-21 |
-| `x-ai/grok-4.7 [reasoning: low]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-20 |
-| `z-ai/glm-5.3-flash [reasoning: low]` | chat, hosted, 69 runs from 1 evaluation, measured 2026-11-20 |
+| `deepseek/deepseek-v4.1-flash-1017 [reasoning: low] + baseten/mammoth-1` | pair, hosted, 45 runs from 1 evaluation, measured 2026-11-21 |
+| `deepseek/deepseek-v4.1-flash-1017 [reasoning: low] + google/gemini-decision-1` | pair, hosted, 45 runs from 1 evaluation, measured 2026-11-21 |
+| `deepseek/deepseek-v4.1-flash-1017 [reasoning: low] + perplexity/pplx-decider-v1.3:free` | pair, hosted, 45 runs from 1 evaluation, measured 2026-11-21 |
+| `openai/gpt-6-luna [reasoning: none] + baseten/mammoth-1` | pair, hosted, 45 runs from 1 evaluation, measured 2026-11-21 |
+| `openai/gpt-6-luna [reasoning: none] + google/gemini-decision-1` | pair, hosted, 45 runs from 1 evaluation, measured 2026-11-21 |
+| `openai/gpt-6-luna [reasoning: none] + perplexity/pplx-decider-v1.3:free` | pair, hosted, 45 runs from 1 evaluation, measured 2026-11-21 |
+| `baseten/joey-1` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-21 |
+| `baseten/mammoth-1` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-21 |
+| `cloudflare/clairic` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-21 |
+| `google/gemini-decision-1` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-21 |
+| `microsoft/microsoft-decision-1.1` | decision, hosted, 56 runs from 2 evaluations, measured 2026-11-21 |
+| `openai/gpt-6-luna-decisions` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-21 |
+| `perplexity/pplx-decider-v1.3:free` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-21 |
+| `typesafe/jev-1.14` | decision, hosted, 28 runs from 1 evaluation, measured 2026-11-21 |
+| `anthropic/claude-haiku-5.5 [reasoning: none]` | chat, hosted, 70 runs from 1 evaluation, measured 2026-11-21 |
+| `deepseek/deepseek-v4.1-flash-1017 [reasoning: low]` | chat, hosted, 70 runs from 1 evaluation, measured 2026-11-21 |
+| `google/gemini-4-hydrogen [reasoning: low]` | chat, hosted, 70 runs from 1 evaluation, measured 2026-11-21 |
+| `google/gemma-4-26b-a4b-it [reasoning: none]` | chat, hosted, 70 runs from 1 evaluation, measured 2026-11-21 |
+| `minimax/minimax-m3.1-flash [reasoning: low]` | chat, hosted, 70 runs from 1 evaluation, measured 2026-11-21 |
+| `mistralai/mistral-large-4-0 [reasoning: low]` | chat, hosted, 70 runs from 1 evaluation, measured 2026-11-21 |
+| `mistralai/mistral-small-2603 [reasoning: none]` | chat, hosted, 70 runs from 1 evaluation, measured 2026-11-21 |
+| `nvidia/nemotron-3-ultra-550b-a55b:free [reasoning: none]` | chat, hosted, 70 runs from 1 evaluation, measured 2026-11-21 |
+| `openai/gpt-6-luna [reasoning: none]` | chat, hosted, 70 runs from 1 evaluation, measured 2026-11-21 |
+| `openrouter/free [reasoning: low]` | chat, hosted, 70 runs from 1 evaluation, measured 2026-11-21 |
+| `qwen/qwen3.8-flash [reasoning: none]` | chat, hosted, 70 runs from 1 evaluation, measured 2026-11-21 |
+| `z-ai/glm-5.3-flash [reasoning: low]` | chat, hosted, 70 runs from 1 evaluation, measured 2026-11-21 |

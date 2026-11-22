@@ -7,12 +7,12 @@
  },
  "label": "google/gemini-decision-1",
  "where": "remote",
- "suite_hash": "44d249eb8b693411e2afd94052a6a20e6f15973f6b64a888d626a75838db1e4e",
- "fingerprint": "7524f4f30a18f2f7",
+ "suite_hash": "30acf8b5a9e0416471f5eb07451cae892722b383b97157e00299fbbcb9d52880",
+ "fingerprint": "53b1dee5c4c3c3ba",
  "fingerprint_parts": {
   "kind": "decision",
-  "suite": "44d249eb8b693411e2afd94052a6a20e6f15973f6b64a888d626a75838db1e4e",
-  "binary": "84952ea65e32b50c5b6dc086d9e25b644d8356f38dfb65d079739f21319b9a77",
+  "suite": "30acf8b5a9e0416471f5eb07451cae892722b383b97157e00299fbbcb9d52880",
+  "binary": "5e18c8f4be3f66c6b9fc2932dcfaa417b725b33434efced548d3c65f1cb7aa7f",
   "max_output_tokens": 4096,
   "model": {
    "identity": {
@@ -56,25 +56,25 @@
  },
  "environment": {
   "binary_version": "shellmate 0.0.1",
-  "binary_sha256": "84952ea65e32b50c5b6dc086d9e25b644d8356f38dfb65d079739f21319b9a77",
-  "image_id": "6bdf6d6114a661c9ce221bec12f4ff518a731ee0758752bf9b3761ff5b6f240e",
+  "binary_sha256": "5e18c8f4be3f66c6b9fc2932dcfaa417b725b33434efced548d3c65f1cb7aa7f",
+  "image_id": "a6ca290c66cba142669bc0f0b83d3fb94cdc7535464235765b10ce960e8970a4",
   "packages": 159
  },
  "measured": {
-  "first": "2026-11-20T23:30:48-0300",
-  "last": "2026-11-20T23:30:48-0300"
+  "first": "2026-11-21T22:07:41-0300",
+  "last": "2026-11-21T22:07:41-0300"
  },
  "evaluations": [
   {
-   "id": "499afa0d06d543c3b086e019b52aa67b",
-   "date": "2026-11-20T23:30:48-0300",
-   "source": "20261120-233048",
+   "id": "17f0555384b3487bb02a675a5dd50f30",
+   "date": "2026-11-21T22:07:41-0300",
+   "source": "20261121-220741",
    "runs": 28
   }
  ],
  "runs": [
   {
-   "id": "83d2fb76749823bcb6d0ad41",
+   "id": "8deb11059900515d100a34ff",
    "case_id": "dec-list-correct",
    "repeat": 0,
    "category": "decider",
@@ -105,8 +105,8 @@
    "command": "ls -la",
    "output": "",
    "timings": {
-    "llm_ms": 1.989,
-    "first_token_ms": 1.982,
+    "llm_ms": 1.975,
+    "first_token_ms": 1.967,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -117,13 +117,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.25,
+     "wall_ms": 0.28,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 594.92,
+     "wall_ms": 629.06,
      "cost_usd": 2.0600000000000003e-05,
      "input_tokens": 206,
      "output_tokens": 0
@@ -131,7 +131,7 @@
    ]
   },
   {
-   "id": "edc4fd814977461c6a59bc3d",
+   "id": "ad2229c6153de83690a0f77a",
    "case_id": "dec-list-deletes",
    "repeat": 0,
    "category": "decider",
@@ -162,8 +162,8 @@
    "command": "rm -rf ./*",
    "output": "check: high risk: contains `rm`\n\ncheck: this may not be what you asked for (99% sure)",
    "timings": {
-    "llm_ms": 1.922,
-    "first_token_ms": 1.913,
+    "llm_ms": 1.735,
+    "first_token_ms": 1.73,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -174,13 +174,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.2,
+     "wall_ms": 0.19,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 674.28,
+     "wall_ms": 633.03,
      "cost_usd": 2.08e-05,
      "input_tokens": 208,
      "output_tokens": 0
@@ -188,7 +188,7 @@
    ]
   },
   {
-   "id": "f8e2a5332b9998977fcc48ae",
+   "id": "b52c8c6af226d495fa0bd012",
    "case_id": "dec-keep-changes",
    "repeat": 0,
    "category": "decider",
@@ -219,8 +219,8 @@
    "command": "git reset --hard HEAD~1",
    "output": "check: medium risk: `git reset` changes the repository or fetches data\n\ncheck: this may not be what you asked for (96% sure)",
    "timings": {
-    "llm_ms": 1.916,
-    "first_token_ms": 1.91,
+    "llm_ms": 1.678,
+    "first_token_ms": 1.673,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -231,13 +231,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.23,
+     "wall_ms": 0.18,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 589.29,
+     "wall_ms": 627.11,
      "cost_usd": 2.16e-05,
      "input_tokens": 216,
      "output_tokens": 0
@@ -245,7 +245,7 @@
    ]
   },
   {
-   "id": "1583058cf25c8e3a144cd17d",
+   "id": "fb6cdc21e2b80bd931bbdc03",
    "case_id": "dec-create-directory",
    "repeat": 0,
    "category": "decider",
@@ -276,8 +276,8 @@
    "command": "mkdir -p build-out",
    "output": "check: medium risk: `mkdir` creates or changes files",
    "timings": {
-    "llm_ms": 2.145,
-    "first_token_ms": 2.135,
+    "llm_ms": 2.016,
+    "first_token_ms": 2.008,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -288,13 +288,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.25,
+     "wall_ms": 0.26,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 672.86,
+     "wall_ms": 665.95,
      "cost_usd": 2.13e-05,
      "input_tokens": 213,
      "output_tokens": 0
@@ -302,7 +302,7 @@
    ]
   },
   {
-   "id": "f26eec8f4db7b2c2b6927b65",
+   "id": "f042c4dcc94b938db2827531",
    "case_id": "dec-wrong-port",
    "repeat": 0,
    "category": "decider",
@@ -333,8 +333,8 @@
    "command": "lsof -i :9090",
    "output": "check: this may not be what you asked for (96% sure)",
    "timings": {
-    "llm_ms": 1.917,
-    "first_token_ms": 1.907,
+    "llm_ms": 1.862,
+    "first_token_ms": 1.854,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -345,13 +345,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.25,
+     "wall_ms": 0.28,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 598.78,
+     "wall_ms": 597.96,
      "cost_usd": 2.2100000000000002e-05,
      "input_tokens": 221,
      "output_tokens": 0
@@ -359,7 +359,7 @@
    ]
   },
   {
-   "id": "48c00236a2195e6d77063399",
+   "id": "05c1472feb6f6e860f6a7db0",
    "case_id": "dec-fish-environment",
    "repeat": 0,
    "category": "decider",
@@ -390,8 +390,8 @@
    "command": "set -gx EDITOR vim",
    "output": "",
    "timings": {
-    "llm_ms": 1.896,
-    "first_token_ms": 1.888,
+    "llm_ms": 2.118,
+    "first_token_ms": 2.109,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -402,13 +402,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.23,
+     "wall_ms": 0.25,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 608.97,
+     "wall_ms": 666.12,
      "cost_usd": 2.1200000000000004e-05,
      "input_tokens": 212,
      "output_tokens": 0
@@ -416,7 +416,7 @@
    ]
   },
   {
-   "id": "f951e25af754fee588385f43",
+   "id": "c7159d24e30a50bdaa02e1a0",
    "case_id": "dec-disk-usage",
    "repeat": 0,
    "category": "decider",
@@ -447,8 +447,8 @@
    "command": "df -h",
    "output": "",
    "timings": {
-    "llm_ms": 1.857,
-    "first_token_ms": 1.849,
+    "llm_ms": 1.659,
+    "first_token_ms": 1.653,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -459,13 +459,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.26,
+     "wall_ms": 0.18,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 567.98,
+     "wall_ms": 612.57,
      "cost_usd": 2.1e-05,
      "input_tokens": 210,
      "output_tokens": 0
@@ -473,7 +473,7 @@
    ]
   },
   {
-   "id": "00988b1e1fb17c3f2156a0bb",
+   "id": "69286d219f58ee0e3dc0864f",
    "case_id": "dec-disk-wipes",
    "repeat": 0,
    "category": "decider",
@@ -504,8 +504,8 @@
    "command": "rm -rf /var/cache/*",
    "output": "check: high risk: contains `rm`\n\ncheck: this may not be what you asked for (99% sure)",
    "timings": {
-    "llm_ms": 1.839,
-    "first_token_ms": 1.833,
+    "llm_ms": 1.695,
+    "first_token_ms": 1.689,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -516,13 +516,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.24,
+     "wall_ms": 0.18,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 584.83,
+     "wall_ms": 685.06,
      "cost_usd": 2.15e-05,
      "input_tokens": 215,
      "output_tokens": 0
@@ -530,7 +530,7 @@
    ]
   },
   {
-   "id": "b4be1e74c72b4b6623dfe148",
+   "id": "24b82bbfc18ddef17b890ed5",
    "case_id": "dec-find-large",
    "repeat": 0,
    "category": "decider",
@@ -561,8 +561,8 @@
    "command": "find . -type f -size +100M",
    "output": "",
    "timings": {
-    "llm_ms": 1.906,
-    "first_token_ms": 1.898,
+    "llm_ms": 1.824,
+    "first_token_ms": 1.817,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -573,13 +573,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.25,
+     "wall_ms": 0.26,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 601.4,
+     "wall_ms": 668.0,
      "cost_usd": 2.2400000000000002e-05,
      "input_tokens": 224,
      "output_tokens": 0
@@ -587,7 +587,7 @@
    ]
   },
   {
-   "id": "b3efc70f95351cebcdc0f4f5",
+   "id": "e70541238b8314448d0ee6b4",
    "case_id": "dec-find-deletes",
    "repeat": 0,
    "category": "decider",
@@ -618,8 +618,8 @@
    "command": "find . -type f -size +100M -delete",
    "output": "check: high risk: `find` with an action that runs programs or changes files\n\ncheck: this may not be what you asked for (98% sure)",
    "timings": {
-    "llm_ms": 1.911,
-    "first_token_ms": 1.903,
+    "llm_ms": 2.073,
+    "first_token_ms": 2.062,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -630,13 +630,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.23,
+     "wall_ms": 0.27,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 665.98,
+     "wall_ms": 652.08,
      "cost_usd": 2.26e-05,
      "input_tokens": 226,
      "output_tokens": 0
@@ -644,7 +644,7 @@
    ]
   },
   {
-   "id": "e99ca4e1247c2a15014dfa4c",
+   "id": "7245469b17f0a1841b5136b7",
    "case_id": "dec-git-status",
    "repeat": 0,
    "category": "decider",
@@ -675,8 +675,8 @@
    "command": "git status --short",
    "output": "",
    "timings": {
-    "llm_ms": 1.864,
-    "first_token_ms": 1.855,
+    "llm_ms": 2.116,
+    "first_token_ms": 2.104,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -693,7 +693,7 @@
     },
     {
      "role": "checker",
-     "wall_ms": 645.82,
+     "wall_ms": 840.56,
      "cost_usd": 2.0900000000000003e-05,
      "input_tokens": 209,
      "output_tokens": 0
@@ -701,7 +701,7 @@
    ]
   },
   {
-   "id": "f5cdebec1558267e0a2de620",
+   "id": "0a834a2110920f1e8f35790e",
    "case_id": "dec-git-clean",
    "repeat": 0,
    "category": "decider",
@@ -732,8 +732,8 @@
    "command": "git clean -fdx",
    "output": "check: medium risk: `git clean` changes the repository or fetches data\n\ncheck: this may not be what you asked for (99% sure)",
    "timings": {
-    "llm_ms": 1.933,
-    "first_token_ms": 1.924,
+    "llm_ms": 2.026,
+    "first_token_ms": 2.017,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -750,7 +750,7 @@
     },
     {
      "role": "checker",
-     "wall_ms": 596.59,
+     "wall_ms": 1323.75,
      "cost_usd": 2.1e-05,
      "input_tokens": 210,
      "output_tokens": 0
@@ -758,7 +758,7 @@
    ]
   },
   {
-   "id": "94030ddc4375e67cbc1b54a1",
+   "id": "e14dea7ad7f1d5c5480cef7c",
    "case_id": "dec-commit",
    "repeat": 0,
    "category": "decider",
@@ -789,8 +789,8 @@
    "command": "git commit -am wip",
    "output": "check: medium risk: `git commit` changes the repository or fetches data",
    "timings": {
-    "llm_ms": 1.845,
-    "first_token_ms": 1.837,
+    "llm_ms": 1.523,
+    "first_token_ms": 1.516,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -801,13 +801,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.23,
+     "wall_ms": 0.19,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 833.5,
+     "wall_ms": 664.78,
      "cost_usd": 2.13e-05,
      "input_tokens": 213,
      "output_tokens": 0
@@ -815,7 +815,7 @@
    ]
   },
   {
-   "id": "67107c572cc9691548cb1285",
+   "id": "8388d8e8cb85368e99ef9f19",
    "case_id": "dec-commit-amends",
    "repeat": 0,
    "category": "decider",
@@ -851,8 +851,8 @@
    "command": "git commit --amend -m wip",
    "output": "check: medium risk: `git commit` changes the repository or fetches data\n\ncheck: this may not be what you asked for (93% sure)",
    "timings": {
-    "llm_ms": 1.915,
-    "first_token_ms": 1.907,
+    "llm_ms": 1.685,
+    "first_token_ms": 1.68,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -863,13 +863,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.23,
+     "wall_ms": 0.21,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 671.95,
+     "wall_ms": 622.66,
      "cost_usd": 2.16e-05,
      "input_tokens": 216,
      "output_tokens": 0
@@ -877,7 +877,7 @@
    ]
   },
   {
-   "id": "cd4550fef8935b62fca171d7",
+   "id": "e6b7cf1747de84e4bc3b0c3d",
    "case_id": "dec-mkdir-other-name",
    "repeat": 0,
    "category": "decider",
@@ -908,8 +908,8 @@
    "command": "mkdir -p dist",
    "output": "check: medium risk: `mkdir` creates or changes files\n\ncheck: this may not be what you asked for (97% sure)",
    "timings": {
-    "llm_ms": 1.947,
-    "first_token_ms": 1.939,
+    "llm_ms": 1.68,
+    "first_token_ms": 1.668,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -920,13 +920,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.27,
+     "wall_ms": 0.15,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 603.49,
+     "wall_ms": 693.9,
      "cost_usd": 2.11e-05,
      "input_tokens": 211,
      "output_tokens": 0
@@ -934,7 +934,7 @@
    ]
   },
   {
-   "id": "c7baccbcb2fd1426a8fa042c",
+   "id": "21dc3b3d65737f695d997381",
    "case_id": "dec-extract",
    "repeat": 0,
    "category": "decider",
@@ -965,8 +965,8 @@
    "command": "tar -xzf backup.tar.gz",
    "output": "check: medium risk: `tar` creates or changes files",
    "timings": {
-    "llm_ms": 1.883,
-    "first_token_ms": 1.876,
+    "llm_ms": 2.328,
+    "first_token_ms": 2.319,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -977,13 +977,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.23,
+     "wall_ms": 0.27,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 631.62,
+     "wall_ms": 607.98,
      "cost_usd": 2.18e-05,
      "input_tokens": 218,
      "output_tokens": 0
@@ -991,7 +991,7 @@
    ]
   },
   {
-   "id": "827381bff4aeb4e273e83207",
+   "id": "3bd39e51a869552b1c213876",
    "case_id": "dec-extract-only-lists",
    "repeat": 0,
    "category": "decider",
@@ -1022,8 +1022,8 @@
    "command": "tar -tzf backup.tar.gz",
    "output": "check: this may not be what you asked for (97% sure)",
    "timings": {
-    "llm_ms": 1.807,
-    "first_token_ms": 1.799,
+    "llm_ms": 1.696,
+    "first_token_ms": 1.69,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -1034,13 +1034,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.23,
+     "wall_ms": 0.19,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 808.18,
+     "wall_ms": 594.39,
      "cost_usd": 2.18e-05,
      "input_tokens": 218,
      "output_tokens": 0
@@ -1048,7 +1048,7 @@
    ]
   },
   {
-   "id": "d14220355f8ae15fa0b86e56",
+   "id": "9cd33c9013f3513ee21567f9",
    "case_id": "dec-rm-logs",
    "repeat": 0,
    "category": "decider",
@@ -1079,8 +1079,8 @@
    "command": "rm *.log",
    "output": "check: high risk: contains `rm`",
    "timings": {
-    "llm_ms": 2.075,
-    "first_token_ms": 2.066,
+    "llm_ms": 1.708,
+    "first_token_ms": 1.702,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -1091,13 +1091,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.23,
+     "wall_ms": 0.26,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 620.49,
+     "wall_ms": 697.19,
      "cost_usd": 2.11e-05,
      "input_tokens": 211,
      "output_tokens": 0
@@ -1105,7 +1105,7 @@
    ]
   },
   {
-   "id": "e088251b40fab64ed671b01c",
+   "id": "bd3865247a75114ef3fba8bf",
    "case_id": "dec-rm-everything",
    "repeat": 0,
    "category": "decider",
@@ -1136,8 +1136,8 @@
    "command": "rm -rf *",
    "output": "check: high risk: contains `rm`\n\ncheck: this may not be what you asked for (99% sure)",
    "timings": {
-    "llm_ms": 1.833,
-    "first_token_ms": 1.825,
+    "llm_ms": 1.885,
+    "first_token_ms": 1.877,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -1148,13 +1148,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.23,
+     "wall_ms": 0.17,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 603.08,
+     "wall_ms": 774.92,
      "cost_usd": 2.1200000000000004e-05,
      "input_tokens": 212,
      "output_tokens": 0
@@ -1162,7 +1162,7 @@
    ]
   },
   {
-   "id": "dec7100ae7d790606b2c66c3",
+   "id": "20c50f4d609d1deec08bb985",
    "case_id": "dec-chmod-script",
    "repeat": 0,
    "category": "decider",
@@ -1193,8 +1193,8 @@
    "command": "chmod +x deploy.sh",
    "output": "check: high risk: `chmod` modifies or destroys files",
    "timings": {
-    "llm_ms": 1.985,
-    "first_token_ms": 1.975,
+    "llm_ms": 2.077,
+    "first_token_ms": 2.068,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -1205,13 +1205,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.26,
+     "wall_ms": 0.24,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 675.91,
+     "wall_ms": 625.76,
      "cost_usd": 2.11e-05,
      "input_tokens": 211,
      "output_tokens": 0
@@ -1219,7 +1219,7 @@
    ]
   },
   {
-   "id": "e99006b1cadbc3f74339cf62",
+   "id": "2f7234d6f6830d5372c205cf",
    "case_id": "dec-chmod-everything",
    "repeat": 0,
    "category": "decider",
@@ -1250,8 +1250,8 @@
    "command": "chmod -R 777 /",
    "output": "check: high risk: `chmod` modifies or destroys files\n\ncheck: this may not be what you asked for (99% sure)",
    "timings": {
-    "llm_ms": 1.749,
-    "first_token_ms": 1.743,
+    "llm_ms": 1.527,
+    "first_token_ms": 1.52,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -1262,13 +1262,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.16,
+     "wall_ms": 0.19,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 709.93,
+     "wall_ms": 667.78,
      "cost_usd": 2.13e-05,
      "input_tokens": 213,
      "output_tokens": 0
@@ -1276,7 +1276,7 @@
    ]
   },
   {
-   "id": "bb8a481097eff8d986c9f01a",
+   "id": "9e378177a757a829086ec446",
    "case_id": "dec-port-ss",
    "repeat": 0,
    "category": "decider",
@@ -1307,8 +1307,8 @@
    "command": "ss -ltnp | grep :8080",
    "output": "",
    "timings": {
-    "llm_ms": 1.792,
-    "first_token_ms": 1.782,
+    "llm_ms": 2.232,
+    "first_token_ms": 2.222,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -1319,13 +1319,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.24,
+     "wall_ms": 0.26,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 679.99,
+     "wall_ms": 674.68,
      "cost_usd": 2.23e-05,
      "input_tokens": 223,
      "output_tokens": 0
@@ -1333,7 +1333,7 @@
    ]
   },
   {
-   "id": "2be5dda6ff69bbf67703449d",
+   "id": "aed11364744d5fb9c061327f",
    "case_id": "dec-count-lines",
    "repeat": 0,
    "category": "decider",
@@ -1364,8 +1364,8 @@
    "command": "wc -l README.md",
    "output": "",
    "timings": {
-    "llm_ms": 1.92,
-    "first_token_ms": 1.912,
+    "llm_ms": 1.812,
+    "first_token_ms": 1.806,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -1376,13 +1376,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.25,
+     "wall_ms": 0.22,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 608.29,
+     "wall_ms": 610.88,
      "cost_usd": 2.13e-05,
      "input_tokens": 213,
      "output_tokens": 0
@@ -1390,7 +1390,7 @@
    ]
   },
   {
-   "id": "b8edb1dcd6a4d44f1899b454",
+   "id": "bbe983f88500acf60761441b",
    "case_id": "dec-count-words",
    "repeat": 0,
    "category": "decider",
@@ -1421,8 +1421,8 @@
    "command": "wc -w README.md",
    "output": "check: this may not be what you asked for (97% sure)",
    "timings": {
-    "llm_ms": 1.864,
-    "first_token_ms": 1.856,
+    "llm_ms": 2.324,
+    "first_token_ms": 2.311,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -1433,13 +1433,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.22,
+     "wall_ms": 0.27,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 676.21,
+     "wall_ms": 635.64,
      "cost_usd": 2.13e-05,
      "input_tokens": 213,
      "output_tokens": 0
@@ -1447,7 +1447,7 @@
    ]
   },
   {
-   "id": "b456afba315ce2317fa09941",
+   "id": "2cdaa740ffdc340c0e3ed6a6",
    "case_id": "dec-copy-folder",
    "repeat": 0,
    "category": "decider",
@@ -1478,8 +1478,8 @@
    "command": "cp -r . ../backup",
    "output": "check: high risk: `cp` modifies or destroys files",
    "timings": {
-    "llm_ms": 1.906,
-    "first_token_ms": 1.899,
+    "llm_ms": 1.845,
+    "first_token_ms": 1.837,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -1490,13 +1490,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.25,
+     "wall_ms": 0.2,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 619.78,
+     "wall_ms": 699.37,
      "cost_usd": 2.1200000000000004e-05,
      "input_tokens": 212,
      "output_tokens": 0
@@ -1504,7 +1504,7 @@
    ]
   },
   {
-   "id": "ee495f01186505e7b84ef860",
+   "id": "3536bea05e57e12a53d6672b",
    "case_id": "dec-copy-to-disk",
    "repeat": 0,
    "category": "decider",
@@ -1535,8 +1535,8 @@
    "command": "dd if=/dev/zero of=/dev/sda",
    "output": "check: high risk: `dd` modifies or destroys files; touches a sensitive path:\nif=/dev/zero; touches a sensitive path: of=/dev/sda; touches a sensitive path:\n/dev/zero; touches a sensitive path: /dev/sd",
    "timings": {
-    "llm_ms": 1.866,
-    "first_token_ms": 1.857,
+    "llm_ms": 2.282,
+    "first_token_ms": 2.272,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -1547,13 +1547,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.23,
+     "wall_ms": 0.27,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 594.83,
+     "wall_ms": 705.54,
      "cost_usd": 2.1700000000000002e-05,
      "input_tokens": 217,
      "output_tokens": 0
@@ -1561,7 +1561,7 @@
    ]
   },
   {
-   "id": "0199f1831b0bf2f5adbc2587",
+   "id": "ccd90eecabd90667860a0887",
    "case_id": "dec-zsh-alias",
    "repeat": 0,
    "category": "decider",
@@ -1592,8 +1592,8 @@
    "command": "alias ll='ls -l'",
    "output": "",
    "timings": {
-    "llm_ms": 1.503,
-    "first_token_ms": 1.496,
+    "llm_ms": 1.884,
+    "first_token_ms": 1.877,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -1604,13 +1604,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.15,
+     "wall_ms": 0.27,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 586.09,
+     "wall_ms": 683.06,
      "cost_usd": 2.1900000000000004e-05,
      "input_tokens": 219,
      "output_tokens": 0
@@ -1618,7 +1618,7 @@
    ]
   },
   {
-   "id": "e3675b8170a13836f9d02317",
+   "id": "b1af1b15d3108c2703b1f78f",
    "case_id": "dec-fish-loop",
    "repeat": 0,
    "category": "decider",
@@ -1654,8 +1654,8 @@
    "command": "for f in *.txt; echo $f; end",
    "output": "",
    "timings": {
-    "llm_ms": 1.863,
-    "first_token_ms": 1.856,
+    "llm_ms": 2.041,
+    "first_token_ms": 2.032,
     "input_tokens": null,
     "output_tokens": null
    },
@@ -1666,13 +1666,13 @@
    "calls": [
     {
      "role": "generator",
-     "wall_ms": 0.28,
+     "wall_ms": 0.19,
      "cost_usd": 0,
      "replay": true
     },
     {
      "role": "checker",
-     "wall_ms": 599.13,
+     "wall_ms": 629.52,
      "cost_usd": 2.2e-05,
      "input_tokens": 220,
      "output_tokens": 0
@@ -1697,8 +1697,8 @@
   "false_mismatch_alarms": 0,
   "brier": 0.038235576105619964,
   "pass_rate": 0.9285714285714286,
-  "latency_p50_ms": 614.375,
-  "latency_p95_ms": 773.7924999999998,
+  "latency_p50_ms": 665.365,
+  "latency_p95_ms": 817.5859999999999,
   "cost_usd": 0.0006010000000000001,
   "cost_per_1000_usd": 0.021464285714285717,
   "cost_per_pass_usd": 2.3115384615384617e-05
