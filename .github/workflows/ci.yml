@@ -85,15 +85,39 @@ jobs:
         env:
           SHELLMATE_TIME_SCALE: 5
           REQUIRE_TOOLS: 1
+      # Keep source paths relative to the checkout so another runner can import the report.
+      - name: Make LCOV paths relative
+        run: sed -i "s|^SF:$GITHUB_WORKSPACE/|SF:|" lcov.info
       - run: |
           { echo '### Coverage'; echo '```'; cargo llvm-cov report --ignore-filename-regex 'tools/shellmate-testing|/tests/' --summary-only | awk 'NR==1 || /TOTAL/ {print $1, $4, $10}' ; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: lcov.info
+          if-no-files-found: error
 
   supply-chain:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
+
+  analyse:
+    needs: coverage
+    if: ${{ github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v7
+        with:
+          name: coverage
+      - name: SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
