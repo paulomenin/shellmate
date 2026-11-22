@@ -54,6 +54,8 @@ sleep 1.5
 FAILS=0; N=0
 send()   { $T send-keys -t c "$@"; }
 type_()  { $T send-keys -t c -l "$1"; }
+# `-J` joins a line the terminal wrapped, for checks on a long line (the binary's path can fill the width)
+joined() { $T capture-pane -t c -p -J; }
 screen() { $T capture-pane -t c -p | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'; }
 last()   { screen | tail -1; }
 wait_for() { # wait_for <seconds> <grep -F pattern>
@@ -169,7 +171,7 @@ PY
 #     question carries the output, labeled as data
 send C-u; send C-l; sleep 0.4
 type_ "echo e2e-alpha-beta"; send $CAPSEND; sleep 1
-grep -qF "run --" <<<"$(screen)" && ! grep -qE '^e2e-alpha-beta$' <<<"$(screen)" && check ok "capture: the line is wrapped in the input buffer" || check FAIL "capture: the line is wrapped in the input buffer" "$(screen)"
+grep -qF "run --" <<<"$(joined)" && ! grep -qE '^e2e-alpha-beta$' <<<"$(screen)" && check ok "capture: the line is wrapped in the input buffer" || check FAIL "capture: the line is wrapped in the input buffer" "$(screen)"
 ! grep -qE '^e2e-alpha-beta$' <<<"$(screen)" && check ok "capture: wrapping alone ran nothing" || check FAIL "capture: wrapping alone ran nothing" "$(screen)"
 send Enter; sleep 1.5
 send C-l; sleep 0.4
