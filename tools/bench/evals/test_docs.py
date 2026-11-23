@@ -35,7 +35,7 @@ class DocsAreCurrent(unittest.TestCase):
                 key, _, value = line.partition(": ")
                 # a value with a colon, quote or hash must be a quoted string, or YAML reads it wrongly
                 if any(ch in value for ch in ":#\"'"):
-                    self.assertEqual(json.loads(value), json.loads(value), f"{path.name}: {line}")
+                    self.assertIsInstance(json.loads(value), str, f"{path.name}: {line}")
                     self.assertTrue(value.startswith('"') and value.endswith('"'), f"{path.name}: unquoted {key}")
 
     def test_the_sidebar_lists_every_generated_page(self):
