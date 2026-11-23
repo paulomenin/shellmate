@@ -15,8 +15,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 LIMIT = 2 * 1024 * 1024
-ENV = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp/home", "XDG_RUNTIME_DIR": "/tmp/runtime",
-       "XDG_CONFIG_HOME": "/tmp/home/config", "XDG_STATE_HOME": "/tmp/home/state", "LANG": "C.UTF-8",
+# The /tmp paths below are fixed on purpose: this runs as the only user in a throwaway, networkless
+# container, so there is no other local user to race (Sonar S5443 does not apply).
+ENV = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp/home", "XDG_RUNTIME_DIR": "/tmp/runtime",  # NOSONAR
+       "XDG_CONFIG_HOME": "/tmp/home/config", "XDG_STATE_HOME": "/tmp/home/state", "LANG": "C.UTF-8",  # NOSONAR
        "TERM": "dumb", "NO_COLOR": "1", "SHELLMATE_TIME_SCALE": "5"}
 
 
@@ -89,7 +91,7 @@ def manifest(root):
     return out
 
 
-WORK, HOME, RUNTIME, CONFIG, FIXTURES = "/work", "/tmp/home", "/tmp/runtime", "/tmp/eval.toml", "/fixtures"
+WORK, HOME, RUNTIME, CONFIG, FIXTURES = "/work", "/tmp/home", "/tmp/runtime", "/tmp/eval.toml", "/fixtures"  # NOSONAR: container-only, see ENV
 
 
 def wipe(path):
