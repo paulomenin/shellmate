@@ -142,7 +142,8 @@ class Result:
     timings: dict | None = None
 
 
-def envelope(action: str, text: str, shell: str = "fish", cwd: str = "/tmp", extra: dict | None = None) -> bytes:  # NOSONAR: sent in the envelope, never opened here
+# The default cwd is only sent in the envelope, never opened here.
+def envelope(action: str, text: str, shell: str = "fish", cwd: str = "/tmp", extra: dict | None = None) -> bytes:  # NOSONAR
     """The glue protocol's NUL-separated envelope (`buffer` last)."""
     fields = {"v": "1", "action": action, "shell": shell, "cwd": cwd, "cursor": "0", **(extra or {})}
     return ("".join(f"{k}={v}\0" for k, v in fields.items()) + f"buffer={text}\0").encode()

@@ -91,7 +91,8 @@ def manifest(root):
     return out
 
 
-WORK, HOME, RUNTIME, CONFIG, FIXTURES = "/work", "/tmp/home", "/tmp/runtime", "/tmp/eval.toml", "/fixtures"  # NOSONAR: container-only, see ENV
+# Container-only paths, see ENV above.
+WORK, HOME, RUNTIME, CONFIG, FIXTURES = "/work", "/tmp/home", "/tmp/runtime", "/tmp/eval.toml", "/fixtures"  # NOSONAR
 
 
 def wipe(path):
